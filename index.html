@@ -914,16 +914,18 @@ function removeAlarms() {
   });
 
   /* ---------- deep links: #s2-1 opens that mission ---------- */
-  function openFromHash() {
+  // Deck buttons open the page with a #hash: jump there instantly on load, glide only for in-page hash changes.
+  function openFromHash(smooth) {
     const id = decodeURIComponent(location.hash.slice(1));
     const d = id && document.getElementById(id);
-    if (d && d.tagName === 'DETAILS') {
+    if (!d) return;
+    if (d.tagName === 'DETAILS') {
       d.open = true;
       d.classList.add('flash'); setTimeout(() => d.classList.remove('flash'), 1600);
-      setTimeout(() => d.scrollIntoView({ block: 'start', behavior: document.readyState === 'complete' ? 'smooth' : 'instant' }), 30);
     }
+    d.scrollIntoView({ block: 'start', behavior: smooth === true ? 'smooth' : 'instant' });
   }
-  window.addEventListener('hashchange', openFromHash);
+  window.addEventListener('hashchange', () => openFromHash(true));
 
   /* ---------- practice timer ---------- */
   let end = 0, tick;
@@ -952,8 +954,10 @@ function removeAlarms() {
     focused.open = true;
     focused.closest('section').classList.add('keep');
   }
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   openFromHash();
-  window.addEventListener('load', () => setTimeout(openFromHash, 60));  // re-scroll once web fonts have settled the layout
+  window.addEventListener('load', () => openFromHash());  // again once web fonts have settled the layout
+  if (document.fonts) document.fonts.ready.then(() => openFromHash());
 })();
 </script>
 </body>
