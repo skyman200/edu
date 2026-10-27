@@ -133,7 +133,11 @@ pre.codebox{margin:0;background:var(--night);color:#EDEDEA;font:13px/1.6 "SF Mon
 .tip b{color:var(--ink)}
 textarea.result{min-height:150px;font:14px/1.7 var(--sans)}
 .mine-box label.note{font-weight:400;margin-bottom:8px}
-.saved{display:block;margin-top:6px;font-size:12px;color:var(--mute);min-height:18px}
+.paste-row{margin-top:8px}
+.saved{font-size:12px;color:var(--mute)}
+.asst{margin-top:22px;border-top:1px solid var(--ink);padding-top:18px}
+.asst h3{font-size:17px;font-weight:700;margin:0 0 6px}
+.asst p{margin:0;max-width:680px;font-size:14px;color:var(--ink2)}
 .btn:disabled,.mini:disabled{opacity:.4;cursor:not-allowed}
 
 /* my results */
@@ -289,6 +293,11 @@ body.focus section.keep{padding:28px 0;border:0}
           <button class="btn ghostb" id="clearCourse">지우기</button>
           <span class="note" id="savedNote"></span>
         </div>
+      </div>
+      <div class="asst" id="asst" hidden>
+        <h3>내 AI 계정에서 '수업 설계 조교' 열기</h3>
+        <p>이미 쓰시는 ChatGPT나 Gemini에서 열립니다. 오늘 실습 26개를 알고 있는 조교라, 과목 정보만 알려 주면 강의계획서·퀴즈·루브릭·슬라이드 완성본을 만들어 줍니다. 연수가 끝난 뒤에도 계속 쓰실 수 있습니다.</p>
+        <div class="row" id="asstBtns"></div>
       </div>
     </div>
   </section>
@@ -563,11 +572,16 @@ function removeAlarms() {
   ].join('\n');
 
   /* ---------- missions ---------- */
+  // Share links of the 'prof.kimcook 수업 설계 조교' GPT and Gem. Once filled in, the ChatGPT / Gemini buttons open the assistant
+  // instead of a blank chat, and the assistant box under '내 수업 정보' appears.
+  const ASSISTANT = { gpt: '', gem: '' };
+  const withQ = (base, q) => base + (base.includes('?') ? '&' : '?') + 'q=' + encodeURIComponent(q);
   const AI = [
-    { name: 'ChatGPT', url: q => 'https://chatgpt.com/?q=' + encodeURIComponent(q), prefill: true },
-    { name: 'Claude', url: q => 'https://claude.ai/new?q=' + encodeURIComponent(q), prefill: true },
-    { name: 'Gemini', url: () => 'https://gemini.google.com/app', prefill: false }
+    { name: 'ChatGPT', url: q => withQ(ASSISTANT.gpt || 'https://chatgpt.com/', q), prefill: true, asst: !!ASSISTANT.gpt },
+    { name: 'Claude', url: q => withQ('https://claude.ai/new', q), prefill: true },
+    { name: 'Gemini', url: () => ASSISTANT.gem || 'https://gemini.google.com/app', prefill: false, asst: !!ASSISTANT.gem }
   ];
+  const aiName = a => a.name + (a.asst ? ' 조교' : '');
 
   const M = [
     { id: 's1-1', step: 1, title: 'AI에게 내 과목 소개하기', sub: '첫 대화로 AI가 내 수업을 어떻게 이해했는지 봅니다', min: 5,
@@ -876,7 +890,22 @@ function removeAlarms() {
   const resultBlock = m => '<div class="mine-box"><h4>MY RESULT</h4>'
     + '<label class="note" for="r-' + m.id + '">' + (m.step === 4 || m.step === 5 ? '만든 폼·시트 주소나 결과 요약을 남겨 두세요.' : 'AI 답에서 쓸 만한 부분을 붙여 넣으세요. 고쳐 쓴 것도 좋습니다.')
     + ' 이 브라우저에만 자동 저장되고, 맨 아래 <a href="#mine">내 결과물</a>에서 한 파일로 내려받습니다.</label>'
-    + '<textarea class="result" id="r-' + m.id + '" placeholder="여기에 붙여 넣기"></textarea><span class="saved" id="rs-' + m.id + '"></span></div>';
+    + '<textarea class="result" id="r-' + m.id + '" placeholder="여기에 붙여 넣기"></textarea>'
+    + '<div class="row paste-row"><button class="mini" data-pastein="' + m.id + '">복사한 답 붙여넣기</button><span class="saved" id="rs-' + m.id + '"></span></div></div>';
+
+  // 'AI 답 복사 → 붙여넣기 한 번': read the clipboard into this exercise's result box
+  async function pasteInto(id) {
+    const ta = $('#r-' + id), m = M.find(x => x.id === id);
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch (e) {}
+    if (!text.trim()) { ta.focus(); toast('붙여 넣을 내용을 읽지 못했습니다. 칸을 누르고 ' + paste + ' 로 붙여 넣으세요.'); return; }
+    // the AI buttons copy the prompt, so a clipboard that still holds it means the answer was not copied yet
+    const prompts = [$('#p-' + id) && $('#p-' + id).value].concat(m.next).filter(Boolean).map(s => s.trim());
+    if (prompts.includes(text.trim())) { toast('아직 프롬프트가 복사되어 있습니다. AI 답 아래 복사 버튼을 누른 뒤 다시 눌러 주세요.'); return; }
+    ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n\n' + text : text;
+    saveResult(id, ta.value);
+    toast('붙여 넣었습니다. 이 브라우저에 저장됩니다.');
+  }
 
   function saveResult(id, text) {
     $('#rs-' + id).textContent = '저장 중';
@@ -1082,7 +1111,7 @@ function removeAlarms() {
             : '<input id="' + id + '" data-m="' + m.id + '" data-f="' + fd.k + '" placeholder="' + esc(fd.ph || '') + '">';
           return '<div class="' + (fd.full ? 'full' : '') + '"><label for="' + id + '">' + esc(fd.label) + '</label>' + ctl + '</div>';
         }).join('');
-        const aiBtns = AI.map(a => '<button class="btn ' + (a.name === 'ChatGPT' ? '' : 'ghostb') + '" data-ai="' + a.name + '" data-m="' + m.id + '"><span class="k">OPEN</span>' + a.name + '</button>').join('');
+        const aiBtns = AI.map(a => '<button class="btn ' + (a.name === 'ChatGPT' ? '' : 'ghostb') + '" data-ai="' + a.name + '" data-m="' + m.id + '"><span class="k">OPEN</span>' + aiName(a) + '</button>').join('');
         const promptBlock = m.prompt ? '<div><h4>' + (m.ai === false ? 'PROMPT FOR ASIDE' : 'PROMPT') + '</h4><textarea class="prompt" id="p-' + m.id + '" spellcheck="false"></textarea>'
           + '<div class="row"><button class="btn red" data-copy="' + m.id + '">프롬프트 복사</button>' + (m.ai === false ? '' : aiBtns)
           + '<button class="mini" data-reset="' + m.id + '">다시 만들기</button></div></div>' : '';
@@ -1174,7 +1203,7 @@ function removeAlarms() {
     if (b.dataset.copy) { copy($('#p-' + b.dataset.copy).value, '복사했습니다. AI 채팅 창에 ' + paste + ' 로 붙여 넣으세요.'); }
     else if (b.dataset.ai) {
       const m = byId(b.dataset.m); const text = $('#p-' + m.id).value; const ai = AI.find(a => a.name === b.dataset.ai);
-      copy(text, ai.prefill ? ai.name + '를 엽니다. 내용이 비어 있으면 ' + paste + ' 로 붙여 넣으세요.' : ai.name + '를 엽니다. ' + paste + ' 로 붙여 넣으세요.');
+      copy(text, ai.prefill ? aiName(ai) + '를 엽니다. 내용이 비어 있으면 ' + paste + ' 로 붙여 넣으세요.' : aiName(ai) + '를 엽니다. ' + paste + ' 로 붙여 넣으세요.');
       window.open(ai.url(text), '_blank', 'noopener');
     }
     else if (b.dataset.reset) { edited[b.dataset.reset] = false; refreshPrompts(); toast('내 수업 정보로 다시 만들었습니다.'); }
@@ -1182,6 +1211,7 @@ function removeAlarms() {
     else if (b.dataset.data) { copy(byId(b.dataset.data).data, '예시 데이터를 복사했습니다. 시트 A1 칸에 붙여 넣으세요.'); }
     else if (b.dataset.help) { copy(byId(b.dataset.help).helpPrompt(), '질문을 복사했습니다. 오류 메시지 자리만 채워서 AI에게 보내세요.'); }
     else if (b.dataset.next) { const [id, i] = b.dataset.next.split(':'); copy(byId(id).next[Number(i)], '복사했습니다. 같은 대화창에 이어서 붙여 넣으세요.'); }
+    else if (b.dataset.pastein) pasteInto(b.dataset.pastein);
   });
 
   /* ---------- my results: download, print, copy, clear ---------- */
@@ -1236,6 +1266,11 @@ function removeAlarms() {
   if (new URLSearchParams(location.search).has('demo')) document.documentElement.style.scrollBehavior = 'auto';
   if (new URLSearchParams(location.search).has('demo') && !course.course) { course = Object.assign({}, EXAMPLE); fillForm(course); }  // ?demo shows the example course on the lecturer's screen
   if (course.course) $('#savedNote').textContent = '저장된 과목: ' + course.course;
+  if (ASSISTANT.gpt || ASSISTANT.gem) {
+    const link = (url, cls, name) => url ? '<a class="btn ' + cls + '" href="' + url + '" target="_blank" rel="noopener"><span class="k">OPEN</span>' + name + '</a>' : '';
+    $('#asstBtns').innerHTML = link(ASSISTANT.gpt, '', 'ChatGPT 조교') + link(ASSISTANT.gem, 'ghostb', 'Gemini 조교');
+    $('#asst').hidden = false;
+  }
   render();
   const focusId = new URLSearchParams(location.search).get('focus');
   const focused = focusId && document.getElementById(focusId);
