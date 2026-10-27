@@ -17,6 +17,7 @@
   --display:"Montserrat","Pretendard",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth;scroll-padding-top:72px}
 body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
@@ -152,6 +153,33 @@ textarea.result{min-height:150px;font:14px/1.7 var(--sans)}
 .mine-empty{color:var(--mute);font-size:14px;margin:18px 0 0}
 #printDoc{display:none}
 
+/* vibe coding studio */
+.vstep{margin-top:40px}
+.vstep h3{font-size:20px;font-weight:800;margin:0 0 14px;display:flex;gap:12px;align-items:baseline}
+.vstep h3 .num{font:800 14px var(--display);color:var(--mute);letter-spacing:.1em}
+.vh{font:700 11px var(--display);letter-spacing:.24em;color:var(--mute);margin:0 0 8px}
+.vprompt{margin-top:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chip{font:600 14px var(--sans);border:1px solid var(--line2);background:transparent;color:var(--ink);padding:8px 12px;border-radius:2px;cursor:pointer}
+.chip:hover{border-color:var(--ink)}
+.chip.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.studio{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+#vCode{height:440px;font:13px/1.55 "SF Mono",Menlo,Consolas,monospace;background:#fff;white-space:pre;overflow:auto;tab-size:2;resize:vertical}
+.vbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;min-height:30px}
+.vstatus{font-size:13px;color:var(--ink2)}
+.vstatus.err{color:var(--red);font-weight:600}
+.vsize{display:flex;gap:6px}
+.mini.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.vframe{border:1px solid var(--line2);background:#fff;height:440px;margin:0 auto;max-width:100%}
+.vframe.phone{max-width:390px}
+.vframe:fullscreen{height:100vh;max-width:none;border:0}
+.vframe iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.vsave{margin-top:24px;border-top:1px solid var(--line)}
+.vvers{list-style:none;margin:12px 0 0;padding:0}
+.vvers li{display:flex;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.vvers li b{font:800 13px var(--display);min-width:34px}
+.vvers li span{flex:1;color:var(--ink2);min-width:0}
+
 /* dark band */
 .band{background:var(--night);color:#EDEDEA;padding:64px 0}
 .band h2{color:#fff}
@@ -182,6 +210,9 @@ footer .mark{color:var(--ink)}
   .body{padding:4px 18px 22px 18px}
   .timer .lab{display:none}
   .nav{display:none}
+  .studio{grid-template-columns:1fr}
+  #vCode{height:260px}
+  .vframe{height:520px}
 }
 /* ?focus=s1-3 shows a single exercise, e.g. on the projector */
 body.focus .hero,body.focus footer,body.focus main>section:not(.keep),body.focus section.keep .head,body.focus details.m:not(.keep){display:none}
@@ -391,6 +422,84 @@ body.focus section.keep{padding:28px 0;border:0}
     </div>
   </section>
 
+  <section class="block" id="vibe">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">04+<small>VIBE CODING</small></div>
+        <div>
+          <h2>진짜 바이브코딩: 말로 만들고, 바로 돌려 봅니다<span class="lv">심화</span></h2>
+          <p class="sub">기획서를 채워 AI에게 보내고, AI가 준 답을 아래 실행 칸에 붙여 넣으면 이 페이지에서 바로 돌아갑니다. 고칠 점을 한 문장씩 말하며 다듬고, 마지막에 HTML 파일로 가져갑니다. 설치도 서버도 필요 없습니다.</p>
+        </div>
+      </div>
+
+      <div class="vstep">
+        <h3><span class="num">01</span>기획 — 무엇을 만들까</h3>
+        <div class="chips" id="vIdeas"></div>
+        <div class="card">
+          <div class="form" id="vPlan">
+            <div><label for="v-name">앱 이름</label><input id="v-name" data-v="name"></div>
+            <div><label for="v-who">누가, 어디서 쓰나</label>
+              <select id="v-who" data-v="who"><option>교수자가 수업 중 화면에 띄워 씀</option><option>학생이 각자 휴대폰으로 씀</option><option>교수자와 학생 모두</option></select></div>
+            <div class="full"><label for="v-does">하는 일 <small>한 문장</small></label><input id="v-does" data-v="does"></div>
+            <div class="full"><label for="v-screen">화면 구성</label><input id="v-screen" data-v="screen"></div>
+            <div><label for="v-feat">꼭 있어야 할 기능 <small>한 줄에 하나</small></label><textarea id="v-feat" data-v="feat" rows="4"></textarea></div>
+            <div><label for="v-content">넣을 내용 <small>선택</small></label><textarea id="v-content" data-v="content" rows="4"></textarea></div>
+          </div>
+        </div>
+        <div class="vprompt">
+          <h4 class="vh">BUILD PROMPT</h4>
+          <textarea class="prompt" id="vPrompt" spellcheck="false"></textarea>
+          <div class="row"><button class="btn red" id="vCopy">프롬프트 복사</button><span class="row" id="vAi" style="margin:0"></span></div>
+          <p class="note" style="margin:10px 0 0">Claude는 대화창 오른쪽에 실행 화면이 바로 뜹니다. 어느 AI든 답을 통째로 복사해 02에 붙여 넣으면 코드만 골라 실행합니다.</p>
+        </div>
+      </div>
+
+      <div class="vstep">
+        <h3><span class="num">02</span>실행 — 붙여 넣고 돌려 보기</h3>
+        <div class="studio">
+          <div>
+            <textarea id="vCode" spellcheck="false" placeholder="AI가 준 답을 통째로 붙여 넣으세요. 코드 부분만 골라 실행합니다."></textarea>
+            <div class="row">
+              <button class="btn" id="vRun">실행 <span class="k" id="vRunKey"></span></button>
+              <button class="btn ghostb" id="vPaste">복사한 답 붙여넣기</button>
+              <button class="btn ghostb" id="vSample">예시 앱 불러오기</button>
+              <button class="mini" id="vClear">비우기</button>
+            </div>
+          </div>
+          <div>
+            <div class="vbar">
+              <span class="vstatus" id="vStatus">아직 실행하지 않았습니다.</span>
+              <span class="vsize"><button class="mini on" data-vsize="wide">넓게</button><button class="mini" data-vsize="phone">휴대폰</button><button class="mini" id="vFull">크게 보기</button></span>
+            </div>
+            <div class="vframe" id="vFrameBox"><iframe id="vFrame" title="실행 화면" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe></div>
+            <div class="row" id="vFix" hidden><button class="btn red" id="vAskFix">오류를 AI에게 물어보기</button><span class="note">오류 내용과 지금 코드가 함께 복사됩니다.</span></div>
+          </div>
+        </div>
+        <p class="note" style="margin:12px 0 0">실행 칸은 이 페이지와 분리되어 있어 안전합니다. 실행 칸 안에서 저장한 내용은 새로고침하면 지워지고, 내려받은 파일에서는 그대로 남습니다.</p>
+      </div>
+
+      <div class="vstep">
+        <h3><span class="num">03</span>고치기 — 한 번에 한 가지씩</h3>
+        <p class="sub" style="margin:0 0 12px">눌러서 복사한 뒤, 코드를 받았던 같은 AI 대화창에 붙여 넣으세요. AI가 준 새 코드를 다시 02에 붙여 넣고 실행합니다.</p>
+        <div class="chips" id="vFixes"></div>
+        <div class="row">
+          <input id="vAsk" placeholder="예: 번호가 나올 때 숫자가 살짝 커지며 나타나게 해 줘" style="flex:1;min-width:240px">
+          <button class="btn" id="vAskCopy">고칠 점 복사</button>
+          <label class="chk"><input type="checkbox" id="vWithCode"> 지금 코드도 함께 (새 대화창일 때)</label>
+        </div>
+        <div class="vsave">
+          <div class="row">
+            <button class="btn" id="vSave">이 버전 저장</button>
+            <button class="btn ghostb" id="vDownload">HTML 파일로 내려받기</button>
+            <button class="btn ghostb" id="vToMine">내 결과물에 기록</button>
+          </div>
+          <ol class="vvers" id="vVers"></ol>
+          <p class="note" style="margin:12px 0 0">내려받은 파일은 메일이나 LMS로 학생에게 보내면 더블클릭으로 열립니다. 링크로 나눠 주려면 AI에게 "이 HTML 파일을 무료로 웹에 올리는 방법"을 물어보세요.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="block" id="step5">
     <div class="wrap">
       <div class="head">
@@ -421,7 +530,7 @@ body.focus section.keep{padding:28px 0;border:0}
           <button class="btn ghostb" id="copyAll" data-need>전체 복사</button>
           <button class="mini" id="clearMine">이 컴퓨터에서 모두 지우기</button>
         </div>
-        <p class="note" style="margin:14px 0 0">Word 파일은 한글(HWP)과 구글 문서에서도 열립니다. PDF는 인쇄 창에서 대상을 'PDF로 저장'으로 고르세요. 공용 컴퓨터(PC실)라면 내려받은 뒤 '이 컴퓨터에서 모두 지우기'를 눌러 주세요. 결과물과 내 수업 정보가 함께 지워집니다.</p>
+        <p class="note" style="margin:14px 0 0">Word 파일은 한글(HWP)과 구글 문서에서도 열립니다. PDF는 인쇄 창에서 대상을 'PDF로 저장'으로 고르세요. 공용 컴퓨터(PC실)라면 내려받은 뒤 '이 컴퓨터에서 모두 지우기'를 눌러 주세요. 결과물, 내 수업 정보, 바이브코딩 작업이 함께 지워집니다.</p>
         <div class="mine-list" id="mineList"></div>
       </div>
     </div>
@@ -438,6 +547,81 @@ body.focus section.keep{padding:28px 0;border:0}
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div id="printDoc"></div>
+
+<!-- '예시 앱 불러오기' in the vibe coding studio (a textarea keeps </script> inside it harmless) -->
+<textarea id="vibe-sample" hidden><!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>발표 순서 뽑기</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #8E8E8E; --line: #D2D2D2; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 24px; display: grid; grid-template-columns: 1fr 220px; gap: 32px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .hint { color: var(--mute); font-size: 14px; margin: 0 0 18px; }
+  label { font-size: 15px; }
+  input { width: 72px; font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); background: #fff; }
+  .big { font: 800 clamp(110px, 26vw, 240px)/1 -apple-system, "Helvetica Neue", Arial, sans-serif; margin: 22px 0 10px; font-variant-numeric: tabular-nums; }
+  .left { color: var(--mute); font-size: 15px; margin: 0 0 18px; }
+  button { font-size: 16px; padding: 10px 18px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; margin-right: 8px; }
+  button.ghost { background: transparent; color: var(--ink); }
+  aside h2 { font-size: 12px; letter-spacing: .24em; color: var(--mute); margin: 6px 0 10px; }
+  ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
+  li { padding: 8px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  li:last-child { color: var(--red); font-weight: 700; }
+  @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <h1>발표 순서 뽑기</h1>
+    <p class="hint">스페이스바나 '뽑기'를 누르세요. 한 번 뽑힌 번호는 다시 나오지 않습니다.</p>
+    <label>인원 <input id="count" type="number" min="2" max="200" value="30"> 명</label>
+    <div class="big" id="num">?</div>
+    <p class="left" id="left"></p>
+    <button id="draw">뽑기</button><button class="ghost" id="reset">처음부터</button>
+  </main>
+  <aside>
+    <h2>뽑힌 순서</h2>
+    <ol id="order"></ol>
+  </aside>
+</div>
+<script>
+  const $ = id => document.getElementById(id);
+  let pool = [], picked = [];
+  function start() {
+    const n = Math.max(2, Math.min(200, Number($('count').value) || 30));
+    pool = Array.from({ length: n }, (_, i) => i + 1);
+    picked = [];
+    $('num').textContent = '?';
+    render();
+  }
+  function draw() {
+    if (!pool.length) return;
+    const n = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    picked.push(n);
+    $('num').textContent = n;
+    render();
+  }
+  function render() {
+    $('left').textContent = pool.length ? '남은 인원 ' + pool.length + '명' : '모두 뽑았습니다. 처음부터를 누르면 다시 시작합니다.';
+    $('order').innerHTML = picked.map((n, i) => '<li>' + (i + 1) + '번째 — ' + n + '번</li>').join('');
+  }
+  $('draw').onclick = draw;
+  $('reset').onclick = start;
+  $('count').onchange = start;
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); draw(); }
+  });
+  start();
+</script>
+</body>
+</html>
+</textarea>
 
 <!-- Apps Script code shown in STEP 3 -->
 <script type="text/plain" id="code-3-1">/* 퀴즈 시트를 구글 폼 퀴즈로 바꿉니다.
@@ -735,7 +919,8 @@ function removeAlarms() {
 
     { id: 's4-4', step: 4, title: '바이브코딩: 수업용 미니 웹앱', sub: '말로 설명해서 HTML 파일 하나로', min: 12,
       fields: [{ k: 'appType', label: '만들 도구', sel: ['객관식 복습 퀴즈', '단어 카드', '발표 순서 뽑기', '조 편성기'], def: () => '객관식 복습 퀴즈' }],
-      steps: ['만들 도구를 고르고 프롬프트를 Claude나 ChatGPT에 붙여 넣습니다.', 'Claude는 오른쪽에 바로 실행 화면이 뜹니다. ChatGPT는 캔버스에서 미리보기를 누릅니다.', '코드 전체를 복사해 텍스트 편집기에 붙여 넣고 class-tool.html로 저장합니다. 파일을 더블클릭하면 브라우저에서 열립니다.', '고치고 싶은 점을 한 문장씩 부탁합니다. 예: "문제 순서를 섞어 줘", "글자를 더 크게".'],
+      steps: ['만들 도구를 고르고 프롬프트를 Claude나 ChatGPT에 붙여 넣습니다. 직접 기획하고 싶으면 바로 아래 바이브코딩 스튜디오(04+)의 기획서를 씁니다.', 'AI의 답을 통째로 복사해 스튜디오의 실행 칸에 붙여 넣고 실행합니다. 파일로 저장할 필요가 없습니다.', '고치고 싶은 점을 한 문장씩 부탁합니다. 예: "문제 순서를 섞어 줘", "글자를 더 크게". 새 코드를 다시 붙여 넣고 실행합니다.', '마음에 들면 버전을 저장하고 HTML 파일로 내려받습니다.'],
+      studio: true,
       prompt: f => {
         const people = f.appType === '발표 순서 뽑기' || f.appType === '조 편성기';
         return ['수업에서 바로 쓸 "' + f.appType + '" 웹앱을 만들어 줘.',
@@ -749,7 +934,7 @@ function removeAlarms() {
           '- 디자인은 단정하게: 밝은 배경, 검은 글씨, 강조색은 하나만',
           '완성되면 전체 코드를 한 번에 보여 줘.'].join('\n');
       },
-      checks: ['브라우저에서 파일을 열어 작동을 확인했다', '한 가지 이상 고쳐 달라고 부탁해 반영했다'],
+      checks: ['스튜디오 실행 칸에서 앱이 돌아갔다', '한 가지 이상 고쳐 달라고 부탁해 반영했다', 'HTML 파일로 내려받았다'],
       next: ['정답을 맞히면 다음 문제로 자동으로 넘어가고, 마지막에 틀린 문제만 다시 보여 줘.', '이 파일을 학생들이 링크로 접속할 수 있게 무료로 올리는 방법을 단계별로 알려 줘.'] },
 
     /* ---------- PLUS: 교육에 바로 쓰는 것들 ---------- */
@@ -941,6 +1126,7 @@ function removeAlarms() {
   }
   // write edits still waiting on the debounce (before a download, or when the page closes)
   function flushResults() {
+    if (!Object.keys(resultTimers).length) return;  // nothing pending: writing back could resurrect data cleared in another tab
     Object.keys(resultTimers).forEach(id => {
       clearTimeout(resultTimers[id]); delete resultTimers[id];
       const text = $('#r-' + id).value;
@@ -1147,7 +1333,8 @@ function removeAlarms() {
           + '</summary><div class="body">'
           + '<div><h4>HOW TO</h4><ol>' + m.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol></div>'
           + (fl ? '<div class="fields">' + fl + '</div>' : '')
-          + linkBlock + promptBlock + dataBlock + codeBlock + helpBlock
+          + linkBlock + promptBlock + (m.studio ? '<div class="tip"><b>진짜로 돌려 보기</b> AI가 준 답을 바로 아래 <a href="#vibe">바이브코딩 스튜디오</a>에 붙여 넣으면 이 페이지에서 바로 실행됩니다. 오류가 나면 버튼 하나로 AI에게 물어볼 수 있습니다.</div>' : '')
+          + dataBlock + codeBlock + helpBlock
           + '<div><h4>CHECK</h4><ul class="checks">' + m.checks.map(c => '<li>' + esc(c) + '</li>').join('') + '</ul></div>'
           + '<div><h4>ONE MORE STEP</h4><div class="next">' + m.next.map((q, i) => '<div class="one"><p>' + esc(q) + '</p><button class="mini" data-next="' + m.id + ':' + i + '">복사</button></div>').join('') + '</div></div>'
           + resultBlock(m)
@@ -1192,6 +1379,7 @@ function removeAlarms() {
       const ta = $('#p-' + m.id);
       if (ta && !edited[m.id]) ta.value = promptFor(m);
     });
+    vPromptRefresh();  // the studio's build prompt also carries the course name
   }
   function progress() {
     $$('.prog').forEach(p => {
@@ -1247,8 +1435,9 @@ function removeAlarms() {
   $('#copyAll').onclick = () => { flushResults(); copy(allText(), '결과물 전체를 복사했습니다. 한글 문서나 메일에 붙여 넣으세요.'); };
   $('#clearMine').onclick = () => {
     flushResults();
-    if (!confirm('이 컴퓨터에 저장된 결과물 ' + saved().length + '개와 내 수업 정보, 완료 표시를 모두 지울까요?\n내려받지 않았다면 먼저 내려받으세요.')) return;
-    try { ['acl-results', 'acl-course', 'acl-done'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    if (!confirm('이 컴퓨터에 저장된 결과물 ' + saved().length + '개와 내 수업 정보, 완료 표시, 바이브코딩 작업을 모두 지울까요?\n내려받지 않았다면 먼저 내려받으세요.')) return;
+    try { ['acl-results', 'acl-course', 'acl-done', 'acl-vibe'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    vReset();
     results = {}; done.clear(); course = {};
     fields.forEach(f => { if (f.tagName !== 'SELECT') f.value = ''; });
     $$('textarea.result').forEach(t => { t.value = ''; });
@@ -1259,6 +1448,193 @@ function removeAlarms() {
     toast('이 컴퓨터에서 모두 지웠습니다.');
   };
   window.addEventListener('pagehide', flushResults);
+
+  /* ---------- vibe coding studio: plan → prompt → run the AI's code here → fix → save ---------- */
+  const IDEAS = [
+    { name: '발표 순서 뽑기', who: '교수자가 수업 중 화면에 띄워 씀', does: '1번부터 정한 번호까지 중복 없이 한 명씩 뽑아 크게 보여 준다',
+      screen: '위에 제목과 인원 입력, 가운데 아주 큰 번호, 아래 뽑기·처음부터 버튼, 오른쪽에 뽑힌 순서',
+      feat: ['스페이스바로도 뽑기', '한 번 뽑힌 번호는 다시 나오지 않기', '뽑힌 순서와 남은 인원 표시'], content: () => '' },
+    { name: '조 편성기', who: '교수자가 수업 중 화면에 띄워 씀', does: '번호 1번부터 정한 인원까지를 정한 조 수로 고르게 섞어 나눈다',
+      screen: '위에 인원과 조 수 입력, 편성 버튼, 아래 조별 칸(얇은 선) 격자',
+      feat: ['다시 섞기', '조마다 조장 한 명 표시', '결과를 크게 보여 주는 발표 화면'], content: () => '' },
+    { name: '복습 퀴즈', who: '학생이 각자 휴대폰으로 씀', does: '객관식 문제를 한 문제씩 풀고 바로 정답과 해설을 본다',
+      screen: '위에 진행 막대와 점수, 가운데 문제와 보기 네 개, 아래 다음 버튼',
+      feat: ['보기를 누르면 정답·오답 표시와 해설', '마지막에 점수와 틀린 문제만 다시 풀기', '문제 순서 섞기'],
+      content: () => (results['s1-4'] && results['s1-4'].text.trim()) || '핵심 내용에서 객관식 10문제를 만들어 넣어 줘. (문항, 보기 4개, 정답, 해설)' },
+    { name: '단어 카드', who: '학생이 각자 휴대폰으로 씀', does: '앞면에 용어, 누르면 뒷면에 뜻이 나오는 카드로 복습한다',
+      screen: '가운데 큰 카드, 위에 몇 번째 카드인지, 아래 이전·뒤집기·다음 버튼',
+      feat: ['안다·모른다 표시', '모른다고 한 카드만 다시 보기', '카드 순서 섞기'], content: () => '핵심 내용에서 용어와 뜻 12개를 골라 넣어 줘.' },
+    { name: '토론 타이머', who: '교수자가 수업 중 화면에 띄워 씀', does: '찬성·반대 발언 시간을 차례로 재고 남은 시간을 크게 보여 준다',
+      screen: '가운데 아주 큰 남은 시간, 위에 지금 순서(예: 찬성 1), 아래 시작·멈춤·다음 버튼',
+      feat: ['순서와 시간을 미리 정하기 (예: 찬성 2분, 반대 2분)', '30초 남으면 숫자 색이 바뀜', '시간이 끝나면 짧은 소리'], content: () => '' },
+    { name: '루브릭 점수 계산기', who: '교수자가 수업 중 화면에 띄워 씀', does: '루브릭 기준마다 수준을 고르면 총점과 피드백 문장을 만들어 준다',
+      screen: '기준마다 한 줄, 줄마다 수준 네 칸 버튼, 아래 총점과 피드백 문장 상자',
+      feat: ['총점 자동 계산', '고른 수준에 맞는 피드백 문장 모아 보여 주기', '결과 복사 버튼'],
+      content: () => (results['s2-3'] && results['s2-3'].text.trim()) || '과목에 맞는 루브릭(기준 4개 × 수준 4단계, 배점)을 만들어 넣어 줘.' }
+  ];
+  const FIXES = ['글자를 프로젝터용으로 더 크게 해 줘', '휴대폰에서도 버튼이 크게, 잘 눌리게 해 줘', '디자인을 단정하게: 밝은 배경, 강조색 하나, 얇은 선만',
+    '처음 쓰는 사람을 위한 사용법 안내를 화면 위에 한 줄 넣어 줘', '새로고침해도 입력과 결과가 남게 브라우저에 저장해 줘', '결과를 CSV 파일로 내려받는 버튼을 넣어 줘'];
+  let vibe = Object.assign({ plan: null, code: '', versions: [] }, store.get('acl-vibe', {}));
+  const vStore = () => store.set('acl-vibe', vibe);
+  const vFields = $$('#vPlan [data-v]');
+  const readPlan = () => { const p = {}; vFields.forEach(f => { p[f.dataset.v] = f.value; }); return p; };
+  const fillPlan = p => vFields.forEach(f => { if (p && p[f.dataset.v] !== undefined) f.value = p[f.dataset.v]; });
+  let vPromptEdited = false, vErrors = [], vCodeTimer;
+
+  function vibePrompt(p) {
+    const feats = p.feat.split('\n').map(s => s.trim()).filter(Boolean);
+    return ['수업에서 쓸 웹앱을 아래 기획서대로 만들어 줘.', '', '[기획서]',
+      '- 앱 이름: ' + (p.name.trim() || '(앱 이름)'),
+      '- 쓰는 사람과 상황: ' + p.who,
+      '- 하는 일: ' + (p.does.trim() || '(하는 일)'),
+      '- 화면 구성: ' + (p.screen.trim() || '(화면 구성)'),
+      '- 꼭 있어야 할 기능:'].concat(feats.map((s, i) => '  ' + (i + 1) + '. ' + s),
+      p.content.trim() ? ['- 넣을 내용:', p.content.trim()] : [],
+      ['- 과목: ' + v('course', '(교과목)') + ', 대상: ' + v('target', '(대상)'),
+        '', '[만드는 규칙]',
+        '- HTML 파일 하나에 CSS와 JavaScript를 모두 넣어 줘. 외부 라이브러리, 서버, 로그인 없이 동작하게.',
+        '- 저장이 필요하면 브라우저(localStorage)에만. 학생 실명이나 학번 대신 번호를 쓰게.',
+        '- 프로젝터와 휴대폰 화면 모두에서 보기 좋게, 글자는 크게.',
+        '- 디자인: 밝은 종이색 배경(#F2F2F2), 거의 검은 글씨(#1A1A1A), 강조색은 하나(#E54536), 경계는 얇은 선. 그라데이션, 이모지, 둥근 그림자 카드는 쓰지 마.',
+        '- 처음 쓰는 사람도 알 수 있게 화면 위쪽에 사용법을 한 줄 넣어 줘.',
+        '', '[답하는 방법]',
+        '- 전체 코드를 ```html 블록 하나로 한 번에 줘. 설명은 세 줄 이하로.',
+        '- 내가 고칠 점을 말하면, 바뀐 부분만 말고 전체 코드를 다시 줘.']).join('\n');
+  }
+  function vPromptRefresh() { if (!vPromptEdited) $('#vPrompt').value = vibePrompt(readPlan()); }
+  function chooseIdea(i) {
+    const d = IDEAS[i];
+    fillPlan({ name: d.name, who: d.who, does: d.does, screen: d.screen, feat: d.feat.join('\n'), content: d.content() });
+    $$('#vIdeas .chip').forEach((c, k) => c.classList.toggle('on', k === i));
+    vibe.plan = readPlan(); vStore(); vPromptEdited = false; vPromptRefresh();
+  }
+
+  // AI answers wrap the code in prose and ``` fences: keep only the page itself
+  function extractHtml(text) {
+    const fences = [...text.matchAll(/```[ \t]*([\w-]*)[^\n]*\n([\s\S]*?)```/g)];
+    const pick = fences.find(f => /^html?$/i.test(f[1])) || fences.find(f => /<(!doctype|html|body|div|script)/i.test(f[2]));
+    if (pick) return pick[2].trim();
+    const s = text.search(/<!doctype html|<html[\s>]/i);
+    if (s >= 0) { const e = text.toLowerCase().lastIndexOf('</html>'); return text.slice(s, e > s ? e + 7 : undefined).trim(); }
+    return text.trim();
+  }
+  // Injected on the <head> line so line numbers stay the same: reports errors to this page, and gives the sandboxed app
+  // (no access to this page's storage) an in-memory localStorage so apps that save do not crash.
+  const VIBE_GUARD = '<script>(function(){var s=function(o){o.vibe=1;try{parent.postMessage(o,"*")}catch(e){}};'
+    + 'try{localStorage.getItem("x")}catch(e){var m={},st={getItem:function(k){return k in m?m[k]:null},setItem:function(k,v){m[k]=String(v)},'
+    + 'removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}};'
+    + 'try{Object.defineProperty(window,"localStorage",{value:st,configurable:true});Object.defineProperty(window,"sessionStorage",{value:st,configurable:true})}catch(e2){}}'
+    + 'addEventListener("error",function(e){s({err:(e.message||"오류")+(e.lineno?" (줄 "+e.lineno+")":"")})});'
+    + 'addEventListener("unhandledrejection",function(e){s({err:"Promise: "+((e.reason&&e.reason.message)||e.reason)})});'
+    + 'addEventListener("load",function(){s({ok:1})})})()<\/script>';
+  function withGuard(code) {
+    for (const re of [/<head[^>]*>/i, /<html[^>]*>/i, /^\s*<!doctype[^>]*>/i]) if (re.test(code)) return code.replace(re, t => t + VIBE_GUARD);
+    return VIBE_GUARD + code;
+  }
+  function vStatus(msg, err) { const s = $('#vStatus'); s.textContent = msg; s.classList.toggle('err', !!err); }
+  function vRun() {
+    const raw = $('#vCode').value, code = extractHtml(raw);
+    if (!code) { vStatus('실행할 코드가 없습니다. AI가 준 답을 붙여 넣으세요.', true); return; }
+    if (code !== raw.trim()) { $('#vCode').value = code; toast('답에서 코드 부분만 골라 실행합니다.'); }
+    vibe.code = code; vStore();
+    vErrors = []; $('#vFix').hidden = true;
+    vStatus('실행 중');
+    $('#vFrame').srcdoc = withGuard(code);
+  }
+  window.addEventListener('message', e => {
+    if (e.source !== $('#vFrame').contentWindow || !e.data || !e.data.vibe) return;
+    if (e.data.err) { vErrors.push(String(e.data.err)); vStatus('오류 ' + vErrors.length + '개: ' + vErrors[0], true); $('#vFix').hidden = false; }
+    else if (e.data.ok && !vErrors.length) vStatus('실행했습니다. 오류 없음 · ' + hhmm(Date.now()));
+  });
+  const fixText = (ask, withCode) => ask.trim() + '\n나머지는 그대로 두고, 바뀐 전체 코드를 ```html 블록 하나로 다시 줘.'
+    + (withCode ? '\n\n[지금 코드]\n```html\n' + $('#vCode').value.trim() + '\n```' : '');
+
+  function renderVersions() {
+    $('#vVers').innerHTML = vibe.versions.slice().reverse().map(x => '<li><b class="num">v' + x.n + '</b><span>' + esc(x.name) + ' · ' + x.lines + '줄 · '
+      + new Date(x.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span>'
+      + '<button class="mini" data-vload="' + x.n + '">불러오기</button><button class="mini" data-vdel="' + x.n + '">지우기</button></li>').join('');
+  }
+  function vReset() {
+    vibe = { plan: null, code: '', versions: [] };
+    $('#vCode').value = ''; $('#vFrame').srcdoc = ''; $('#vFix').hidden = true; vStatus('아직 실행하지 않았습니다.');
+    chooseIdea(0); renderVersions();
+  }
+
+  $('#vIdeas').innerHTML = IDEAS.map((d, i) => '<button class="chip" data-videa="' + i + '">' + esc(d.name) + '</button>').join('');
+  $('#vFixes').innerHTML = FIXES.map((t, i) => '<button class="chip" data-vfix="' + i + '">' + esc(t) + '</button>').join('');
+  $('#vAi').innerHTML = AI.map(a => '<button class="btn ghostb" data-vai="' + a.name + '"><span class="k">OPEN</span>' + aiName(a) + '</button>').join('');
+  $('#vRunKey').textContent = paste === '⌘V' ? '⌘↵' : 'CTRL↵';
+  vFields.forEach(f => f.addEventListener('input', () => { vibe.plan = readPlan(); vStore(); vPromptEdited = false; vPromptRefresh(); $$('#vIdeas .chip').forEach(c => c.classList.remove('on')); }));
+  $('#vPrompt').addEventListener('input', () => { vPromptEdited = true; });
+  $('#vCode').addEventListener('input', () => { clearTimeout(vCodeTimer); vCodeTimer = setTimeout(() => { vibe.code = $('#vCode').value; vStore(); }, 500); });
+  $('#vCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); vRun(); }
+    else if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); document.execCommand('insertText', false, '  '); }
+  });
+  $('#vIdeas').addEventListener('click', e => { const b = e.target.closest('[data-videa]'); if (b) chooseIdea(Number(b.dataset.videa)); });
+  $('#vFixes').addEventListener('click', e => {
+    const b = e.target.closest('[data-vfix]'); if (!b) return;
+    copy(fixText(FIXES[Number(b.dataset.vfix)], $('#vWithCode').checked), '복사했습니다. 코드를 받았던 AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
+  });
+  $('#vAi').addEventListener('click', e => {
+    const b = e.target.closest('[data-vai]'); if (!b) return;
+    const ai = AI.find(a => a.name === b.dataset.vai), text = $('#vPrompt').value;
+    copy(text, ai.prefill ? aiName(ai) + '를 엽니다. 내용이 비어 있으면 ' + paste + ' 로 붙여 넣으세요.' : aiName(ai) + '를 엽니다. ' + paste + ' 로 붙여 넣으세요.');
+    window.open(ai.url(text), '_blank', 'noopener');
+  });
+  $('#vCopy').onclick = () => copy($('#vPrompt').value, '기획 프롬프트를 복사했습니다. AI 채팅 창에 ' + paste + ' 로 붙여 넣으세요.');
+  $('#vRun').onclick = vRun;
+  $('#vSample').onclick = () => { $('#vCode').value = $('#vibe-sample').value.trim(); vRun(); };
+  $('#vClear').onclick = () => { $('#vCode').value = ''; vibe.code = ''; vStore(); $('#vFrame').srcdoc = ''; $('#vFix').hidden = true; vStatus('아직 실행하지 않았습니다.'); };
+  $('#vPaste').onclick = async () => {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch (e) {}
+    if (!text.trim()) { $('#vCode').focus(); toast('붙여 넣을 내용을 읽지 못했습니다. 칸을 누르고 ' + paste + ' 로 붙여 넣으세요.'); return; }
+    if (text.trim() === $('#vPrompt').value.trim()) { toast('아직 프롬프트가 복사되어 있습니다. AI 답을 복사한 뒤 다시 눌러 주세요.'); return; }
+    $('#vCode').value = text; vRun();
+  };
+  $$('[data-vsize]').forEach(b => b.addEventListener('click', () => {
+    $$('[data-vsize]').forEach(x => x.classList.toggle('on', x === b));
+    $('#vFrameBox').classList.toggle('phone', b.dataset.vsize === 'phone');
+  }));
+  $('#vFull').onclick = () => { const box = $('#vFrameBox'); if (box.requestFullscreen) box.requestFullscreen().catch(() => {}); };
+  $('#vAskFix').onclick = () => copy('이 웹앱을 실행하니 아래 오류가 났어.\n' + vErrors.slice(0, 5).map(x => '- ' + x).join('\n')
+    + '\n원인을 한 줄로 설명하고, 고친 전체 코드를 ```html 블록 하나로 줘.\n\n[지금 코드]\n```html\n' + $('#vCode').value.trim() + '\n```',
+    '오류와 코드를 복사했습니다. AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
+  $('#vAskCopy').onclick = () => {
+    const ask = $('#vAsk').value;
+    if (!ask.trim()) { $('#vAsk').focus(); toast('고칠 점을 한 문장으로 적어 주세요.'); return; }
+    copy(fixText(ask, $('#vWithCode').checked), '복사했습니다. 코드를 받았던 AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
+  };
+  $('#vSave').onclick = () => {
+    const code = $('#vCode').value.trim();
+    if (!code) { toast('저장할 코드가 없습니다.'); return; }
+    const n = (vibe.versions.length ? vibe.versions[vibe.versions.length - 1].n : 0) + 1;
+    vibe.versions.push({ n, at: Date.now(), name: readPlan().name.trim() || '수업 도구', lines: code.split('\n').length, code });
+    vibe.versions = vibe.versions.slice(-12);
+    vibe.code = code; vStore(); renderVersions();
+    toast('v' + n + '로 저장했습니다. 이 브라우저에 남습니다.');
+  };
+  $('#vVers').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.vload) { const x = vibe.versions.find(y => y.n === Number(b.dataset.vload)); $('#vCode').value = x.code; vRun(); toast('v' + x.n + '를 불러왔습니다.'); }
+    else if (b.dataset.vdel) { vibe.versions = vibe.versions.filter(y => y.n !== Number(b.dataset.vdel)); vStore(); renderVersions(); }
+  });
+  $('#vDownload').onclick = () => {
+    const code = extractHtml($('#vCode').value);
+    if (!code) { toast('내려받을 코드가 없습니다.'); return; }
+    saveFile(new Blob([code], { type: 'text/html;charset=utf-8' }), (readPlan().name.trim() || '수업도구').replace(/[\\/:*?"<>|\s]+/g, '_') + '.html');
+    toast('HTML 파일을 내려받았습니다. 더블클릭하면 브라우저에서 열립니다.');
+  };
+  $('#vToMine').onclick = () => {
+    const p = readPlan(), ta = $('#r-s4-4');
+    const note = ['[바이브코딩] ' + (p.name.trim() || '수업 도구') + ' · ' + stamp(), '하는 일: ' + p.does.trim(),
+      '기능: ' + p.feat.split('\n').map(s => s.trim()).filter(Boolean).join(', '),
+      '저장한 버전 ' + vibe.versions.length + '개 · 코드는 \'HTML 파일로 내려받기\'로 따로 저장'].join('\n');
+    ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n\n' + note : note;
+    saveResult('s4-4', ta.value);
+    toast('내 결과물(4–4)에 기록했습니다.');
+  };
 
   /* ---------- deep links: #s2-1 opens that mission ---------- */
   // Deck buttons open the page with a #hash: jump there instantly on load, glide only for in-page hash changes.
@@ -1295,6 +1671,12 @@ function removeAlarms() {
   $('#asstBtns').innerHTML = AI.map((a, i) => '<button class="btn' + (i ? ' ghostb' : '') + '" data-asst="' + a.name + '"><span class="k">START</span>'
     + (a.asst ? aiName(a) + ' 열기' : a.name + '를 조교로') + '</button>').join('');
   render();
+  if (vibe.plan) {
+    fillPlan(vibe.plan); vPromptRefresh();
+    $$('#vIdeas .chip').forEach((c, k) => c.classList.toggle('on', IDEAS[k].name === vibe.plan.name));
+  } else chooseIdea(0);
+  if (vibe.code) { $('#vCode').value = vibe.code; vStatus('저장된 코드가 있습니다. \'실행\'을 누르세요.'); }
+  renderVersions();
   const focusId = new URLSearchParams(location.search).get('focus');
   const focused = focusId && document.getElementById(focusId);
   if (focused && focused.tagName === 'DETAILS') {
