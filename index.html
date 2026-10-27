@@ -30,7 +30,7 @@ a{color:inherit}
 .mark{font-family:var(--display);font-weight:800;letter-spacing:-.01em;font-size:19px;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:baseline}
 .mark i{font-style:normal;color:var(--red)}
 .mark .lab{font-weight:700;font-size:10px;letter-spacing:.32em;color:var(--mute);margin-left:12px}
-.nav{display:flex;gap:18px;font-size:14px;color:var(--ink2);overflow-x:auto}
+.nav{display:flex;gap:12px;font-size:13px;color:var(--ink2);overflow-x:auto}
 .nav a{text-decoration:none;white-space:nowrap;padding:4px 0;border-bottom:1px solid transparent}
 .nav a:hover{border-color:var(--ink)}
 .timer{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)}
@@ -131,6 +131,22 @@ pre.codebox{margin:0;background:var(--night);color:#EDEDEA;font:13px/1.6 "SF Mon
 .mini:hover{border-color:var(--ink)}
 .tip{border-left:0;background:#fff;border:1px solid var(--line);padding:14px 16px;font-size:14px;color:var(--ink2)}
 .tip b{color:var(--ink)}
+textarea.result{min-height:150px;font:14px/1.7 var(--sans)}
+.mine-box label.note{font-weight:400;margin-bottom:8px}
+.saved{display:block;margin-top:6px;font-size:12px;color:var(--mute);min-height:18px}
+.btn:disabled,.mini:disabled{opacity:.4;cursor:not-allowed}
+
+/* my results */
+.mine-list{margin-top:22px;border-top:1px solid var(--ink)}
+.mine-grp h3{font:700 11px var(--display);letter-spacing:.24em;color:var(--mute);margin:22px 0 2px}
+.mine-row{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--line);text-decoration:none}
+.mine-row .c{font:800 14px var(--display)}
+.mine-row b{display:block;font-weight:600;font-size:15px}
+.mine-row .pv{display:block;color:var(--mute);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mine-row .go{font-size:13px;color:var(--ink2)}
+.mine-row:hover b{text-decoration:underline}
+.mine-empty{color:var(--mute);font-size:14px;margin:18px 0 0}
+#printDoc{display:none}
 
 /* dark band */
 .band{background:var(--night);color:#EDEDEA;padding:64px 0}
@@ -146,6 +162,7 @@ footer .mark{color:var(--ink)}
 
 .nav{scrollbar-width:none}
 .nav::-webkit-scrollbar{display:none}
+.timer .lab{display:none}  /* the bar is capped at the 1080px wrap; the nav needs the room, the title attribute still names the timer */
 @media (max-width:1100px){.timer .lab{display:none}.mark .lab{display:none}}
 @media (max-width:960px){.nav{display:none}}
 @media (max-width:860px){
@@ -165,6 +182,25 @@ footer .mark{color:var(--ink)}
 /* ?focus=s1-3 shows a single exercise, e.g. on the projector */
 body.focus .hero,body.focus footer,body.focus main>section:not(.keep),body.focus section.keep .head,body.focus details.m:not(.keep){display:none}
 body.focus section.keep{padding:28px 0;border:0}
+/* '내 결과물 → PDF로 저장' prints only the results document */
+@page{margin:16mm}
+@media print{
+  body.print-mine{background:#fff}
+  body.print-mine>*:not(#printDoc){display:none!important}
+  body.print-mine #printDoc{display:block!important}
+}
+#printDoc{font:11pt/1.6 var(--sans);color:#000}
+#printDoc h1{font-size:19pt;line-height:1.3;margin:0 0 4pt}
+#printDoc .meta{color:#555;font-size:9pt;margin:0 0 14pt}
+#printDoc h2{font-size:13pt;border-bottom:1px solid #000;padding-bottom:3pt;margin:18pt 0 8pt;break-after:avoid}
+#printDoc h3{font-size:11.5pt;margin:12pt 0 4pt;break-after:avoid}
+#printDoc h4{font-size:11pt;margin:8pt 0 2pt;break-after:avoid}
+#printDoc p{margin:0 0 3pt}
+#printDoc p.li{padding-left:12pt}
+#printDoc table{border-collapse:collapse;width:100%;margin:4pt 0 8pt;font-size:9.5pt}
+#printDoc td,#printDoc th{border:1px solid #999;padding:3pt 5pt;vertical-align:top;text-align:left}
+#printDoc th{background:#eee}
+#printDoc table.course td:first-child{width:24%;color:#555}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 </style>
 </head>
@@ -182,6 +218,7 @@ body.focus section.keep{padding:28px 0;border:0}
       <a href="#step3">STEP 3</a>
       <a href="#step4">STEP 4</a>
       <a href="#step5">STEP 5</a>
+      <a href="#mine">내 결과물</a>
     </nav>
     <div class="timer" id="timer" title="실습 타이머">
       <span class="lab">실습 타이머</span>
@@ -201,7 +238,7 @@ body.focus section.keep{padding:28px 0;border:0}
       <div>
         <p class="kicker">prof.kimcook — AI FOR FACULTY</p>
         <h1>AI와 함께 설계하는<br><em>내 수업</em>, 오늘 하나 완성합니다</h1>
-        <p class="lede">교과목 정보를 한 번 적어 두면 모든 실습 프롬프트에 자동으로 들어갑니다. 복사해서 ChatGPT, Claude, Gemini 중 편한 곳에 붙여 넣기만 하세요. 처음이시면 STEP 1부터, 익숙하시면 STEP 2나 3으로 바로 가셔도 됩니다.</p>
+        <p class="lede">교과목 정보를 한 번 적어 두면 모든 실습 프롬프트에 자동으로 들어갑니다. 복사해서 ChatGPT, Claude, Gemini 중 편한 곳에 붙여 넣기만 하세요. 처음이시면 STEP 1부터, 익숙하시면 STEP 2나 3으로 바로 가셔도 됩니다. 실습마다 AI 답을 'MY RESULT' 칸에 붙여 두면, 끝날 때 <a href="#mine">내 결과물</a>에서 한 파일로 내려받을 수 있습니다.</p>
         <div class="meta">
           <span><b>부산외국어대학교</b> PSC교수학습기술센터</span>
           <span><b class="num">2026. 11. 13.</b> 금 10:00–12:00</span>
@@ -358,6 +395,28 @@ body.focus section.keep{padding:28px 0;border:0}
       <div id="list-5"></div>
     </div>
   </section>
+
+  <section class="block" id="mine">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num" id="mineCount">0<small>MY RESULTS</small></div>
+        <div>
+          <h2>내 결과물</h2>
+          <p class="sub">실습마다 'MY RESULT' 칸에 붙여 넣은 답이 여기에 모입니다. 끝나면 한 파일로 내려받아 가세요. 이 브라우저에만 저장되고 어디에도 전송되지 않습니다.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-top:0">
+          <button class="btn" id="dlDocx" data-need>Word로 내려받기 <span class="k">.DOCX</span></button>
+          <button class="btn ghostb" id="dlPdf" data-need>PDF로 저장</button>
+          <button class="btn ghostb" id="copyAll" data-need>전체 복사</button>
+          <button class="mini" id="clearMine">이 컴퓨터에서 모두 지우기</button>
+        </div>
+        <p class="note" style="margin:14px 0 0">Word 파일은 한글(HWP)과 구글 문서에서도 열립니다. PDF는 인쇄 창에서 대상을 'PDF로 저장'으로 고르세요. 공용 컴퓨터(PC실)라면 내려받은 뒤 '이 컴퓨터에서 모두 지우기'를 눌러 주세요. 결과물과 내 수업 정보가 함께 지워집니다.</p>
+        <div class="mine-list" id="mineList"></div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -369,6 +428,7 @@ body.focus section.keep{padding:28px 0;border:0}
 </footer>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="printDoc"></div>
 
 <!-- Apps Script code shown in STEP 3 -->
 <script type="text/plain" id="code-3-1">/* 퀴즈 시트를 구글 폼 퀴즈로 바꿉니다.
@@ -805,6 +865,212 @@ function removeAlarms() {
 
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  /* ---------- my results: pasted answers, kept only in this browser ---------- */
+  let results = store.get('acl-results', {});
+  const resultTimers = {};
+  const STEP_NAME = { 1: 'STEP 1 · AI와 첫 대화', 2: 'STEP 2 · 한 차시 설계', p: 'PLUS · 교육에 바로 쓰는 것들', 3: 'STEP 3 · 수업 슬라이드', 4: 'STEP 4 · 자동화와 수업 도구', 5: 'STEP 5 · Aside' };
+  const pad2 = n => String(n).padStart(2, '0');
+  const hhmm = t => { const d = new Date(t); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+  const stamp = () => { const d = new Date(); return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. ' + hhmm(d); };
+  const ymd = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()); };
+  const resultBlock = m => '<div class="mine-box"><h4>MY RESULT</h4>'
+    + '<label class="note" for="r-' + m.id + '">' + (m.step === 4 || m.step === 5 ? '만든 폼·시트 주소나 결과 요약을 남겨 두세요.' : 'AI 답에서 쓸 만한 부분을 붙여 넣으세요. 고쳐 쓴 것도 좋습니다.')
+    + ' 이 브라우저에만 자동 저장되고, 맨 아래 <a href="#mine">내 결과물</a>에서 한 파일로 내려받습니다.</label>'
+    + '<textarea class="result" id="r-' + m.id + '" placeholder="여기에 붙여 넣기"></textarea><span class="saved" id="rs-' + m.id + '"></span></div>';
+
+  function saveResult(id, text) {
+    $('#rs-' + id).textContent = '저장 중';
+    clearTimeout(resultTimers[id]);
+    resultTimers[id] = setTimeout(() => {
+      if (text.trim()) results[id] = { text, at: Date.now() }; else delete results[id];
+      let ok = true;
+      try { localStorage.setItem('acl-results', JSON.stringify(results)); } catch (e) { ok = false; }
+      $('#rs-' + id).textContent = !ok ? '저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.' : results[id] ? '저장됨 ' + hhmm(results[id].at) : '';
+      delete resultTimers[id];
+      renderMine();
+    }, 400);
+  }
+  // write edits still waiting on the debounce (before a download, or when the page closes)
+  function flushResults() {
+    Object.keys(resultTimers).forEach(id => {
+      clearTimeout(resultTimers[id]); delete resultTimers[id];
+      const text = $('#r-' + id).value;
+      if (text.trim()) results[id] = { text, at: Date.now() }; else delete results[id];
+      $('#rs-' + id).textContent = results[id] ? '저장됨 ' + hhmm(results[id].at) : '';
+    });
+    try { localStorage.setItem('acl-results', JSON.stringify(results)); } catch (e) {}
+    renderMine();
+  }
+  const saved = () => M.filter(m => results[m.id] && results[m.id].text.trim());
+  const preview = s => s.replace(/<br\s*\/?>/gi, ' ').replace(/^\s*\|?[\s:|-]*-{2,}[\s:|-]*\|?\s*$/gm, ' ')
+    .replace(/[#*`|>\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+
+  function renderMine() {
+    const list = saved();
+    $('#mineCount').innerHTML = list.length + '<small>MY RESULTS</small>';
+    $('#mineList').innerHTML = list.length ? STEPS.map(n => {
+      const g = list.filter(m => m.step === n);
+      return g.length ? '<div class="mine-grp"><h3>' + STEP_NAME[n] + '</h3>' + g.map(m => '<a class="mine-row" href="#' + m.id + '"><span class="c num">' + label(m.id) + '</span>'
+        + '<span><b>' + esc(m.title) + '</b><span class="pv">' + esc(preview(results[m.id].text)) + '</span></span><span class="go">열기</span></a>').join('') + '</div>' : '';
+    }).join('') : '<p class="mine-empty">아직 모은 결과물이 없습니다. 실습마다 맨 아래 \'MY RESULT\' 칸에 AI 답을 붙여 넣으면 여기에 모입니다.</p>';
+    $$('#mine [data-need]').forEach(b => { b.disabled = !list.length; });
+  }
+
+  const courseRows = () => [['교과목', course.course], ['학과·전공', course.dept], ['대상', course.target], ['수업 형태', course.format], ['주당 시수', course.hours],
+    ['학기 목표', course.goal], ['핵심 내용', course.topics], ['학생 특징', course.learners]].filter(r => r[1] && r[1].trim());
+  const hasCourse = () => !!(course.course && course.course.trim());
+  const DOC_TITLE = 'AI와 함께 설계한 내 수업 — 결과물 모음';
+  const DOC_META = '부산외국어대학교 PSC교수학습기술센터 교수자 AI 활용 맞춤형 연수 · 2026. 11. 13. · 강사 김강훈';
+  const LAB_URL = 'https://kimcook-edu.pages.dev';
+
+  // Chat answers arrive as Markdown (copy button) or tab-separated text (copied tables): split into headings, list items, paragraphs and tables.
+  function blocks(text) {
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    const isPipe = s => /^\s*\|.*\|\s*$/.test(s);
+    const isRule = s => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(s);
+    const isTab = s => s.includes('\t') && s.trim() !== '';
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (isPipe(l) || (isTab(l) && isTab(lines[i + 1] || ''))) {
+        const pipe = isPipe(l), rows = [];
+        for (; i < lines.length && (pipe ? isPipe(lines[i]) : isTab(lines[i])); i++) {
+          if (pipe && isRule(lines[i])) continue;
+          rows.push(pipe ? lines[i].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()) : lines[i].split('\t').map(c => c.trim()));
+        }
+        i--;
+        if (rows.length) out.push({ t: 'table', rows });
+        continue;
+      }
+      let m;
+      if ((m = l.match(/^\s*#{1,6}\s+(.*)$/))) out.push({ t: 'h', text: m[1] });
+      else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l) || l.trim() === '') out.push({ t: 'blank' });
+      else if ((m = l.match(/^(\s*)[-*•]\s+(.*)$/))) out.push({ t: 'li', text: '• ' + m[2], lvl: m[1].length >= 2 ? 1 : 0 });
+      else if ((m = l.match(/^(\s*)(\d+[.)])\s+(.*)$/))) out.push({ t: 'li', text: m[2] + ' ' + m[3], lvl: m[1].length >= 2 ? 1 : 0 });
+      else out.push({ t: 'p', text: l });
+    }
+    return out.filter((b, i, a) => !(b.t === 'blank' && (i === 0 || i === a.length - 1 || a[i - 1].t === 'blank')));
+  }
+
+  /* .docx without a library: WordprocessingML parts packed into a stored (uncompressed) ZIP */
+  const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const xesc = s => String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
+    .replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function wRuns(text, bold) {
+    return text.replace(/`/g, '').replace(/\t/g, '    ').split(/(\*\*[^*]+\*\*)/).filter(Boolean).map(seg => {
+      const b = bold || /^\*\*[^*]+\*\*$/.test(seg);
+      const t = /^\*\*[^*]+\*\*$/.test(seg) ? seg.slice(2, -2) : seg;
+      return t.split(/<br\s*\/?>/i).map((part, i) => (i ? '<w:r><w:br/></w:r>' : '')
+        + (part ? '<w:r>' + (b ? '<w:rPr><w:b/></w:rPr>' : '') + '<w:t xml:space="preserve">' + xesc(part) + '</w:t></w:r>' : '')).join('');
+    }).join('');
+  }
+  const wPara = (text, style, ppr) => '<w:p>' + (style || ppr ? '<w:pPr>' + (style ? '<w:pStyle w:val="' + style + '"/>' : '') + (ppr || '') + '</w:pPr>' : '') + wRuns(text) + '</w:p>';
+  function wTable(rows, head) {
+    const n = Math.max(...rows.map(r => r.length)), w = Math.floor(9298 / n);
+    const cell = (c, h) => '<w:tc><w:tcPr><w:tcW w:w="' + w + '" w:type="dxa"/>' + (h ? '<w:shd w:val="clear" w:color="auto" w:fill="EFEFEF"/>' : '') + '</w:tcPr>'
+      + '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>' + wRuns(c || '', h) + '</w:p></w:tc>';
+    return '<w:tbl><w:tblPr><w:tblStyle w:val="ResultTable"/><w:tblW w:w="5000" w:type="pct"/></w:tblPr><w:tblGrid>' + ('<w:gridCol w:w="' + w + '"/>').repeat(n) + '</w:tblGrid>'
+      + rows.map((r, i) => '<w:tr>' + Array.from({ length: n }, (_, k) => cell(r[k], head && i === 0)).join('') + '</w:tr>').join('') + '</w:tbl>'
+      + '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p>';
+  }
+  const wBlock = b => b.t === 'table' ? wTable(b.rows, true)
+    : b.t === 'h' ? wPara(b.text, 'Heading3')
+    : b.t === 'li' ? wPara(b.text, '', '<w:ind w:left="' + (b.lvl ? 720 : 360) + '" w:hanging="240"/>')
+    : b.t === 'blank' ? '<w:p/>' : wPara(b.text);
+
+  function documentXml() {
+    const list = saved(), x = [wPara(DOC_TITLE, 'Title'), wPara(DOC_META, 'Meta'), wPara('내려받은 날 ' + stamp() + ' · 실습 ' + list.length + '개', 'Meta')];
+    if (hasCourse()) x.push(wPara('내 수업 정보', 'Heading1'), wTable(courseRows(), false));
+    STEPS.forEach(n => {
+      const g = list.filter(m => m.step === n);
+      if (!g.length) return;
+      x.push(wPara(STEP_NAME[n], 'Heading1'));
+      g.forEach(m => { x.push(wPara(label(m.id) + '  ' + m.title, 'Heading2')); blocks(results[m.id].text).forEach(b => x.push(wBlock(b))); });
+    });
+    x.push(wPara('실습실 ' + LAB_URL + ' — 수업 후에도 계속 쓰실 수 있습니다.', 'Meta', '<w:spacing w:before="360"/>'));
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + x.join('')
+      + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1418" w:right="1304" w:bottom="1418" w:left="1304" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>';
+  }
+  const FONT = '<w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:eastAsia="Malgun Gothic" w:cs="Malgun Gothic"/>';
+  const pStyle = (id, name, ppr, rpr) => '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name + '"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>'
+    + '<w:pPr>' + ppr + '</w:pPr><w:rPr>' + rpr + '</w:rPr></w:style>';
+  const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:docDefaults><w:rPrDefault><w:rPr>' + FONT + '<w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="en-US" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault>'
+    + '<w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
+    + '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>'
+    + pStyle('Title', 'Title', '<w:spacing w:after="120"/>', '<w:b/><w:sz w:val="36"/><w:szCs w:val="36"/>')
+    + pStyle('Heading1', 'heading 1', '<w:keepNext/><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="4" w:color="1A1A1A"/></w:pBdr><w:spacing w:before="400" w:after="160"/><w:outlineLvl w:val="0"/>', '<w:b/><w:sz w:val="28"/><w:szCs w:val="28"/>')
+    + pStyle('Heading2', 'heading 2', '<w:keepNext/><w:spacing w:before="280" w:after="100"/><w:outlineLvl w:val="1"/>', '<w:b/><w:sz w:val="24"/><w:szCs w:val="24"/>')
+    + pStyle('Heading3', 'heading 3', '<w:keepNext/><w:spacing w:before="160" w:after="60"/><w:outlineLvl w:val="2"/>', '<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/>')
+    + pStyle('Meta', 'Meta', '<w:spacing w:after="40"/>', '<w:color w:val="6F6F6F"/><w:sz w:val="18"/><w:szCs w:val="18"/>')
+    + '<w:style w:type="table" w:styleId="ResultTable"><w:name w:val="Result Table"/><w:tblPr><w:tblBorders>'
+    + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(s => '<w:' + s + ' w:val="single" w:sz="4" w:space="0" w:color="BCBCBC"/>').join('')
+    + '</w:tblBorders><w:tblCellMar><w:top w:w="40" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>'
+    + '</w:styles>';
+  const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const docxParts = () => [
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+      + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+      + '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="' + REL + '/officeDocument" Target="word/document.xml"/></Relationships>'],
+    ['word/document.xml', documentXml()],
+    ['word/styles.xml', STYLES_XML],
+    ['word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="' + REL + '/styles" Target="styles.xml"/></Relationships>']
+  ];
+  const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zipStored(files) {
+    const enc = new TextEncoder(), now = new Date(), local = [], central = [];
+    const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    let offset = 0;
+    files.forEach(([path, text]) => {
+      const name = enc.encode(path), data = enc.encode(text), crc = crc32(data);
+      const lh = new DataView(new ArrayBuffer(30));
+      [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, time, 2], [12, date, 2], [14, crc, 4], [18, data.length, 4], [22, data.length, 4], [26, name.length, 2], [28, 0, 2]]
+        .forEach(([o, v, s]) => s === 4 ? lh.setUint32(o, v, true) : lh.setUint16(o, v, true));
+      const ch = new DataView(new ArrayBuffer(46));
+      [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, time, 2], [14, date, 2], [16, crc, 4], [20, data.length, 4], [24, data.length, 4],
+        [28, name.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, offset, 4]]
+        .forEach(([o, v, s]) => s === 4 ? ch.setUint32(o, v, true) : ch.setUint16(o, v, true));
+      local.push(new Uint8Array(lh.buffer), name, data);
+      central.push(new Uint8Array(ch.buffer), name);
+      offset += 30 + name.length + data.length;
+    });
+    const size = central.reduce((s, a) => s + a.length, 0), end = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [8, files.length, 2], [10, files.length, 2], [12, size, 4], [16, offset, 4]].forEach(([o, v, s]) => s === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true));
+    return new Blob([...local, ...central, new Uint8Array(end.buffer)], { type: DOCX_TYPE });
+  }
+  function saveFile(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+  const fileName = ext => 'AI연수_내결과물_' + (hasCourse() ? course.course.replace(/[\\/:*?"<>|\s]+/g, '') + '_' : '') + ymd() + '.' + ext;
+
+  /* print view for 'PDF로 저장': same blocks as the .docx, rendered as HTML */
+  const inl = s => esc(s.replace(/`/g, '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+  const hBlock = b => b.t === 'table' ? '<table>' + b.rows.map((r, i) => '<tr>' + r.map(c => i ? '<td>' + inl(c) + '</td>' : '<th>' + inl(c) + '</th>').join('') + '</tr>').join('') + '</table>'
+    : b.t === 'h' ? '<h4>' + inl(b.text) + '</h4>'
+    : b.t === 'li' ? '<p class="li"' + (b.lvl ? ' style="padding-left:24pt"' : '') + '>' + inl(b.text) + '</p>'
+    : b.t === 'blank' ? '' : '<p>' + inl(b.text) + '</p>';
+  function fillPrintDoc() {
+    const list = saved(), h = ['<h1>' + DOC_TITLE + '</h1><p class="meta">' + DOC_META + '<br>내려받은 날 ' + stamp() + ' · 실습 ' + list.length + '개</p>'];
+    if (hasCourse()) h.push('<h2>내 수업 정보</h2><table class="course">' + courseRows().map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>').join('') + '</table>');
+    STEPS.forEach(n => {
+      const g = list.filter(m => m.step === n);
+      if (!g.length) return;
+      h.push('<h2>' + STEP_NAME[n] + '</h2>');
+      g.forEach(m => h.push('<h3>' + label(m.id) + '  ' + esc(m.title) + '</h3>' + blocks(results[m.id].text).map(hBlock).join('')));
+    });
+    h.push('<p class="meta" style="margin-top:18pt">실습실 ' + LAB_URL + '</p>');
+    $('#printDoc').innerHTML = h.join('');
+  }
+  const allText = () => [DOC_TITLE, '내려받은 날 ' + stamp(), ''].concat(saved().map(m => '[' + label(m.id) + '] ' + m.title + '\n' + results[m.id].text.trim() + '\n')).join('\n');
+
   function render() {
     STEPS.forEach(n => {
       const box = $('#list-' + n);
@@ -835,6 +1101,7 @@ function removeAlarms() {
           + linkBlock + promptBlock + dataBlock + codeBlock + helpBlock
           + '<div><h4>CHECK</h4><ul class="checks">' + m.checks.map(c => '<li>' + esc(c) + '</li>').join('') + '</ul></div>'
           + '<div><h4>ONE MORE STEP</h4><div class="next">' + m.next.map((q, i) => '<div class="one"><p>' + esc(q) + '</p><button class="mini" data-next="' + m.id + ':' + i + '">복사</button></div>').join('') + '</div></div>'
+          + resultBlock(m)
           + '</div></details>';
       }).join('');
     });
@@ -852,9 +1119,13 @@ function removeAlarms() {
       const cb = $('[data-done="' + m.id + '"]');
       cb.checked = done.has(m.id);
       cb.addEventListener('change', () => { cb.checked ? done.add(m.id) : done.delete(m.id); store.set('acl-done', [...done]); progress(); });
+      const rt = $('#r-' + m.id);
+      if (results[m.id]) { rt.value = results[m.id].text; $('#rs-' + m.id).textContent = '저장됨 ' + hhmm(results[m.id].at); }
+      rt.addEventListener('input', () => saveResult(m.id, rt.value));
     });
     refreshPrompts();
     progress();
+    renderMine();
   }
 
   function promptFor(m) {
@@ -912,6 +1183,26 @@ function removeAlarms() {
     else if (b.dataset.help) { copy(byId(b.dataset.help).helpPrompt(), '질문을 복사했습니다. 오류 메시지 자리만 채워서 AI에게 보내세요.'); }
     else if (b.dataset.next) { const [id, i] = b.dataset.next.split(':'); copy(byId(id).next[Number(i)], '복사했습니다. 같은 대화창에 이어서 붙여 넣으세요.'); }
   });
+
+  /* ---------- my results: download, print, copy, clear ---------- */
+  $('#dlDocx').onclick = () => { flushResults(); saveFile(zipStored(docxParts()), fileName('docx')); toast('Word 파일을 내려받았습니다. 내려받기 폴더를 확인하세요.'); };
+  $('#dlPdf').onclick = () => { flushResults(); fillPrintDoc(); document.body.classList.add('print-mine'); window.print(); };
+  window.addEventListener('afterprint', () => document.body.classList.remove('print-mine'));
+  $('#copyAll').onclick = () => { flushResults(); copy(allText(), '결과물 전체를 복사했습니다. 한글 문서나 메일에 붙여 넣으세요.'); };
+  $('#clearMine').onclick = () => {
+    flushResults();
+    if (!confirm('이 컴퓨터에 저장된 결과물 ' + saved().length + '개와 내 수업 정보, 완료 표시를 모두 지울까요?\n내려받지 않았다면 먼저 내려받으세요.')) return;
+    try { ['acl-results', 'acl-course', 'acl-done'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    results = {}; done.clear(); course = {};
+    fields.forEach(f => { if (f.tagName !== 'SELECT') f.value = ''; });
+    $$('textarea.result').forEach(t => { t.value = ''; });
+    $$('.saved').forEach(s => { s.textContent = ''; });
+    $$('[data-done]').forEach(c => { c.checked = false; });
+    $('#savedNote').textContent = '';
+    refreshPrompts(); progress(); renderMine();
+    toast('이 컴퓨터에서 모두 지웠습니다.');
+  };
+  window.addEventListener('pagehide', flushResults);
 
   /* ---------- deep links: #s2-1 opens that mission ---------- */
   // Deck buttons open the page with a #hash: jump there instantly on load, glide only for in-page hash changes.
