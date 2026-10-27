@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>prof.kimcook · AI Class Lab</title>
+<meta name="description" content="부산외국어대학교 PSC교수학습기술센터 교수자 AI 활용 맞춤형 연수 실습 페이지 (2026. 11. 13.)">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap">
+<style>
+:root{
+  --paper:#F2F2F2; --sheet:#F8F8F8; --ink:#1A1A1A; --ink2:#4A4A4A; --mute:#8E8E8E;
+  --line:#D2D2D2; --line2:#BCBCBC; --red:#E54536; --night:#161616;
+  --sans:"Pretendard","Pretendard Variable",system-ui,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  --display:"Montserrat","Pretendard",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:20;background:rgba(236,236,234,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.bar .wrap{display:flex;align-items:center;gap:24px;height:60px}
+.mark{font-family:var(--display);font-weight:800;letter-spacing:-.01em;font-size:19px;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:baseline}
+.mark i{font-style:normal;color:var(--red)}
+.mark .lab{font-weight:700;font-size:10px;letter-spacing:.32em;color:var(--mute);margin-left:12px}
+.nav{display:flex;gap:18px;font-size:14px;color:var(--ink2);overflow-x:auto}
+.nav a{text-decoration:none;white-space:nowrap;padding:4px 0;border-bottom:1px solid transparent}
+.nav a:hover{border-color:var(--ink)}
+.timer{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)}
+.timer button{font:600 12px var(--display);border:1px solid var(--line2);background:transparent;padding:4px 8px;border-radius:2px;cursor:pointer;color:var(--ink)}
+.timer button:hover{border-color:var(--ink)}
+.timer .clock{font:800 18px var(--display);min-width:64px;text-align:right;letter-spacing:.02em}
+.timer.over .clock{color:var(--red)}
+
+/* hero */
+.hero{position:relative;padding:72px 0 56px;overflow:hidden}
+.ghost{position:absolute;left:-12px;top:34px;font:800 clamp(64px,12vw,150px)/1 var(--display);letter-spacing:.32em;color:#E8E8E8;white-space:nowrap;pointer-events:none;user-select:none}
+.hero .grid{position:relative;display:grid;grid-template-columns:150px 1fr;gap:48px;align-items:start}
+.frame{border:2px solid var(--ink);padding:18px 14px 22px;font:800 13px/1.9 var(--display);letter-spacing:.42em;height:250px;position:relative}
+.frame span{display:block}
+.frame .tick{position:absolute;left:14px;bottom:22px;width:3px;height:26px;background:var(--red)}
+.kicker{font:600 13px var(--display);letter-spacing:.24em;color:var(--mute);margin:6px 0 18px}
+h1{font-weight:800;font-size:clamp(34px,5vw,54px);line-height:1.18;letter-spacing:-.02em;margin:0 0 18px}
+h1 em{font-style:normal;color:var(--red)}
+.lede{max-width:620px;color:var(--ink2);font-size:17px;margin:0 0 26px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 28px;font-size:14px;color:var(--ink2)}
+.meta b{font-weight:600;color:var(--ink)}
+
+/* schedule */
+.flow{padding-top:30px;padding-bottom:6px}
+.flow ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(8,1fr);position:relative}
+.flow ol:before{content:"";position:absolute;left:0;right:0;top:31px;border-top:1px solid var(--ink)}
+.flow li{position:relative;padding-right:10px}
+.flow .t{font:800 15px var(--display);display:block;margin-bottom:12px}
+.flow li:after{content:"";position:absolute;left:0;top:27px;width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.flow li.hot:after{background:var(--red)}
+.flow .w{display:block;margin-top:14px;font-size:14px;font-weight:600;line-height:1.4}
+.flow .d{display:block;font-size:12px;color:var(--mute)}
+
+/* sections */
+section.block{padding:56px 0;border-top:1px solid var(--line)}
+.head{display:grid;grid-template-columns:150px 1fr;gap:48px;margin-bottom:28px}
+.big{font:900 64px/1 var(--display);letter-spacing:-.02em}
+.big small{display:block;font:600 12px var(--display);letter-spacing:.28em;color:var(--mute);margin-top:12px}
+h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 8px;line-height:1.3}
+h2 .lv{font:700 12px var(--display);letter-spacing:.2em;color:var(--red);vertical-align:middle;margin-left:10px}
+.sub{color:var(--ink2);margin:0;max-width:640px}
+.prog{margin-top:14px;display:flex;align-items:center;gap:12px;font:600 12px var(--display);letter-spacing:.12em;color:var(--mute)}
+.prog .track{width:180px;height:3px;background:var(--line)}
+.prog .fill{height:3px;background:var(--ink);width:0;transition:width .4s ease}
+
+/* course form */
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:3px;padding:28px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:18px 22px}
+.form .full{grid-column:1/-1}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+label small{font-weight:400;color:var(--mute);margin-left:6px}
+input,select,textarea{width:100%;font:15px/1.5 var(--sans);color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:2px;padding:10px 12px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ink)}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;align-items:center}
+.btn{font:600 14px var(--sans);border:1px solid var(--ink);background:var(--ink);color:#fff;padding:10px 16px;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#000}
+.btn.ghostb{background:transparent;color:var(--ink)}
+.btn.ghostb:hover{background:#fff}
+.btn.red{background:var(--red);border-color:var(--red)}
+.btn .k{font:700 11px var(--display);letter-spacing:.14em;opacity:.7}
+.note{font-size:13px;color:var(--mute)}
+
+/* rules */
+.rules{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-top:1px solid var(--ink)}
+.rules li{padding:18px 18px 4px 0;font-size:14px;line-height:1.55}
+.rules b{display:block;font:800 22px var(--display);margin-bottom:8px}
+.rules li:first-child b{color:var(--red)}
+
+/* missions */
+details.m{border:1px solid var(--line);background:var(--sheet);border-radius:3px;margin-bottom:12px;transition:border-color .2s}
+details.m[open]{border-color:var(--line2)}
+details.m.flash{border-color:var(--red)}
+details.m summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:70px 1fr auto auto;gap:18px;align-items:center;padding:18px 22px}
+details.m summary::-webkit-details-marker{display:none}
+.code{font:800 20px var(--display);letter-spacing:.02em}
+.mt{font-size:18px;font-weight:700;line-height:1.4}
+.mt span{display:block;font-size:14px;font-weight:400;color:var(--ink2)}
+.min{font:600 12px var(--display);letter-spacing:.12em;color:var(--mute);white-space:nowrap}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);white-space:nowrap}
+.chk input{width:18px;height:18px;accent-color:var(--red)}
+details.m.done .code{color:var(--red)}
+.body{padding:4px 22px 26px 110px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+.band details.m{color:var(--ink);border-color:#2C2C2C}
+.body h4{font:700 11px var(--display);letter-spacing:.24em;color:var(--mute);margin:0 0 8px}
+.body ol{margin:0;padding-left:20px}
+.body ol li{margin:2px 0}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
+.fields .full{grid-column:1/-1}
+textarea.prompt{min-height:240px;font:14px/1.7 var(--sans);background:#fff;white-space:pre-wrap}
+pre.codebox{margin:0;background:var(--night);color:#EDEDEA;font:13px/1.6 "SF Mono",Menlo,Consolas,monospace;padding:18px;border-radius:2px;overflow:auto;max-height:340px}
+.checks{list-style:none;margin:0;padding:0}
+.checks li{padding:6px 0 6px 22px;position:relative;font-size:15px}
+.checks li:before{content:"";position:absolute;left:0;top:13px;width:10px;height:10px;border:1.5px solid var(--ink)}
+.next{display:grid;gap:8px}
+.next .one{display:flex;gap:12px;align-items:flex-start;border-top:1px solid var(--line);padding-top:10px;font-size:15px}
+.next .one p{margin:0;flex:1}
+.mini{font:600 12px var(--sans);border:1px solid var(--line2);background:transparent;border-radius:2px;padding:5px 9px;cursor:pointer;white-space:nowrap}
+.mini:hover{border-color:var(--ink)}
+.tip{border-left:0;background:#fff;border:1px solid var(--line);padding:14px 16px;font-size:14px;color:var(--ink2)}
+.tip b{color:var(--ink)}
+
+/* dark band */
+.band{background:var(--night);color:#EDEDEA;padding:64px 0}
+.band h2{color:#fff}
+.band .sub{color:#B8B8B4}
+.band .big{color:#fff}
+
+footer{padding:40px 0 70px;color:var(--mute);font-size:13px;border-top:1px solid var(--line)}
+footer .mark{color:var(--ink)}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:2px;font-size:14px;opacity:0;transition:all .25s ease;pointer-events:none;z-index:50;max-width:90vw}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+.nav{scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+@media (max-width:1100px){.timer .lab{display:none}.mark .lab{display:none}}
+@media (max-width:960px){.nav{display:none}}
+@media (max-width:860px){
+  .hero .grid,.head{grid-template-columns:1fr;gap:22px}
+  .frame{height:auto;display:flex;gap:14px;padding:12px 14px}
+  .frame .tick{display:none}
+  .flow ol{grid-template-columns:repeat(2,1fr);gap:18px 10px}
+  .flow ol:before,.flow li:after{display:none}
+  .rules{grid-template-columns:1fr 1fr}
+  .form,.fields{grid-template-columns:1fr}
+  details.m summary{grid-template-columns:52px 1fr;gap:10px 14px}
+  .min,.chk{grid-column:2}
+  .body{padding:4px 18px 22px 18px}
+  .timer .lab{display:none}
+  .nav{display:none}
+}
+/* ?focus=s1-3 shows a single exercise, e.g. on the projector */
+body.focus .hero,body.focus footer,body.focus main>section:not(.keep),body.focus section.keep .head,body.focus details.m:not(.keep){display:none}
+body.focus section.keep{padding:28px 0;border:0}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="mark" href="#top">prof<i>.</i>kimcook<span class="lab">AI CLASS LAB</span></a>
+    <nav class="nav">
+      <a href="#course">내 수업 정보</a>
+      <a href="#rules">안전 수칙</a>
+      <a href="#step1">STEP 1</a>
+      <a href="#step2">STEP 2</a>
+      <a href="#plus">PLUS</a>
+      <a href="#step3">STEP 3</a>
+      <a href="#step4">STEP 4</a>
+      <a href="#step5">STEP 5</a>
+    </nav>
+    <div class="timer" id="timer" title="실습 타이머">
+      <span class="lab">실습 타이머</span>
+      <button data-min="5">5</button><button data-min="10">10</button><button data-min="15">15</button><button data-min="20">20</button>
+      <span class="clock num" id="clock">--:--</span>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="ghost">CLASS DESIGN</div>
+    <div class="wrap grid">
+      <div class="frame" aria-hidden="true">
+        <span>THE</span><span>CLA</span><span>SS</span><span>LAB</span><i class="tick"></i>
+      </div>
+      <div>
+        <p class="kicker">prof.kimcook — AI FOR FACULTY</p>
+        <h1>AI와 함께 설계하는<br><em>내 수업</em>, 오늘 하나 완성합니다</h1>
+        <p class="lede">교과목 정보를 한 번 적어 두면 모든 실습 프롬프트에 자동으로 들어갑니다. 복사해서 ChatGPT, Claude, Gemini 중 편한 곳에 붙여 넣기만 하세요. 처음이시면 STEP 1부터, 익숙하시면 STEP 2나 3으로 바로 가셔도 됩니다.</p>
+        <div class="meta">
+          <span><b>부산외국어대학교</b> PSC교수학습기술센터</span>
+          <span><b class="num">2026. 11. 13.</b> 금 10:00–12:00</span>
+          <span><b>김강훈</b> 동의과학대학교 AI허브센터</span>
+        </div>
+      </div>
+    </div>
+    <div class="wrap flow" id="flow">
+      <ol>
+        <li><span class="t num">10:00</span><span class="w">열기</span><span class="d">왜 지금 수업 설계에 AI인가</span></li>
+        <li><span class="t num">10:10</span><span class="w">원리</span><span class="d">AI에게 일을 맡기는 법</span></li>
+        <li class="hot"><span class="t num">10:20</span><span class="w">STEP 1 입문</span><span class="d">과목 소개 · 목표 · 계획서</span></li>
+        <li class="hot"><span class="t num">10:40</span><span class="w">STEP 2 실전</span><span class="d">한 차시 · 활동지 · 루브릭</span></li>
+        <li><span class="t num">11:00</span><span class="w">쉬는 시간</span><span class="d">5분</span></li>
+        <li class="hot"><span class="t num">11:05</span><span class="w">STEP 3 디자인</span><span class="d">수업 슬라이드, 제대로</span></li>
+        <li class="hot"><span class="t num">11:25</span><span class="w">STEP 4 · 5</span><span class="d">자동화 · 바이브코딩 · Aside</span></li>
+        <li><span class="t num">11:45</span><span class="w">정리</span><span class="d">다음 학기 적용 · 질문</span></li>
+      </ol>
+    </div>
+  </div>
+
+  <section class="block" id="course">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">00<small>START HERE</small></div>
+        <div>
+          <h2>내 수업 정보</h2>
+          <p class="sub">이번 학기에 가르치는 과목 하나를 떠올려 적어 주세요. 이 브라우저에만 저장되고 어디에도 전송되지 않습니다. 학생 실명이나 학번은 적지 마세요.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="form" id="courseForm">
+          <div><label for="f-course">교과목명</label><input id="f-course" data-k="course" placeholder="예: 비즈니스 영어 커뮤니케이션"></div>
+          <div><label for="f-dept">학과·전공</label><input id="f-dept" data-k="dept" placeholder="예: 영어학부"></div>
+          <div><label for="f-target">대상 학년·인원</label><input id="f-target" data-k="target" placeholder="예: 2학년, 30명"></div>
+          <div><label for="f-format">수업 형태</label>
+            <select id="f-format" data-k="format">
+              <option>이론과 실습을 함께</option><option>이론 중심 강의</option><option>실습·실기 중심</option><option>팀 프로젝트 중심</option><option>토론·세미나</option>
+            </select></div>
+          <div><label for="f-hours">주당 시수</label><input id="f-hours" data-k="hours" placeholder="예: 3시간"></div>
+          <div><label for="f-goal">학기를 마친 학생이 할 수 있었으면 하는 것 <small>선택</small></label><input id="f-goal" data-k="goal" placeholder="예: 영어로 업무 이메일을 혼자 쓸 수 있다"></div>
+          <div class="full"><label for="f-topics">다루는 핵심 내용 <small>쉼표로 구분</small></label><input id="f-topics" data-k="topics" placeholder="예: 업무 이메일, 회의 영어, 프레젠테이션, 협상"></div>
+          <div class="full"><label for="f-learners">우리 학생들의 특징</label><input id="f-learners" data-k="learners" placeholder="예: 읽기는 잘하지만 말하기에 자신이 없고, 발표를 부담스러워함"></div>
+        </div>
+        <div class="row">
+          <button class="btn" id="saveCourse">저장하고 STEP 1로</button>
+          <button class="btn ghostb" id="fillExample">예시로 채우기</button>
+          <button class="btn ghostb" id="clearCourse">지우기</button>
+          <span class="note" id="savedNote"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="rules">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">!<small>BEFORE YOU START</small></div>
+        <div>
+          <h2>실습 전에 다섯 가지만</h2>
+          <p class="sub">편해지는 만큼 조심할 것도 생깁니다. 오늘 실습은 모두 가상 자료로 합니다.</p>
+        </div>
+      </div>
+      <ul class="rules">
+        <li><b class="num">01</b>학생 실명·학번·연락처·성적은 AI에 넣지 않습니다. 번호나 가상 이름으로 바꿉니다.</li>
+        <li><b class="num">02</b>AI의 답은 초안입니다. 사실, 숫자, 출처는 교수자가 확인합니다.</li>
+        <li><b class="num">03</b>메일이나 폼 자동화는 본인 메일로 먼저 시험합니다.</li>
+        <li><b class="num">04</b>학교 계정 정책을 확인하고, 오늘 실습은 개인 계정을 권합니다.</li>
+        <li><b class="num">05</b>학생에게도 AI 사용 원칙을 먼저 알려 줍니다. (STEP 2-5)</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="block" id="step1">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">01<small>STEP ONE</small></div>
+        <div>
+          <h2>AI와 첫 대화<span class="lv">입문</span></h2>
+          <p class="sub">AI 채팅을 처음 써 보셔도 괜찮습니다. 복사, 붙여넣기, 읽고 고쳐 달라고 말하기. 이 세 가지면 됩니다.</p>
+          <div class="prog" data-step="1"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-1"></div>
+    </div>
+  </section>
+
+  <section class="block" id="step2">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">02<small>STEP TWO</small></div>
+        <div>
+          <h2>수업 한 차시를 설계합니다<span class="lv">실전</span></h2>
+          <p class="sub">강의계획서에서 한 주를 골라, 목표부터 평가까지 거꾸로 설계합니다. 활동지와 루브릭, 피드백 문장까지 만들어 봅니다.</p>
+          <div class="prog" data-step="2"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-2"></div>
+    </div>
+  </section>
+
+  <section class="block" id="plus">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">+<small>PLUS</small></div>
+        <div>
+          <h2>교육에 바로 쓰는 것들<span class="lv">수업 후에도</span></h2>
+          <p class="sub">내 강의자료로 예습 가이드 만들기, 수준별 과제, 시험 문항 점검, 강의평가 분석과 개선계획. 오늘 시간이 남으면, 아니면 학기 중에 하나씩 해 보세요.</p>
+          <div class="prog" data-step="p"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-p"></div>
+    </div>
+  </section>
+
+  <section class="block" id="step3">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">03<small>STEP THREE</small></div>
+        <div>
+          <h2>수업 슬라이드, 제대로 만듭니다<span class="lv">디자인</span></h2>
+          <p class="sub">"PPT 만들어 줘"로 받은 슬라이드는 다 비슷합니다. 레퍼런스 한 장을 골라 디자인 명세로 바꾸고, 그 명세를 지키게 만들면 결과가 달라집니다.</p>
+          <div class="prog" data-step="3"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-3"></div>
+    </div>
+  </section>
+
+  <section class="band" id="step4">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">04<small>STEP FOUR</small></div>
+        <div>
+          <h2>반복 업무는 맡기고, 수업 도구는 직접 만듭니다<span class="lv">심화</span></h2>
+          <p class="sub">코드는 AI에게 부탁해 받고, 교수자는 붙여넣기, 실행, 확인만 합니다. 구글 계정 하나면 됩니다.</p>
+          <div class="prog" data-step="4"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-4"></div>
+    </div>
+  </section>
+
+  <section class="block" id="step5">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">05<small>STEP FIVE</small></div>
+        <div>
+          <h2>Aside: AI가 브라우저를 직접 움직입니다<span class="lv">에이전트</span></h2>
+          <p class="sub">Aside는 오른쪽 대화창에 부탁하면 왼쪽 브라우저를 AI가 직접 클릭하고 입력하는 에이전트 브라우저입니다. 설치된 분은 따라 하시고, 아니면 강사 화면 시연을 보세요. 게시, 발송, 제출 버튼은 언제나 사람이 누릅니다.</p>
+          <div class="prog" data-step="5"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-5"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="mark">prof<i>.</i>kimcook<span class="lab">AI CLASS LAB</span></span>
+    <p>부산외국어대학교 PSC교수학습기술센터 교수자 AI 활용 맞춤형 연수 · 2026. 11. 13.<br>
+    강사 김강훈 (동의과학대학교 물리치료과 · AI허브센터) · 실습 자료는 수업 후에도 이 주소에서 계속 쓰실 수 있습니다.</p>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Apps Script code shown in STEP 3 -->
+<script type="text/plain" id="code-3-1">/* 퀴즈 시트를 구글 폼 퀴즈로 바꿉니다.
+   시트 이름: 퀴즈 / 첫 줄: 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('AI 수업 도구')
+    .addItem('퀴즈 폼 만들기', 'makeQuizForm')
+    .addToUi();
+}
+
+function makeQuizForm() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('퀴즈');
+  const rows = sheet.getDataRange().getValues().slice(1).filter(r => r[0] !== '');
+
+  const form = FormApp.create(ss.getName() + ' 확인 퀴즈');
+  form.setIsQuiz(true);
+
+  rows.forEach(r => {
+    const item = form.addMultipleChoiceItem().setTitle(String(r[0])).setPoints(1);
+    const answer = Number(r[5]);
+    item.setChoices([1, 2, 3, 4].map(i => item.createChoice(String(r[i]), i === answer)));
+    if (r[6] !== '') {
+      const fb = FormApp.createFeedback().setText(String(r[6])).build();
+      item.setFeedbackForCorrect(fb).setFeedbackForIncorrect(fb);
+    }
+  });
+
+  sheet.getRange('I1').setValue('응답 주소');
+  sheet.getRange('I2').setValue(form.getPublishedUrl());
+  SpreadsheetApp.getUi().alert(rows.length + '문항 퀴즈를 만들었습니다.\n\n학생용 주소는 I2 칸에 적어 두었습니다.\n편집 주소: ' + form.getEditUrl());
+}</script>
+
+<script type="text/plain" id="code-3-2">/* 성적 시트의 학생마다 맞춤 메일을 한 번에 보냅니다.
+   시트 이름: 성적 / 첫 줄: 이름 | 이메일 | 점수 | 한마디 | 발송 */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('AI 수업 도구')
+    .addItem('성적 메일 보내기', 'sendScoreMails')
+    .addToUi();
+}
+
+function sendScoreMails() {
+  const ui = SpreadsheetApp.getUi();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('성적');
+  const rows = sheet.getDataRange().getValues();
+
+  const todo = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][1] !== '' && rows[i][4] !== '발송 완료') todo.push(i);
+  }
+  if (todo.length === 0) { ui.alert('보낼 사람이 없습니다.'); return; }
+
+  const quota = MailApp.getRemainingDailyQuota();
+  if (todo.length > quota) { ui.alert('오늘은 ' + quota + '통까지만 보낼 수 있습니다.'); return; }
+  if (ui.alert(todo.length + '명에게 보낼까요?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+
+  todo.forEach(i => {
+    const [name, email, score, note] = rows[i];
+    const body = name + ' 학생, 안녕하세요.\n\n'
+      + '이번 과제 점수는 ' + score + '점입니다.\n'
+      + (note ? '한마디: ' + note + '\n' : '')
+      + '\n궁금한 점은 다음 수업 시간에 물어봐 주세요.';
+    MailApp.sendEmail(email, '[과제 결과] ' + name + ' 학생', body);
+    sheet.getRange(i + 1, 5).setValue('발송 완료');
+  });
+  ui.alert(todo.length + '통을 보냈습니다. 다시 눌러도 이미 보낸 사람에게는 가지 않습니다.');
+}</script>
+
+<script type="text/plain" id="code-3-3">/* 제출현황 시트에서 아직 안 낸 학생만 골라 내 메일로 명단을 보냅니다.
+   시트 이름: 제출현황 / 첫 줄: 번호 | 이름 | 제출 (낸 학생은 O) */
+function mailMissingList() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('제출현황');
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const missing = rows.filter(r => r[1] !== '' && r[2] !== 'O').map(r => r[0] + '번 ' + r[1]);
+  if (missing.length === 0) return;
+
+  const me = Session.getEffectiveUser().getEmail();
+  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'M월 d일');
+  MailApp.sendEmail(me, '[미제출 ' + missing.length + '명] ' + today, missing.join('\n'));
+}
+
+/* 한 번만 실행하면 매일 저녁 8시쯤 자동으로 보냅니다. */
+function setDailyAlarm() {
+  ScriptApp.newTrigger('mailMissingList').timeBased().everyDays(1).atHour(20).create();
+}
+
+/* 실습이 끝나면 꼭 실행해서 예약을 지웁니다. */
+function removeAlarms() {
+  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+}</script>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  const EXAMPLE = {
+    course: '비즈니스 영어 커뮤니케이션', dept: '영어학부', target: '2학년, 30명', format: '이론과 실습을 함께',
+    hours: '3시간', goal: '영어로 업무 이메일을 혼자 쓸 수 있다',
+    topics: '업무 이메일, 회의 영어, 프레젠테이션, 협상',
+    learners: '읽기는 잘하지만 말하기에 자신이 없고, 발표를 부담스러워함'
+  };
+  let course = store.get('acl-course', {});
+  const done = new Set(store.get('acl-done', []));
+  const edited = {};
+
+  /* ---------- course form ---------- */
+  const fields = $$('#courseForm [data-k]');
+  const fillForm = c => fields.forEach(f => { if (c[f.dataset.k] !== undefined) f.value = c[f.dataset.k]; });
+  const readForm = () => { const c = {}; fields.forEach(f => c[f.dataset.k] = f.value.trim()); return c; };
+  fillForm(course);
+  fields.forEach(f => f.addEventListener('input', () => { course = readForm(); store.set('acl-course', course); refreshPrompts(); }));
+  $('#fillExample').onclick = () => { fillForm(EXAMPLE); course = readForm(); store.set('acl-course', course); refreshPrompts(); toast('예시 과목으로 채웠습니다. 내 과목으로 바꿔도 됩니다.'); };
+  $('#clearCourse').onclick = () => { fields.forEach(f => { if (f.tagName !== 'SELECT') f.value = ''; }); course = readForm(); store.set('acl-course', course); refreshPrompts(); };
+  $('#saveCourse').onclick = () => { course = readForm(); store.set('acl-course', course); refreshPrompts(); location.hash = '#s1-1'; };
+
+  const v = (k, fallback) => (course[k] && course[k].trim()) || fallback;
+  const firstTopic = () => v('topics', '핵심 개념').split(',')[0].trim();
+  const info = () => [
+    '[과목 정보]',
+    '- 교과목: ' + v('course', '(교과목명)') + (course.dept ? ' (' + course.dept + ')' : ''),
+    '- 대상: ' + v('target', '(학년·인원)'),
+    '- 수업 형태: ' + v('format', '이론과 실습을 함께') + (course.hours ? ', 주당 ' + course.hours : ''),
+    '- 핵심 내용: ' + v('topics', '(핵심 내용)'),
+    '- 학생 특징: ' + v('learners', '(학생 특징)')
+  ].join('\n');
+
+  /* ---------- missions ---------- */
+  const AI = [
+    { name: 'ChatGPT', url: q => 'https://chatgpt.com/?q=' + encodeURIComponent(q), prefill: true },
+    { name: 'Claude', url: q => 'https://claude.ai/new?q=' + encodeURIComponent(q), prefill: true },
+    { name: 'Gemini', url: () => 'https://gemini.google.com/app', prefill: false }
+  ];
+
+  const M = [
+    { id: 's1-1', step: 1, title: 'AI에게 내 과목 소개하기', sub: '첫 대화로 AI가 내 수업을 어떻게 이해했는지 봅니다', min: 5,
+      steps: ['프롬프트를 복사해 AI 채팅 창에 붙여 넣습니다.', 'AI가 요약한 소개가 내 과목과 맞는지 읽어 봅니다.', 'AI가 던진 질문 3개에 짧게 답해 줍니다. 대화는 이어서 씁니다.'],
+      prompt: () => ['너는 대학 수업 설계를 돕는 교수학습 조교야.', '내가 이번 학기에 가르치는 과목은 아래와 같아.', '', info(), '',
+        '1. 이 과목을 수강 신청하려는 학생에게 소개하듯 3문장으로 요약해 줘.',
+        '2. 수업을 설계하는 데 꼭 필요한데 내가 빠뜨린 정보가 있으면 질문을 3개만 해 줘.',
+        '답은 짧고 쉬운 말로 써 줘.'].join('\n'),
+      checks: ['소개 3문장이 내 과목과 맞는다', 'AI 질문에 답을 하고 대화를 이어 갔다'],
+      next: ['방금 소개를 강의계획서 "교과목 개요"에 넣을 수 있게 공식적인 문체로 바꿔 줘.', '이 과목이 학생 진로와 어떻게 이어지는지 두 문장 덧붙여 줘.'] },
+
+    { id: 's1-2', step: 1, title: '학습목표 다듬기', sub: '측정할 수 있는 동사로, 블룸 분류에 맞춰', min: 7,
+      steps: ['프롬프트를 붙여 넣고 표로 받습니다.', '"어떻게 확인할지" 열을 보고 실제로 평가할 수 있는지 따져 봅니다.', '어색한 목표는 번호를 짚어 다시 부탁합니다.'],
+      prompt: () => ['아래 과목의 학습목표를 다듬어 줘.', '', info(), '', '[요청]',
+        '- 블룸의 교육목표 분류(기억, 이해, 적용, 분석, 평가, 창조)에 맞춰 학습목표 5개를 써 줘.',
+        '- 각 목표는 "학생은 ~할 수 있다." 형태로, 관찰하고 평가할 수 있는 동사를 써 줘.',
+        '- 표로 정리해 줘: 번호 | 학습목표 | 블룸 수준 | 어떻게 확인할지',
+        course.goal ? '- "' + course.goal + '"는 반드시 포함해 줘.' : '- 너무 쉬운 수준(기억)만 몰리지 않게 골고루 써 줘.'].join('\n'),
+      checks: ['목표마다 평가 방법이 붙어 있다', '"이해한다", "안다" 같은 모호한 동사가 없다'],
+      next: ['3번 목표를 실습 위주 수업에 맞게 고쳐 줘.', '이 목표들을 학과 교육목표, 핵심역량과 연결하는 표를 만들어 줘.'] },
+
+    { id: 's1-3', step: 1, title: '15주 강의계획서 초안', sub: '주차별 주제, 활동, 평가를 한 번에', min: 8,
+      steps: ['프롬프트를 붙여 넣습니다.', '표가 나오면 학사 일정(공휴일, 축제 주간)에 맞지 않는 주를 찾아 고쳐 달라고 합니다.', '마음에 들면 표를 복사해 한글이나 워드에 붙여 넣습니다.'],
+      prompt: () => [info(), '', '이 과목의 15주 강의계획서 초안을 표로 만들어 줘.',
+        '- 열: 주차 | 주제 | 수업 활동 | 과제·평가',
+        '- 8주차는 중간 평가, 15주차는 기말 평가로 둬.',
+        '- 수업 형태에 맞게 매주 학생이 직접 해 보는 활동을 하나 이상 넣어 줘.',
+        '- 학생 특징을 고려해서 처음 3주는 부담을 낮춰 줘.',
+        '- 표 아래에 평가 비율(출석, 과제, 중간, 기말 등)을 제안하고 이유를 한 줄씩 써 줘.'].join('\n'),
+      checks: ['8주, 15주 평가가 들어 있다', '매주 학생 활동이 있다', '평가 비율 합이 100%다'],
+      next: ['10주차는 개교기념일이라 휴강이야. 일정을 다시 짜 줘.', '각 주차에 맞는 읽기 자료나 영상 자료 종류를 한 칸 더 추가해 줘. 실제 존재하는 자료만 쓰고, 확실하지 않으면 "확인 필요"라고 표시해 줘.'] },
+
+    { id: 's1-4', step: 1, title: '수업 직후 확인 퀴즈', sub: 'STEP 4에서 구글 폼으로 바로 바뀌는 표 형식으로', min: 5,
+      fields: [{ k: 'quizTopic', label: '퀴즈 주제', ph: '예: 업무 이메일 작성', def: () => firstTopic() },
+               { k: 'quizN', label: '문항 수', ph: '5', def: () => '5' }],
+      steps: ['퀴즈 주제를 고르고 프롬프트를 붙여 넣습니다.', '정답과 해설을 직접 확인합니다. 틀린 문항은 번호를 짚어 고쳐 달라고 합니다.', '표를 복사해 두세요. STEP 4-1에서 그대로 씁니다.'],
+      prompt: f => ['"' + f.quizTopic + '"에 대한 수업 직후 확인 퀴즈를 만들어 줘.',
+        '- 대상: ' + v('course', '(교과목)') + ', ' + v('target', '(대상)'),
+        '- 객관식 ' + f.quizN + '문항, 보기 4개, 정답은 1개',
+        '- 쉬운 문항부터 어려운 문항 순서로',
+        '- 결과는 아래 열 순서 그대로 표로 줘. 번호 열은 넣지 마.',
+        '  문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설',
+        '- 정답 칸에는 1~4 숫자만 써 줘.',
+        '- 해설은 한두 문장으로, 헷갈리기 쉬운 보기가 왜 틀렸는지도 짧게 써 줘.'].join('\n'),
+      checks: ['정답 칸이 숫자(1~4)다', '해설을 읽고 정답이 맞는지 직접 확인했다'],
+      next: ['3번 문항은 너무 쉬워. 같은 개념으로 적용 수준 문항으로 바꿔 줘.', '이 퀴즈를 틀린 학생에게 보낼 복습 안내문을 세 줄로 써 줘.'] },
+
+    { id: 's2-1', step: 2, title: '백워드 설계로 한 차시 만들기', sub: '목표 → 평가 증거 → 활동 순서로 거꾸로', min: 8,
+      fields: [{ k: 'lessonTopic', label: '이번 차시 주제', ph: '예: 회의에서 의견 말하기', def: () => firstTopic() },
+               { k: 'minutes', label: '수업 시간(분)', ph: '75', def: () => '75' }],
+      steps: ['강의계획서에서 한 주를 골라 차시 주제를 적습니다.', '프롬프트를 붙여 넣고 3단계 결과를 받습니다.', '강의 비중이 너무 크면 "학생 활동을 하나 더"라고 부탁합니다.'],
+      prompt: f => ['백워드 설계(이해 중심 교육과정, UbD) 방식으로 수업 1차시를 설계해 줘.', '', info(), '', '[이번 차시]',
+        '- 주제: ' + f.lessonTopic, '- 수업 시간: ' + f.minutes + '분', '', '[순서]',
+        '1단계 바라는 결과: 수업이 끝나면 학생이 할 수 있어야 할 것 2가지',
+        '2단계 평가 증거: 그걸 확인할 방법 (수업 중 관찰 1개, 학생 산출물 1개)',
+        '3단계 학습 경험: 도입 - 전개 - 정리 흐름을 분 단위 표로 (시간 | 교수자 | 학생 | 자료)',
+        '- 교수자 설명은 전체 시간의 40%를 넘지 않게 해 줘.',
+        '- 학생이 직접 말하거나 쓰는 활동을 2개 이상 넣어 줘.'].join('\n'),
+      checks: ['1단계 목표와 2단계 평가가 서로 맞물린다', '분 단위 합이 수업 시간과 같다', '학생 활동이 2개 이상이다'],
+      next: ['전개 단계 활동을 짝 활동으로 바꿔 줘. 30명 기준으로 진행 순서를 자세히.', '이 차시를 온라인 실시간 수업으로 바꾸면 무엇이 달라지는지 표로 비교해 줘.'] },
+
+    { id: 's2-2', step: 2, title: '학생용 활동지', sub: 'A4 한 장, 학생이 바로 쓰는 형태로', min: 5,
+      fields: [{ k: 'lessonTopic', label: '차시 주제', ph: '예: 회의에서 의견 말하기', def: () => firstTopic() }],
+      steps: ['2-1과 같은 대화창에서 이어서 부탁하면 더 잘 맞습니다.', '빈칸과 질문의 난이도가 우리 학생에게 맞는지 봅니다.', '한글 문서에 붙여 넣어 바로 출력해 봅니다.'],
+      prompt: f => ['"' + f.lessonTopic + '" 차시에서 쓸 학생용 활동지를 만들어 줘.',
+        '- 대상: ' + v('target', '(대상)') + ', 학생 특징: ' + v('learners', '(학생 특징)'),
+        '- A4 한 장 분량, 학생이 바로 쓸 수 있게 빈칸과 질문 위주로',
+        '- 구성: 활동 목표 한 줄 → 따라 하기 3단계 → 생각을 묻는 질문 3개(쉬움에서 어려움으로) → 스스로 점검 3개',
+        '- 지시문은 짧게, 한 문장에 하나만 요구해 줘.'].join('\n'),
+      checks: ['학생이 혼자 읽고도 할 수 있다', '질문이 쉬운 것에서 어려운 것으로 간다'],
+      next: ['같은 활동지를 수준이 낮은 학생용으로 하나 더 만들어 줘. 예시 답안을 하나씩 보여 주는 방식으로.', '활동지 정답과 채점 기준을 교수자용으로 따로 정리해 줘.'] },
+
+    { id: 's2-3', step: 2, title: '루브릭 만들기', sub: '기준 4개 × 수준 4단계, 배점까지', min: 5,
+      fields: [{ k: 'task', label: '평가할 과제', ph: '예: 영어 업무 이메일 쓰기', def: () => firstTopic() + ' 과제' }],
+      steps: ['평가할 과제 이름을 적고 프롬프트를 붙여 넣습니다.', '각 칸이 "행동"으로 쓰였는지 봅니다. "우수하다" 같은 말만 있으면 다시 부탁합니다.', '배점 합이 100점인지 확인합니다.'],
+      prompt: f => ['"' + f.task + '"를 평가할 루브릭을 만들어 줘.',
+        '- 과목: ' + v('course', '(교과목)') + ', 대상: ' + v('target', '(대상)'),
+        '- 평가 기준 4개 × 성취 수준 4단계(우수, 보통, 미흡, 매우 미흡) 표',
+        '- 각 칸은 학생이 읽고도 무엇을 해야 하는지 알 수 있게 구체적인 행동으로 써 줘.',
+        '- 기준마다 배점을 붙이고 합계는 100점으로 해 줘.'].join('\n'),
+      checks: ['칸마다 관찰 가능한 행동이 쓰여 있다', '배점 합이 100점이다'],
+      next: ['이 루브릭을 학생에게 미리 나눠 줄 수 있게 "이렇게 하면 우수" 예시를 기준마다 하나씩 붙여 줘.', '동료 평가용으로 3단계로 줄인 간단한 버전도 만들어 줘.'] },
+
+    { id: 's2-4', step: 2, title: '피드백 문장 초안', sub: '가상 학생 답안으로, 존중하는 말투로', min: 5,
+      fields: [{ k: 'task', label: '과제', ph: '예: 영어 업무 이메일 쓰기', def: () => firstTopic() + ' 과제' },
+               { k: 'answer', label: '가상 학생 답안', ph: '실제 학생 글은 넣지 마세요', full: true, area: true,
+                 def: () => 'Dear Manager,\nI am writing for ask the meeting change. Because I have other schedule on Friday. Can we change the meeting to Monday? Please let me know your answer.\nThanks,\nMinsu' }],
+      steps: ['예시 답안을 그대로 쓰거나 직접 지어낸 답안을 넣습니다. 실제 학생 글은 넣지 않습니다.', 'AI 피드백을 그대로 보내지 말고, 내 말투로 한 번 고칩니다.', '루브릭 수준 판단이 내 판단과 같은지 비교합니다.'],
+      prompt: f => ['아래는 가상의 학생 답안이야. 실제 학생 정보는 없어.', '', '과제: ' + f.task, '답안:', '"""', f.answer, '"""', '',
+        '이 답안에 줄 피드백을 써 줘.',
+        '- 순서: 잘한 점 1개 → 고칠 점 2개 → 다음에 해 볼 것 1개',
+        '- 학생을 존중하는 말투로, 다섯 문장 이내',
+        '- 마지막에 루브릭 4단계(우수, 보통, 미흡, 매우 미흡) 중 어디쯤인지 기준별로 짧게 표시해 줘.'].join('\n'),
+      checks: ['칭찬과 고칠 점이 구체적이다', '내 말투로 한 번 고쳤다'],
+      next: ['같은 피드백을 학생이 덜 상처받게, 질문형 문장으로 바꿔 줘.', '반 전체에서 자주 나올 실수 5가지를 예상해서 수업 시간에 짚을 순서로 정리해 줘.'] },
+
+    { id: 's2-5', step: 2, title: '강의계획서에 넣을 AI 사용 원칙', sub: '학생에게 먼저 알려 줄 기준', min: 4,
+      fields: [{ k: 'policy', label: '허용 수준', sel: ['조건부 허용', '적극 활용', '과제별로 지정', '사용 금지'], def: () => '조건부 허용' }],
+      steps: ['우리 과목에 맞는 허용 수준을 고릅니다.', '나온 문구를 학과나 학교 지침과 비교합니다.', '첫 수업 때 학생과 함께 읽을 수 있게 다듬습니다.'],
+      prompt: f => ['내 강의계획서에 넣을 "생성형 AI 사용 안내" 문구를 써 줘.',
+        '- 과목: ' + v('course', '(교과목)') + ', 수업 형태: ' + v('format', '이론과 실습을 함께'),
+        '- 허용 수준: ' + f.policy,
+        '- 넣을 것: 허용되는 사용 예 3개, 허용되지 않는 사용 예 3개, AI를 썼을 때 밝히는 방법(사용한 도구와 질문 기록 등), 어겼을 때 처리',
+        '- 학생이 읽기 쉬운 말로 열 줄 이내'].join('\n'),
+      checks: ['허용과 불허가 예시로 분명하다', 'AI 사용을 밝히는 방법이 있다'],
+      next: ['이 원칙을 학생 동의 체크리스트 5문항으로 바꿔 줘.', '과제 제출 양식 맨 아래에 붙일 "AI 사용 기록" 칸을 만들어 줘.'] },
+
+    { id: 's4-1', step: 4, title: '퀴즈 표를 구글 폼 퀴즈로', sub: 'Apps Script 붙여넣기 한 번으로 자동 채점 퀴즈 완성', min: 10,
+      steps: ['sheets.new 로 새 구글 시트를 엽니다. 아래쪽 시트 이름을 "퀴즈"로 바꿉니다.', 'STEP 1-4에서 받은 표(또는 아래 예시 데이터)를 A1부터 붙여 넣습니다. 첫 줄은 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 입니다.', '메뉴 확장 프로그램 → Apps Script를 열고, 원래 있던 코드를 지운 뒤 아래 코드를 붙여 넣고 저장합니다.', '위쪽 함수 목록에서 makeQuizForm을 고르고 실행합니다. "확인되지 않은 앱" 화면이 나오면 고급 → 이동 → 허용을 누릅니다. 내가 만든 코드라서 나오는 안내입니다.', '시트로 돌아가면 완성 안내가 뜹니다. I2 칸의 주소로 들어가 직접 풀어 봅니다.'],
+      code: 'code-3-1',
+      data: '문항\t보기1\t보기2\t보기3\t보기4\t정답\t해설\n업무 이메일 제목으로 가장 알맞은 것은?\tHello\tMeeting\tRequest to move Friday\'s meeting to Monday\tImportant!!!\t3\t제목만 보고도 용건과 날짜를 알 수 있어야 합니다.\n처음 연락하는 상대에게 알맞은 인사는?\tHey there,\tDear Ms. Park,\tYo,\tHi guys,\t2\t이름을 알면 Dear + 호칭 + 성을 씁니다.\n"I am writing to ___ the order status." 빈칸에 알맞은 말은?\task\tinquire about\tasking\tinquiry\t2\t공식 이메일에서 문의할 때는 inquire about을 씁니다.\n정중하게 요청하는 표현은?\tSend it now.\tYou must send it.\tCould you send it by Friday?\tSend it, OK?\t3\tCould you ~?는 정중한 요청입니다.\n업무 이메일을 맺는 말로 알맞은 것은?\tBye bye\tBest regards,\tSee ya\tOver.\t2\tBest regards는 무난한 맺음말입니다.',
+      helpPrompt: () => ['구글 시트에서 Apps Script로 퀴즈 폼을 만드는 코드를 실행했는데 아래 오류가 났어.', '코딩을 모르는 사람도 따라 할 수 있게, 무엇이 문제인지와 고친 전체 코드를 알려 줘.', '', '[오류 메시지]', '(여기에 오류를 붙여 넣으세요)', '', '[내 코드]', $('#code-3-1').textContent].join('\n'),
+      checks: ['폼이 만들어지고 I2 칸에 주소가 생겼다', '직접 풀어 보고 자동 채점 점수를 확인했다'],
+      next: ['이 폼 응답 시트에서 문항별 정답률을 계산하고 가장 많이 틀린 문항을 알려 주는 Apps Script를 만들어 줘.', '문항 순서와 보기 순서를 학생마다 섞이게 설정하는 방법을 알려 줘.'] },
+
+    { id: 's4-2', step: 4, title: '성적 메일 한 번에 보내기', sub: '학생마다 다른 내용, 두 번 가지 않게', min: 10,
+      steps: ['같은 시트 파일에 새 시트를 추가하고 이름을 "성적"으로 바꿉니다.', '예시 데이터를 붙여 넣고, 이메일 칸은 모두 본인 주소로 바꿉니다. 실제 학생 주소는 쓰지 않습니다.', 'Apps Script에 아래 코드를 새 파일로 추가하고 저장합니다. (4-1 코드와 함께 둘 때는 onOpen이 겹치니 이 코드의 onOpen 부분은 지웁니다.)', 'sendScoreMails를 실행하고 확인 창에서 예를 누릅니다.', '내 메일함에 세 통이 왔는지, 시트 E열에 "발송 완료"가 찍혔는지 봅니다. 다시 실행해도 또 가지 않는지 확인합니다.'],
+      code: 'code-3-2',
+      data: '이름\t이메일\t점수\t한마디\t발송\n학생A\t(본인 메일 주소)\t92\t발표 구성이 좋았어요\t\n학생B\t(본인 메일 주소)\t78\t예시를 하나 더 넣어 보세요\t\n학생C\t(본인 메일 주소)\t85\t결론이 분명했어요\t',
+      helpPrompt: () => ['아래 Apps Script는 성적 시트를 읽어 학생마다 메일을 보내는 코드야.', '여기에 기능을 하나 더하고 싶어: 점수가 60점 미만이면 "보충 안내" 문장을 메일에 넣어 줘.', '바뀐 부분이 어디인지 표시해서 전체 코드를 다시 줘.', '', $('#code-3-2').textContent].join('\n'),
+      checks: ['내 메일함에 맞춤 메일이 왔다', '다시 실행해도 중복 발송되지 않았다'],
+      next: ['메일 본문 대신 학생별 성적표를 PDF로 만들어 첨부하는 방법을 알려 줘.', '보내기 전에 미리보기 시트에 메일 내용을 먼저 써 두고, 내가 확인한 줄만 보내게 바꿔 줘.'] },
+
+    { id: 's4-3', step: 4, title: '미제출자 명단 자동으로 받기', sub: '매일 저녁, 아직 안 낸 학생만 골라서', min: 8,
+      steps: ['새 시트 "제출현황"을 만들고 예시 데이터를 붙여 넣습니다. 이름 대신 번호와 가상 이름을 씁니다.', 'Apps Script에 아래 코드를 추가하고 저장합니다.', 'mailMissingList를 먼저 실행해 내 메일로 명단이 오는지 봅니다.', '원하면 setDailyAlarm을 한 번 실행해 매일 저녁 자동으로 받습니다.', '실습이 끝나면 removeAlarms를 실행해 예약을 지웁니다.'],
+      code: 'code-3-3',
+      data: '번호\t이름\t제출\n1\t학생A\tO\n2\t학생B\t\n3\t학생C\tO\n4\t학생D\t',
+      helpPrompt: () => ['아래 Apps Script는 제출현황 시트에서 미제출 학생 명단을 내 메일로 보내 줘.', '마감일이 지난 과제만 보도록 바꾸고 싶어. D열에 마감일이 있다고 할 때 어떻게 고치면 되는지 전체 코드를 다시 줘.', '', $('#code-3-3').textContent].join('\n'),
+      checks: ['내 메일로 미제출 명단이 왔다', '실습 뒤 예약(트리거)을 지웠다'],
+      next: ['미제출 학생에게 직접 안내 메일을 보내되, 같은 학생에게는 하루에 한 번만 가게 만들어 줘.', '3일 연속 미제출이면 나에게 따로 알려 주는 기능을 더해 줘.'] },
+
+    { id: 's4-4', step: 4, title: '바이브코딩: 수업용 미니 웹앱', sub: '말로 설명해서 HTML 파일 하나로', min: 12,
+      fields: [{ k: 'appType', label: '만들 도구', sel: ['객관식 복습 퀴즈', '단어 카드', '발표 순서 뽑기', '조 편성기'], def: () => '객관식 복습 퀴즈' }],
+      steps: ['만들 도구를 고르고 프롬프트를 Claude나 ChatGPT에 붙여 넣습니다.', 'Claude는 오른쪽에 바로 실행 화면이 뜹니다. ChatGPT는 캔버스에서 미리보기를 누릅니다.', '코드 전체를 복사해 텍스트 편집기에 붙여 넣고 class-tool.html로 저장합니다. 파일을 더블클릭하면 브라우저에서 열립니다.', '고치고 싶은 점을 한 문장씩 부탁합니다. 예: "문제 순서를 섞어 줘", "글자를 더 크게".'],
+      prompt: f => {
+        const people = f.appType === '발표 순서 뽑기' || f.appType === '조 편성기';
+        return ['수업에서 바로 쓸 "' + f.appType + '" 웹앱을 만들어 줘.',
+          '- HTML 파일 하나로, 외부 라이브러리나 로그인 없이 동작하게',
+          '- 과목: ' + v('course', '(교과목)') + ', 대상: ' + v('target', '(대상)'),
+          people ? '- 학생 이름 대신 번호(1번부터 30번까지)를 쓰고, 인원은 화면에서 바꿀 수 있게 해 줘.'
+                 : '- 내용: "' + v('topics', '(핵심 내용)') + '"에서 10개를 골라 넣어 줘.',
+          people ? '- 기능: 버튼 한 번에 결과 보여 주기, 다시 뽑기, 결과를 크게 보여 주는 발표 화면'
+                 : '- 기능: 한 문제씩 보여 주기, 정답 확인, 점수, 다시 풀기',
+          '- 프로젝터와 휴대폰 화면 모두에서 보기 좋게, 글자는 크게',
+          '- 디자인은 단정하게: 밝은 배경, 검은 글씨, 강조색은 하나만',
+          '완성되면 전체 코드를 한 번에 보여 줘.'].join('\n');
+      },
+      checks: ['브라우저에서 파일을 열어 작동을 확인했다', '한 가지 이상 고쳐 달라고 부탁해 반영했다'],
+      next: ['정답을 맞히면 다음 문제로 자동으로 넘어가고, 마지막에 틀린 문제만 다시 보여 줘.', '이 파일을 학생들이 링크로 접속할 수 있게 무료로 올리는 방법을 단계별로 알려 줘.'] },
+
+    /* ---------- PLUS: 교육에 바로 쓰는 것들 ---------- */
+    { id: 'p-1', step: 'p', title: '내 강의자료로 학생용 예습 가이드', sub: '내가 쓴 자료라 안심하고 올릴 수 있습니다', min: 8,
+      fields: [{ k: 'lessonTopic', label: '이번 주 주제', ph: '예: 업무 이메일 작성', def: () => firstTopic() }],
+      steps: ['내 강의 PDF나 슬라이드를 AI 채팅에 첨부합니다. (NotebookLM에 자료로 올려도 됩니다)', '프롬프트를 붙여 넣습니다.', '"자료에 없는 내용"이 섞였는지 확인합니다. 근거 쪽수를 달라고 하면 확인이 쉽습니다.'],
+      prompt: f => ['첨부한 파일은 내가 만든 "' + f.lessonTopic + '" 강의자료야.', '이 자료만 근거로 학생용 예습 가이드를 만들어 줘.', '',
+        '- 대상: ' + v('target', '(대상)') + ', 학생 특징: ' + v('learners', '(학생 특징)'),
+        '- 구성: 이번 주 핵심 개념 5개(한 줄 설명) → 예습 질문 3개 → 헷갈리기 쉬운 용어 카드 5장(용어 | 쉬운 설명 | 예시)',
+        '- 항목마다 근거가 된 자료 쪽수를 괄호로 달아 줘.',
+        '- 자료에 없는 내용은 쓰지 마. 필요하면 "자료에 없음"이라고 표시해 줘.'].join('\n'),
+      checks: ['항목마다 근거 쪽수가 붙어 있다', '자료에 없는 내용이 섞이지 않았다'],
+      next: ['이 가이드를 수업 전날 LMS 공지로 올릴 다섯 줄 안내문으로 줄여 줘.', '같은 자료로 수업 시작 5분 퀴즈 3문항을 만들어 줘.'] },
+
+    { id: 'p-2', step: 'p', title: '수준별 과제 세트', sub: '같은 목표, 세 가지 난이도', min: 6,
+      fields: [{ k: 'task', label: '과제 주제', ph: '예: 회의 일정 변경 이메일 쓰기', def: () => firstTopic() + ' 과제' }],
+      steps: ['과제 주제를 적고 프롬프트를 붙여 넣습니다.', '세 수준이 같은 학습목표를 향하는지 봅니다.', '학생이 스스로 수준을 고르게 할지, 교수가 정해 줄지 정합니다.'],
+      prompt: f => ['"' + f.task + '"를 같은 학습목표로, 수준만 다른 과제 세 가지로 만들어 줘.',
+        '- 과목: ' + v('course', '(교과목)') + ', 대상: ' + v('target', '(대상)'),
+        '- 기본: 예시와 빈칸을 주고 따라 하게', '- 보통: 조건만 주고 스스로', '- 도전: 실제 상황처럼 예외와 판단이 필요하게',
+        '- 수준마다 과제 지시문, 제출물, 예상 소요 시간, 채점 기준 3개를 표로 정리해 줘.'].join('\n'),
+      checks: ['세 수준이 같은 학습목표를 향한다', '수준마다 채점 기준이 있다'],
+      next: ['학생이 자기 수준을 고를 수 있게 1분 자가진단 질문 3개를 만들어 줘.', '기본 수준을 통과한 학생이 다음 수준으로 넘어가는 기준을 정해 줘.'] },
+
+    { id: 'p-3', step: 'p', title: '시험 문항 점검', sub: '정답 오류, 애매한 보기, 수준 쏠림을 미리', min: 6,
+      fields: [{ k: 'items', label: '점검할 문항 (내가 낸 문항, 학생 정보 없이)', area: true, full: true, ph: '문항과 보기, 정답을 붙여 넣으세요',
+                 def: () => '1. 업무 이메일 제목으로 가장 알맞은 것은?\n① Hello ② Meeting ③ Request to move Friday\'s meeting to Monday ④ Important!!!\n정답: ③\n\n2. 정중한 요청 표현이 아닌 것은?\n① Could you ~? ② Would you mind ~? ③ Send it now. ④ I was wondering if ~\n정답: ①' }],
+      steps: ['내가 출제한 문항을 붙여 넣습니다. 예시에는 일부러 틀린 정답이 하나 들어 있습니다.', 'AI가 짚은 문제를 내가 다시 판단합니다. AI도 틀릴 수 있습니다.', '고친 문항은 문항은행에 표시해 둡니다.'],
+      prompt: f => ['아래는 내가 출제한 시험 문항이야. 출제 검토자처럼 점검해 줘.', '', ', f.items, ', '',
+        '- 문항마다: 정답이 맞는지, 정답이 둘이거나 없는 보기는 없는지, 문장이 애매한 곳, 블룸 수준(기억~창조)',
+        '- 문제가 있으면 고친 문항을 같이 제안해 줘.',
+        '- 마지막에 전체 문항의 수준 분포를 한 줄로 요약해 줘.'].join('\n'),
+      checks: ['예시의 틀린 정답(2번)을 AI가 찾아냈다', 'AI 지적을 내가 다시 판단했다'],
+      next: ['기억 수준 문항 두 개를 같은 개념의 적용 수준 문항으로 바꿔 줘.', '이 문항들로 이원목적분류표를 만들어 줘.'] },
+
+    { id: 'p-4', step: 'p', title: '강의평가 주관식 → 개선계획', sub: 'CQI 보고서 초안까지', min: 8,
+      fields: [{ k: 'comments', label: '강의평가 주관식 (익명 예시, 실제로 쓸 때도 이름 없이)', area: true, full: true, ph: '익명 코멘트를 줄마다 하나씩',
+                 def: () => '설명이 친절해서 좋았어요\n과제가 몰리는 주가 있어서 힘들었습니다\n실습 시간이 더 있었으면 좋겠어요\nPPT 글씨가 작아서 뒤에서는 안 보여요\n예시가 실제 회사 상황이라 도움이 됐어요\n발표 피드백을 더 자세히 받고 싶어요\n진도가 후반에 너무 빨랐어요' }],
+      steps: ['주관식 응답을 붙여 넣습니다. 이름, 학번, 특정 가능한 내용은 지우고 넣습니다.', '분류 결과가 내가 읽은 느낌과 맞는지 봅니다.', '개선계획은 다음 학기 강의계획서에 바로 반영할 수 있는 것만 남깁니다.'],
+      prompt: f => ['아래는 "' + v('course', '(교과목)') + '" 강의평가 주관식 응답이야. 개인을 알 수 있는 정보는 지웠어.', '', ', f.comments, ', '',
+        '1. 응답을 주제별로 묶어 표로: 주제 | 응답 수 | 대표 문장 | 긍정/개선',
+        '2. 개선이 필요한 주제 3개를 골라, 다음 학기에 바꿀 것을 "무엇을, 언제, 어떻게 확인할지"로 써 줘.',
+        '3. 이 내용을 CQI 보고서의 "개선 계획" 칸에 넣을 다섯 줄 문단으로 정리해 줘.',
+        '응답에 없는 내용을 지어내지 마.'].join('\n'),
+      checks: ['응답 수가 실제 줄 수와 맞다', '개선계획이 다음 학기에 실제로 할 수 있는 것이다'],
+      next: ['개선계획을 다음 학기 강의계획서 어디에 반영할지 주차별로 짚어 줘.', '같은 분석을 학생들에게 공유할 "지난 학기 의견과 이번 학기 변화" 안내문으로 써 줘.'] },
+
+    /* ---------- STEP 3: 수업 슬라이드 디자인 ---------- */
+    { id: 's3-1', step: 3, title: '레퍼런스 한 장 고르기', sub: '예쁜 표지 말고, 글이 있는 본문 슬라이드로', min: 5,
+      links: [{ label: 'Behance: minimal presentation', url: 'https://www.behance.net/search/projects?search=minimal%20presentation' },
+              { label: 'Behance: editorial layout', url: 'https://www.behance.net/search/projects?search=editorial%20presentation%20layout' },
+              { label: 'Pinterest: swiss style slide', url: 'https://www.pinterest.com/search/pins/?q=swiss%20style%20presentation' }],
+      steps: ['아래 검색 링크 중 하나를 엽니다. 여러 장을 보되 마음에 드는 프로젝트는 한 개만 고릅니다.', '표지보다 글과 숫자가 들어간 본문 슬라이드가 보이는 화면을 고릅니다. 내 수업 자료는 대부분 본문이기 때문입니다.', '그 화면을 캡처합니다. Mac은 ⌘ Shift 4, Windows는 Win Shift S.', '캡처는 분석용으로만 쓰고, 이미지를 그대로 내 슬라이드에 넣지 않습니다.'],
+      checks: ['레퍼런스는 한 개만 골랐다', '본문 슬라이드가 보이는 캡처가 있다'],
+      next: ['이 레퍼런스가 우리 학생들 앞에서 잘 읽힐지(글자 크기, 대비) 평가해 줘.'] },
+
+    { id: 's3-2', step: 3, title: '레퍼런스를 디자인 명세로', sub: '"이런 느낌"을 숫자와 규칙으로 바꿉니다', min: 6,
+      steps: ['3–1에서 캡처한 이미지를 AI 채팅에 첨부합니다.', '프롬프트를 붙여 넣고 명세를 받습니다.', '명세를 메모장에 저장해 둡니다. 3–3과 다음 자료를 만들 때 계속 씁니다.'],
+      prompt: () => ['첨부한 이미지는 내가 따라 하고 싶은 발표 슬라이드 디자인이야.', '다른 사람이 이 디자인을 똑같이 재현할 수 있게 "디자인 명세"로 정리해 줘.', '',
+        '1. 색: 배경, 본문 글자, 강조색의 hex 값과 대략적인 비율',
+        '2. 서체: 제목, 본문, 숫자의 느낌. 한글은 무료 서체(Pretendard, 본고딕 등) 중 가까운 것으로',
+        '3. 그리드: 바깥 여백, 정렬(왼쪽/가운데), 단 나누기',
+        '4. 반복 요소 3개: 이 디자인을 알아보게 하는 장치(선, 테두리, 큰 숫자 등)',
+        '5. 이 디자인에서 절대 하지 않는 것 5개',
+        '표로 정리하고, 마지막에 "이 명세를 지켜 슬라이드를 만들 때 쓸 지시문"을 다섯 줄로 써 줘.'].join('\n'),
+      checks: ['색이 hex 값으로 나왔다', '"하지 않는 것" 목록이 있다'],
+      next: ['이 명세를 우리 대학 로고 색에 맞춰 강조색만 바꾼 버전으로 다시 써 줘.'] },
+
+    { id: 's3-3', step: 3, title: '명세를 지켜 슬라이드 만들기', sub: '내용은 내 수업, 모양은 명세대로', min: 8,
+      fields: [{ k: 'deckTopic', label: '만들 슬라이드 내용', ph: '예: 1주차 오리엔테이션', def: () => '1주차 오리엔테이션' }],
+      steps: ['3–2와 같은 대화창에서 이어서 붙여 넣습니다. (명세가 앞에 있어야 합니다)', 'Claude나 ChatGPT에서 pptx 파일로 받습니다. 파일이 안 나오면 "pptx 파일로 다운로드할 수 있게 만들어 줘"라고 한 번 더 말합니다.', 'PowerPoint나 Keynote에서 열어 글자가 편집되는지 확인합니다.'],
+      prompt: f => ['앞에서 정리한 디자인 명세를 지켜서, 아래 내용으로 16:9 발표 슬라이드 6장을 pptx 파일로 만들어 줘.', '',
+        '- 내용: ' + v('course', '(교과목)') + ' ' + f.deckTopic + ' (과목 소개, 학습목표, 평가 방법, 수업 규칙, AI 사용 원칙, 다음 주 예고)',
+        '- 한 장에 메시지 하나만',
+        '- 레이아웃은 장마다 다르게: 표지, 큰 숫자, 세 칸 비교, 타임라인, 짧은 인용, 마무리',
+        '- 글은 모두 편집 가능한 텍스트 상자로. 글자를 이미지로 넣지 마.',
+        '- 본문은 왼쪽 정렬, 강조색은 명세의 한 가지만',
+        '- 그라데이션 글자, 이모지 아이콘, 둥근 그림자 카드는 쓰지 마.'].join('\n'),
+      checks: ['장마다 레이아웃이 다르다', '글자가 편집된다', '강조색이 하나다'],
+      next: ['3장의 세 칸 비교를 표 대신 큰 숫자 세 개로 바꿔 줘.', '발표자 노트에 장마다 말할 내용을 세 문장씩 넣어 줘.'] },
+
+    { id: 's3-4', step: 3, title: 'AI 티 걷어내기', sub: '보는 순간 "AI가 만들었네" 하는 신호들', min: 5,
+      steps: ['3–3 결과물이나 예전에 AI로 만든 슬라이드를 엽니다.', '아래 확인 목록에서 걸리는 것을 체크합니다.', '걸린 항목만 남기고 프롬프트를 보내 고쳐 달라고 합니다.'],
+      prompt: () => ['방금 만든 슬라이드에서 아래 항목을 모두 고쳐 줘. 내용은 바꾸지 말고 모양만.', '',
+        '- 그라데이션 글자 → 단색 글자',
+        '- 이모지 아이콘 → 지우거나 얇은 선 아이콘',
+        '- 파스텔 그라데이션 배경 → 단색 배경',
+        '- 둥근 모서리 + 큰 그림자 카드 → 그림자 없이 얇은 선',
+        '- 모든 것이 가운데 정렬 → 제목만 남기고 본문은 왼쪽 정렬',
+        '- 강조색 여러 개 → 명세의 강조색 하나',
+        '- 문장으로 된 글머리표 → 짧은 구, 한 장에 다섯 줄 이하'].join('\n'),
+      checks: ['그라데이션 글자와 이모지가 0개다', '강조색이 하나다', '본문이 왼쪽 정렬이다'],
+      next: ['이 슬라이드 묶음 전체에 같은 규칙이 지켜졌는지 장별로 점검표를 만들어 줘.'] },
+
+    { id: 's3-5', step: 3, title: '모핑으로 움직임 주기', sub: '애니메이션 대신 같은 개체를 옮깁니다', min: 5,
+      steps: ['PowerPoint에서 슬라이드를 하나 복제합니다.', '복제한 장에서 제목이나 사진의 위치와 크기를 바꿉니다.', '두 번째 장을 고르고 전환 → 모핑을 누릅니다. 슬라이드 쇼로 확인합니다.', '모양이 다른 개체끼리 이어지게 하려면 선택 창에서 두 장의 개체 이름 앞에 똑같이 !! 를 붙입니다. 예: !!사진', 'Keynote는 같은 방식으로 "매직 무브"를 씁니다.'],
+      prompt: () => ['pptx를 만들 때 모핑 전환이 자연스럽게 되도록 만들어 줘.', '- 1장과 2장에 같은 이름(!!frame)의 얇은 테두리 사각형을 넣고, 2장에서는 위치와 크기만 바꿔 줘.',
+        '- 2장의 전환을 모핑으로 설정해 줘.', '- 나머지 개체는 이름을 다르게 해서 자연스럽게 사라지고 나타나게 해 줘.'].join('\n'),
+      checks: ['슬라이드 쇼에서 개체가 미끄러지듯 이어진다'],
+      next: ['모핑이 안 되는 이전 버전 PowerPoint에서도 자연스럽게 보이도록 대체 전환을 정해 줘.'] },
+
+    /* ---------- STEP 5: Aside ---------- */
+    { id: 's5-1', step: 5, title: 'Aside에게 구글 폼 퀴즈 만들기 맡기기', sub: '만드는 건 AI가, "보내기"는 내가', min: 8, ai: false,
+      fields: [{ k: 'quizTopic', label: '퀴즈 주제', ph: '예: 업무 이메일 작성', def: () => firstTopic() }],
+      steps: ['Aside를 열고 구글에 로그인된 상태인지 확인합니다.', '1–4에서 받은 퀴즈 표를 프롬프트 맨 아래에 붙여 넣고 Aside 대화창에 보냅니다.', '왼쪽 브라우저에서 AI가 폼을 만드는 과정을 지켜봅니다. 손대지 않습니다.', '완성 보고를 받으면 미리보기로 직접 풀어 보고, 보내기는 내가 결정합니다.'],
+      prompt: f => ['구글 폼에서 새 퀴즈를 만들어 줘.', '- 제목: ' + v('course', '(교과목)') + ' ' + f.quizTopic + ' 확인 퀴즈',
+        '- 아래 표의 문항을 객관식으로 입력하고, 정답 표시와 배점 1점을 설정해 줘.',
+        '- 해설이 있으면 정답 피드백에 넣어 줘.',
+        '- 보내기, 게시, 응답 받기 설정은 하지 마. 다 만들면 편집 링크와 미리보기 링크만 알려 줘.', '', '[퀴즈 표]', '(1–4에서 받은 표를 여기에 붙여 넣으세요)'].join('\n'),
+      checks: ['폼이 만들어지고 미리보기로 풀어 봤다', '보내기는 내가 결정했다'],
+      next: ['이 퀴즈에 "이름 대신 학번 끝 두 자리만" 받는 짧은 답 문항을 맨 앞에 추가해 줘. 보내기는 하지 마.'] },
+
+    { id: 's5-2', step: 5, title: '수업 자료 조사 → 문서 정리', sub: '링크를 직접 열어 본 것만', min: 8, ai: false,
+      fields: [{ k: 'lessonTopic', label: '수업 주제', ph: '예: 회의에서 의견 말하기', def: () => firstTopic() }],
+      steps: ['프롬프트를 Aside에 보냅니다.', 'AI가 검색하고 링크를 여는 과정을 지켜봅니다.', '[확인 필요] 표시가 붙은 자료는 내가 직접 열어 봅니다.'],
+      prompt: f => ['"' + f.lessonTopic + '" 수업에 쓸 공개 자료를 찾아 구글 문서 새 파일에 표로 정리해 줘.',
+        '- 자료 5개: 논문 초록, 공공기관 자료, 강의 영상 등 섞어서',
+        '- 열: 자료 이름 | 종류 | 링크 | 한 줄 요약 | 수업에서 쓸 곳',
+        '- 링크는 직접 열어서 내용이 맞는 것만. 확인하지 못한 것은 [확인 필요]로 표시해 줘.',
+        '- 문서 제목: ' + v('course', '(교과목)') + ' 수업 자료 조사', '- 문서 공유 설정은 바꾸지 마.'].join('\n'),
+      checks: ['링크가 실제로 열린다', '[확인 필요] 항목을 내가 확인했다'],
+      next: ['정리한 자료 중 학생 수준에 맞는 두 개를 골라 예습 과제 안내문을 써 줘.'] },
+
+    { id: 's5-3', step: 5, title: '디자인 레퍼런스 모으기', sub: 'STEP 3을 Aside에게 맡겨 보기', min: 6, ai: false,
+      steps: ['프롬프트를 Aside에 보냅니다.', 'AI가 Behance를 둘러보고 고른 레퍼런스를 확인합니다.', '마음에 드는 하나를 골라 STEP 3–2로 이어 갑니다.'],
+      prompt: () => ['Behance에서 "minimal presentation"과 "editorial presentation layout"을 검색해, 대학 수업 슬라이드에 어울리는 레퍼런스 3개를 골라 줘.',
+        '- 표지보다 글과 숫자가 있는 본문 슬라이드가 보이는 프로젝트로',
+        '- 각각: 링크, 배경색·글자색·강조색(hex 추정), 제목과 본문 서체 느낌, 반복되는 장식 요소',
+        '- 구글 문서 한 장에 표로 정리하고, 이미지는 내려받지 말고 링크로만 남겨 줘.'].join('\n'),
+      checks: ['레퍼런스 3개가 링크와 함께 정리됐다'],
+      next: ['세 개 중 우리 학생들에게 가장 잘 읽힐 것 하나를 이유와 함께 골라 줘.'] },
+
+    { id: 's5-4', step: 5, title: '루틴: 매주 금요일, 다음 주 수업 점검', sub: '정해진 시간에 Aside가 알아서 확인합니다', min: 5, ai: false,
+      steps: ['Aside의 루틴(예약 작업) 만들기에서 매주 금요일 오후 4시로 정합니다.', '프롬프트를 루틴 내용으로 붙여 넣습니다.', '첫 실행 결과를 보고 빠진 것을 루틴 문장에 한 줄씩 더합니다.', '학생 정보가 있는 화면은 루틴에 넣지 않습니다.'],
+      prompt: () => ['매주 금요일 오후 4시에 다음 주 수업 준비를 점검하는 루틴이야.', '- 내 구글 캘린더에서 다음 주 수업 일정을 확인해 줘.',
+        '- 내 강의계획서 문서에서 해당 주차의 주제와 활동을 읽어 줘.',
+        '- 준비물, 미리 올릴 자료, 확인할 것을 체크리스트로 나에게만 알려 줘.',
+        '- 학생에게 보내거나, 게시하거나, 문서를 수정하지 마.'].join('\n'),
+      checks: ['루틴이 예약됐다', '결과가 나에게만 왔다'],
+      next: ['루틴 결과에 "지난주 미처 못 한 것"을 기억해 두었다가 함께 알려 주게 바꿔 줘.'] },
+  ];
+
+  const STEPS = [1, 2, 'p', 3, 4, 5];
+  const label = id => id[0] === 'p' ? 'P–' + id.split('-')[1] : id.slice(1).replace('-', '–');
+  const fieldVals = {};
+  const fieldDefaults = m => { const o = {}; (m.fields || []).forEach(fd => o[fd.k] = (fieldVals[m.id] && fieldVals[m.id][fd.k]) || fd.def()); return o; };
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function render() {
+    STEPS.forEach(n => {
+      const box = $('#list-' + n);
+      box.innerHTML = M.filter(m => m.step === n).map(m => {
+        const fl = (m.fields || []).map(fd => {
+          const id = 'fd-' + m.id + '-' + fd.k;
+          const ctl = fd.sel ? '<select id="' + id + '" data-m="' + m.id + '" data-f="' + fd.k + '">' + fd.sel.map(o => '<option>' + esc(o) + '</option>').join('') + '</select>'
+            : fd.area ? '<textarea id="' + id + '" rows="5" data-m="' + m.id + '" data-f="' + fd.k + '" placeholder="' + esc(fd.ph || '') + '"></textarea>'
+            : '<input id="' + id + '" data-m="' + m.id + '" data-f="' + fd.k + '" placeholder="' + esc(fd.ph || '') + '">';
+          return '<div class="' + (fd.full ? 'full' : '') + '"><label for="' + id + '">' + esc(fd.label) + '</label>' + ctl + '</div>';
+        }).join('');
+        const aiBtns = AI.map(a => '<button class="btn ' + (a.name === 'ChatGPT' ? '' : 'ghostb') + '" data-ai="' + a.name + '" data-m="' + m.id + '"><span class="k">OPEN</span>' + a.name + '</button>').join('');
+        const promptBlock = m.prompt ? '<div><h4>' + (m.ai === false ? 'PROMPT FOR ASIDE' : 'PROMPT') + '</h4><textarea class="prompt" id="p-' + m.id + '" spellcheck="false"></textarea>'
+          + '<div class="row"><button class="btn red" data-copy="' + m.id + '">프롬프트 복사</button>' + (m.ai === false ? '' : aiBtns)
+          + '<button class="mini" data-reset="' + m.id + '">다시 만들기</button></div></div>' : '';
+        const linkBlock = m.links ? '<div><h4>SEARCH</h4><div class="row" style="margin-top:0">' + m.links.map(a => '<a class="btn ghostb" href="' + a.url + '" target="_blank" rel="noopener">' + esc(a.label) + '</a>').join('') + '</div></div>' : '';
+        const dataBlock = m.data ? '<div><h4>EXAMPLE DATA</h4><p class="note" style="margin:0 0 8px">복사해서 시트 A1 칸을 누르고 붙여 넣으면 칸이 알아서 나뉩니다.</p><button class="btn ghostb" data-data="' + m.id + '">예시 데이터 복사</button></div>' : '';
+        const codeBlock = m.code ? '<div><h4>APPS SCRIPT</h4><pre class="codebox" id="c-' + m.id + '"></pre><div class="row"><button class="btn red" data-code="' + m.id + '">코드 복사</button><a class="btn ghostb" href="https://sheets.new" target="_blank" rel="noopener">새 구글 시트 열기</a></div></div>' : '';
+        const helpBlock = m.helpPrompt ? '<div class="tip"><b>막히면</b> 오류 메시지를 그대로 복사해 AI에게 물어보세요. 코드까지 함께 넣은 질문을 준비해 두었습니다. <div class="row" style="margin-top:10px"><button class="mini" data-help="' + m.id + '">질문 복사</button></div></div>' : '';
+        return '<details class="m" id="' + m.id + '"><summary>'
+          + '<span class="code num">' + label(m.id) + '</span>'
+          + '<span class="mt">' + esc(m.title) + '<span>' + esc(m.sub) + '</span></span>'
+          + '<span class="min num">' + m.min + ' MIN</span>'
+          + '<label class="chk" onclick="event.stopPropagation()"><input type="checkbox" data-done="' + m.id + '"> 완료</label>'
+          + '</summary><div class="body">'
+          + '<div><h4>HOW TO</h4><ol>' + m.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol></div>'
+          + (fl ? '<div class="fields">' + fl + '</div>' : '')
+          + linkBlock + promptBlock + dataBlock + codeBlock + helpBlock
+          + '<div><h4>CHECK</h4><ul class="checks">' + m.checks.map(c => '<li>' + esc(c) + '</li>').join('') + '</ul></div>'
+          + '<div><h4>ONE MORE STEP</h4><div class="next">' + m.next.map((q, i) => '<div class="one"><p>' + esc(q) + '</p><button class="mini" data-next="' + m.id + ':' + i + '">복사</button></div>').join('') + '</div></div>'
+          + '</div></details>';
+      }).join('');
+    });
+
+    M.forEach(m => {
+      if (m.code) $('#c-' + m.id).textContent = $('#' + m.code).textContent;
+      (m.fields || []).forEach(fd => {
+        const el = $('#fd-' + m.id + '-' + fd.k);
+        el.value = fieldDefaults(m)[fd.k];
+        el.addEventListener('input', () => { fieldVals[m.id] = fieldVals[m.id] || {}; fieldVals[m.id][fd.k] = el.value; edited[m.id] = false; refreshPrompts(); });
+        el.addEventListener('change', () => { fieldVals[m.id] = fieldVals[m.id] || {}; fieldVals[m.id][fd.k] = el.value; edited[m.id] = false; refreshPrompts(); });
+      });
+      const ta = $('#p-' + m.id);
+      if (ta) ta.addEventListener('input', () => { edited[m.id] = true; });
+      const cb = $('[data-done="' + m.id + '"]');
+      cb.checked = done.has(m.id);
+      cb.addEventListener('change', () => { cb.checked ? done.add(m.id) : done.delete(m.id); store.set('acl-done', [...done]); progress(); });
+    });
+    refreshPrompts();
+    progress();
+  }
+
+  function promptFor(m) {
+    const f = {};
+    (m.fields || []).forEach(fd => { const el = $('#fd-' + m.id + '-' + fd.k); f[fd.k] = (el && el.value.trim()) || fd.def(); });
+    return m.prompt(f);
+  }
+  function refreshPrompts() {
+    M.forEach(m => {
+      (m.fields || []).forEach(fd => {  // fields the user hasn't touched follow the course info
+        const el = $('#fd-' + m.id + '-' + fd.k);
+        if (el && !(fieldVals[m.id] && fieldVals[m.id][fd.k] !== undefined)) el.value = fd.def();
+      });
+      if (!m.prompt) return;
+      const ta = $('#p-' + m.id);
+      if (ta && !edited[m.id]) ta.value = promptFor(m);
+    });
+  }
+  function progress() {
+    $$('.prog').forEach(p => {
+      const n = p.dataset.step;
+      const all = M.filter(m => String(m.step) === n);
+      const k = all.filter(m => done.has(m.id)).length;
+      $('.fill', p).style.width = (all.length ? k / all.length * 100 : 0) + '%';
+      $('.cnt', p).textContent = k + ' / ' + all.length;
+      all.forEach(m => $('#' + m.id).classList.toggle('done', done.has(m.id)));
+    });
+  }
+
+  /* ---------- copy / open ---------- */
+  let tt;
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600); }
+  async function copy(text, msg) {
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e2) {} ta.remove();
+    }
+    toast(msg || '복사했습니다.');
+  }
+  const byId = id => M.find(m => m.id === id);
+  const paste = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘V' : 'Ctrl+V';
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.copy) { copy($('#p-' + b.dataset.copy).value, '복사했습니다. AI 채팅 창에 ' + paste + ' 로 붙여 넣으세요.'); }
+    else if (b.dataset.ai) {
+      const m = byId(b.dataset.m); const text = $('#p-' + m.id).value; const ai = AI.find(a => a.name === b.dataset.ai);
+      copy(text, ai.prefill ? ai.name + '를 엽니다. 내용이 비어 있으면 ' + paste + ' 로 붙여 넣으세요.' : ai.name + '를 엽니다. ' + paste + ' 로 붙여 넣으세요.');
+      window.open(ai.url(text), '_blank', 'noopener');
+    }
+    else if (b.dataset.reset) { edited[b.dataset.reset] = false; refreshPrompts(); toast('내 수업 정보로 다시 만들었습니다.'); }
+    else if (b.dataset.code) { copy($('#' + byId(b.dataset.code).code).textContent, '코드를 복사했습니다. Apps Script 편집기에 붙여 넣고 저장하세요.'); }
+    else if (b.dataset.data) { copy(byId(b.dataset.data).data, '예시 데이터를 복사했습니다. 시트 A1 칸에 붙여 넣으세요.'); }
+    else if (b.dataset.help) { copy(byId(b.dataset.help).helpPrompt(), '질문을 복사했습니다. 오류 메시지 자리만 채워서 AI에게 보내세요.'); }
+    else if (b.dataset.next) { const [id, i] = b.dataset.next.split(':'); copy(byId(id).next[Number(i)], '복사했습니다. 같은 대화창에 이어서 붙여 넣으세요.'); }
+  });
+
+  /* ---------- deep links: #s2-1 opens that mission ---------- */
+  function openFromHash() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const d = id && document.getElementById(id);
+    if (d && d.tagName === 'DETAILS') {
+      d.open = true;
+      d.classList.add('flash'); setTimeout(() => d.classList.remove('flash'), 1600);
+      setTimeout(() => d.scrollIntoView({ block: 'start', behavior: document.readyState === 'complete' ? 'smooth' : 'instant' }), 30);
+    }
+  }
+  window.addEventListener('hashchange', openFromHash);
+
+  /* ---------- practice timer ---------- */
+  let end = 0, tick;
+  const clock = $('#clock'), timer = $('#timer');
+  $$('#timer button').forEach(b => b.addEventListener('click', () => {
+    end = Date.now() + Number(b.dataset.min) * 60000; timer.classList.remove('over');
+    clearInterval(tick); tick = setInterval(draw, 250); draw();
+  }));
+  clock.addEventListener('click', () => { clearInterval(tick); end = 0; clock.textContent = '--:--'; timer.classList.remove('over'); });
+  function draw() {
+    const left = Math.round((end - Date.now()) / 1000);
+    const a = Math.abs(left);
+    clock.textContent = (left < 0 ? '+' : '') + String(Math.floor(a / 60)).padStart(2, '0') + ':' + String(a % 60).padStart(2, '0');
+    timer.classList.toggle('over', left < 0);
+  }
+
+  if (new URLSearchParams(location.search).has('demo')) document.documentElement.style.scrollBehavior = 'auto';
+  if (new URLSearchParams(location.search).has('demo') && !course.course) { course = Object.assign({}, EXAMPLE); fillForm(course); }  // ?demo shows the example course on the lecturer's screen
+  if (course.course) $('#savedNote').textContent = '저장된 과목: ' + course.course;
+  render();
+  const focusId = new URLSearchParams(location.search).get('focus');
+  const focused = focusId && document.getElementById(focusId);
+  if (focused && focused.tagName === 'DETAILS') {
+    document.body.classList.add('focus');
+    focused.classList.add('keep');
+    focused.open = true;
+    focused.closest('section').classList.add('keep');
+  }
+  openFromHash();
+  window.addEventListener('load', () => setTimeout(openFromHash, 60));  // re-scroll once web fonts have settled the layout
+})();
+</script>
+</body>
+</html>
