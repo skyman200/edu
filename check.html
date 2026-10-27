@@ -35,7 +35,7 @@ h1{font-weight:800;font-size:clamp(28px,4.4vw,40px);line-height:1.22;letter-spac
 .sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 28px;padding:22px 0;margin-top:28px;border-top:1px solid var(--ink);border-bottom:1px solid var(--line)}
 .sum .n{font:800 34px/1 var(--display);font-variant-numeric:tabular-nums;margin-right:6px}
 .sum .k{font-size:14px;color:var(--ink2)}
-.sum .bad .n{color:var(--red)}
+.sum .bad.on .n{color:var(--red)}
 .sum .acts{margin-left:auto;display:flex;gap:8px}
 button{font:600 14px var(--sans);border:1px solid var(--ink);background:transparent;color:var(--ink);padding:9px 14px;border-radius:3px;cursor:pointer}
 button:hover{background:var(--ink);color:var(--paper)}
@@ -86,7 +86,7 @@ button.done{border-color:var(--mute);color:var(--mute)}
 
 <div class="sum" id="sum">
   <span><span class="n" id="nOk">0</span><span class="k">열림</span></span>
-  <span class="bad"><span class="n" id="nBad">0</span><span class="k">막힘</span></span>
+  <span class="bad" id="badBox"><span class="n" id="nBad">0</span><span class="k">막힘</span></span>
   <span><span class="n" id="nWait">0</span><span class="k">확인 중</span></span>
   <span class="acts"><button id="again">다시 점검</button><button id="copy">결과 복사</button></span>
 </div>
@@ -184,6 +184,7 @@ function tally() {
   const n = s => ALL.filter(it => it.how !== "manual" && it.st === s).length;
   document.getElementById("nOk").textContent = n("ok");
   document.getElementById("nBad").textContent = n("bad");
+  document.getElementById("badBox").classList.toggle("on", n("bad") > 0);
   document.getElementById("nWait").textContent = n(undefined);
   document.getElementById("itText").textContent = itRequest();
 }
