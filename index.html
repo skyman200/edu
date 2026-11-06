@@ -143,6 +143,38 @@ textarea.result{min-height:150px;font:14px/1.7 var(--sans)}
 .asst p{margin:0;max-width:680px;font-size:14px;color:var(--ink2)}
 .btn:disabled,.mini:disabled{opacity:.4;cursor:not-allowed}
 
+/* AI ONE: run the prompt right on the page */
+.aitip{margin-bottom:18px}
+.aipane{border:1px solid var(--ink);background:#fff;margin-top:14px}
+.aihead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink2)}
+.aichip{font:700 11px var(--display);letter-spacing:.2em;background:var(--ink);color:#fff;padding:3px 8px}
+.aihead .mini{margin-left:auto}
+.aiout{padding:16px 18px;max-height:560px;overflow:auto;font-size:15px;line-height:1.75}
+.aiout p{margin:0 0 .55em}
+.aiout p.li{padding-left:1.1em;text-indent:-1.1em}
+.aiout p.l2{margin-left:1.4em}
+.aiout h5{font-size:15px;font-weight:800;margin:1em 0 .4em}
+.aiout table{border-collapse:collapse;margin:.6em 0 1em;font-size:14px;line-height:1.55}
+.aiout th,.aiout td{border:1px solid var(--line2);padding:6px 10px;text-align:left;vertical-align:top}
+.aiout th{background:var(--paper)}
+.aiout pre{margin:.6em 0 1em;background:var(--night);color:#EDEDEA;font:13px/1.6 "SF Mono",Menlo,Consolas,monospace;padding:14px;border-radius:2px;overflow:auto;white-space:pre}
+.aiout code{font:13px "SF Mono",Menlo,Consolas,monospace;background:var(--paper);padding:1px 4px}
+.aiout pre code{background:none;padding:0}
+.aiprev{margin:6px 0 16px;border:1px solid var(--line2)}
+.aiprev .ph{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:7px 12px;background:var(--paper);font:700 11px var(--display);letter-spacing:.16em;color:var(--mute)}
+.aiprev .ph a{font:600 12px var(--sans);letter-spacing:0;color:var(--ink2)}
+.aiprev iframe{display:block;width:100%;height:420px;border:0;background:#fff}
+.aiq{margin:14px 0 8px;padding:8px 12px;border-left:3px solid var(--red);background:var(--paper);font-size:14px;color:var(--ink2)}
+.aierr{padding:10px 14px;color:var(--red);font-weight:600;font-size:14px;border-top:1px solid var(--line)}
+.aifoot{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.aiask{display:flex;gap:8px;padding:0 14px 12px}
+.aiask input{flex:1}
+.aichips{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 14px}
+.aichips .chip{text-align:left;font-weight:500;font-size:13px}
+dialog.aidlg{border:1px solid var(--ink);border-radius:2px;padding:24px 26px;width:min(92vw,420px);background:var(--sheet);color:var(--ink)}
+dialog.aidlg::backdrop{background:rgba(0,0,0,.45)}
+dialog.aidlg h3{margin:0 0 6px;font-size:18px}
+
 /* my results */
 .mine-list{margin-top:22px;border-top:1px solid var(--ink)}
 .mine-grp h3{font:700 11px var(--display);letter-spacing:.24em;color:var(--mute);margin:22px 0 2px}
@@ -365,6 +397,10 @@ body.focus section.keep{padding:28px 0;border:0}
           <div class="prog" data-step="1"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
         </div>
       </div>
+      <div class="tip aitip" id="aiTip">
+        <b>AI 구독이 없어도 됩니다.</b> 각 실습의 <b>AI ONE으로 바로 실행</b> 버튼은 이 연수에서 준비한 AI(DIT AI-ONE)로 답을 바로 받습니다. 실습마다 알맞은 모델이 자동으로 골라지고, 어떤 모델이 왜 골라졌는지 답 위에 표시됩니다. 수업 코드는 강의장 화면에 있습니다. 여기에서도 학생 실명·성적은 넣지 않습니다.
+        <div class="row" style="margin-top:10px"><button class="mini" data-aicode>수업 코드 입력</button><span class="saved" id="aiState"></span></div>
+      </div>
       <div id="list-1"></div>
     </div>
   </section>
@@ -452,7 +488,7 @@ body.focus section.keep{padding:28px 0;border:0}
         <div class="vprompt">
           <h4 class="vh">BUILD PROMPT</h4>
           <textarea class="prompt" id="vPrompt" spellcheck="false"></textarea>
-          <div class="row"><button class="btn red" id="vCopy">프롬프트 복사</button><span class="row" id="vAi" style="margin:0"></span></div>
+          <div class="row"><button class="btn red" id="vRunAi"><span class="k">RUN</span>AI ONE으로 만들기</button><button class="btn ghostb" id="vCopy">프롬프트 복사</button><span class="row" id="vAi" style="margin:0"></span></div>
           <p class="note" style="margin:10px 0 0">Claude는 대화창 오른쪽에 실행 화면이 바로 뜹니다. 어느 AI든 답을 통째로 복사해 02에 붙여 넣으면 코드만 골라 실행합니다.</p>
         </div>
       </div>
@@ -484,6 +520,7 @@ body.focus section.keep{padding:28px 0;border:0}
       <div class="vstep">
         <h3><span class="num">03</span>고치기 — 한 번에 한 가지씩</h3>
         <p class="sub" style="margin:0 0 12px">눌러서 복사한 뒤, 코드를 받았던 같은 AI 대화창에 붙여 넣으세요. AI가 준 새 코드를 다시 02에 붙여 넣고 실행합니다.</p>
+        <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="vUseAi"> 고칠 때 AI ONE으로 바로 실행 (끄면 복사만 합니다)</label>
         <div class="chips" id="vFixes"></div>
         <div class="row">
           <input id="vAsk" placeholder="예: 번호가 나올 때 숫자가 살짝 커지며 나타나게 해 줘" style="flex:1;min-width:240px">
@@ -548,6 +585,13 @@ body.focus section.keep{padding:28px 0;border:0}
   </div>
 </footer>
 
+<dialog class="aidlg" id="aiDlg">
+  <h3>수업 코드를 입력하세요</h3>
+  <p class="note" style="margin:0 0 12px">강의장 화면에 보이는 코드입니다. 한 번 입력하면 이 브라우저에 저장됩니다.</p>
+  <input id="aiDlgIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="수업 코드">
+  <p class="saved" id="aiDlgErr" style="color:var(--red);min-height:1.4em;margin:8px 0 0"></p>
+  <div class="row" style="margin-top:10px"><button class="btn red" id="aiDlgOk">확인</button><button class="btn ghostb" id="aiDlgNo">닫기</button></div>
+</dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div id="printDoc"></div>
 
@@ -1322,8 +1366,9 @@ function removeAlarms() {
         }).join('');
         const aiBtns = AI.map(a => '<button class="btn ' + (a.name === 'ChatGPT' ? '' : 'ghostb') + '" data-ai="' + a.name + '" data-m="' + m.id + '"><span class="k">OPEN</span>' + aiName(a) + '</button>').join('');
         const promptBlock = m.prompt ? '<div><h4>' + (m.ai === false ? 'PROMPT FOR ASIDE' : 'PROMPT') + '</h4><textarea class="prompt" id="p-' + m.id + '" spellcheck="false"></textarea>'
-          + '<div class="row"><button class="btn red" data-copy="' + m.id + '">프롬프트 복사</button>' + (m.ai === false ? '' : aiBtns)
-          + '<button class="mini" data-reset="' + m.id + '">다시 만들기</button></div></div>' : '';
+          + '<div class="row"><button class="btn red" data-copy="' + m.id + '">프롬프트 복사</button>'
+          + (m.ai === false ? '' : '<button class="btn red" data-run="' + m.id + '"><span class="k">RUN</span>AI ONE으로 바로 실행</button>' + aiBtns)
+          + '<button class="mini" data-reset="' + m.id + '">다시 만들기</button></div>' + (m.ai === false ? '' : aiPane(m)) + '</div>' : '';
         const linkBlock = m.links ? '<div><h4>SEARCH</h4><div class="row" style="margin-top:0">' + m.links.map(a => '<a class="btn ghostb" href="' + a.url + '" target="_blank" rel="noopener">' + esc(a.label) + '</a>').join('') + '</div></div>' : '';
         const dataBlock = m.data ? '<div><h4>EXAMPLE DATA</h4><p class="note" style="margin:0 0 8px">복사해서 시트 A1 칸을 누르고 붙여 넣으면 칸이 알아서 나뉩니다.</p><button class="btn ghostb" data-data="' + m.id + '">예시 데이터 복사</button></div>' : '';
         const codeBlock = m.code ? '<div><h4>APPS SCRIPT</h4><pre class="codebox" id="c-' + m.id + '"></pre><div class="row"><button class="btn red" data-code="' + m.id + '">코드 복사</button><a class="btn ghostb" href="https://sheets.new" target="_blank" rel="noopener">새 구글 시트 열기</a></div></div>' : '';
@@ -1577,6 +1622,7 @@ function removeAlarms() {
   $('#vIdeas').addEventListener('click', e => { const b = e.target.closest('[data-videa]'); if (b) chooseIdea(Number(b.dataset.videa)); });
   $('#vFixes').addEventListener('click', e => {
     const b = e.target.closest('[data-vfix]'); if (!b) return;
+    if ($('#vUseAi').checked) { vAiGenerate(fixText(FIXES[Number(b.dataset.vfix)], true)); return; }
     copy(fixText(FIXES[Number(b.dataset.vfix)], $('#vWithCode').checked), '복사했습니다. 코드를 받았던 AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   });
   $('#vAi').addEventListener('click', e => {
@@ -1601,12 +1647,14 @@ function removeAlarms() {
     $('#vFrameBox').classList.toggle('phone', b.dataset.vsize === 'phone');
   }));
   $('#vFull').onclick = () => { const box = $('#vFrameBox'); if (box.requestFullscreen) box.requestFullscreen().catch(() => {}); };
-  $('#vAskFix').onclick = () => copy('이 웹앱을 실행하니 아래 오류가 났어.\n' + vErrors.slice(0, 5).map(x => '- ' + x).join('\n')
-    + '\n원인을 한 줄로 설명하고, 고친 전체 코드를 ```html 블록 하나로 줘.\n\n[지금 코드]\n```html\n' + $('#vCode').value.trim() + '\n```',
-    '오류와 코드를 복사했습니다. AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
+  const errAsk = () => '이 웹앱을 실행하니 아래 오류가 났어.\n' + vErrors.slice(0, 5).map(x => '- ' + x).join('\n')
+    + '\n원인을 한 줄로 설명하고, 고친 전체 코드를 ```html 블록 하나로 줘.\n\n[지금 코드]\n```html\n' + $('#vCode').value.trim() + '\n```';
+  $('#vAskFix').onclick = () => $('#vUseAi').checked ? vAiGenerate(errAsk())
+    : copy(errAsk(), '오류와 코드를 복사했습니다. AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   $('#vAskCopy').onclick = () => {
     const ask = $('#vAsk').value;
     if (!ask.trim()) { $('#vAsk').focus(); toast('고칠 점을 한 문장으로 적어 주세요.'); return; }
+    if ($('#vUseAi').checked) { vAiGenerate(fixText(ask, true)); return; }
     copy(fixText(ask, $('#vWithCode').checked), '복사했습니다. 코드를 받았던 AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   };
   $('#vSave').onclick = () => {
@@ -1638,6 +1686,268 @@ function removeAlarms() {
     saveResult('s4-4', ta.value);
     toast('내 결과물(4–4)에 기록했습니다.');
   };
+
+  /* ---------- AI ONE: run the prompt on the instructor's gateway account (no subscription needed) ---------- */
+  // The gateway key lives only in the Cloudflare Function at /api/ai. The browser sends the class code, the exercise id and the
+  // messages; the server picks the model (see functions/_lib/route.js) and says which one it used in the first stream event.
+  const AIONE_URL = (/(^|\.)kimcook-edu\.pages\.dev$|^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? '' : 'https://kimcook-edu.pages.dev') + '/api/ai';
+  const NET_MSG = 'AI ONE 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고, 교내망에서 막혔다면 휴대폰 데이터로 시도해 보세요.';
+  let aiCode = store.get('acl-aicode', '');
+  const aiChats = {};
+  const aiPost = (body, signal) => fetch(AIONE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
+  async function aiFail(r) {
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    return Object.assign(new Error(j.error || 'AI ONE 요청에 실패했습니다. 잠시 후 다시 눌러 주세요.'), { code: j.code || 'http', status: r.status });
+  }
+  function aiState() {
+    $('#aiState').textContent = aiCode ? '수업 코드가 저장되어 있습니다.' : '수업 코드를 아직 입력하지 않았습니다.';
+    $('[data-aicode]').textContent = aiCode ? '수업 코드 바꾸기' : '수업 코드 입력';
+  }
+  // a link like /?c=CODE (QR on the slide) saves the code once and cleans the address bar
+  (() => {
+    const q = new URLSearchParams(location.search), c = (q.get('c') || '').trim().slice(0, 64);
+    if (!c) return;
+    aiCode = c; store.set('acl-aicode', c); q.delete('c');
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  })();
+  aiState();
+
+  function askCode(msg) {
+    return new Promise(resolve => {
+      const dlg = $('#aiDlg'), inp = $('#aiDlgIn'), err = $('#aiDlgErr'), ok = $('#aiDlgOk');
+      let settled = false;
+      const end = v => { if (settled) return; settled = true; if (dlg.open) dlg.close(); resolve(v); };
+      err.textContent = msg || ''; inp.value = aiCode; ok.disabled = false;
+      ok.onclick = async () => {
+        const c = inp.value.trim();
+        if (!c) { err.textContent = '코드를 입력해 주세요.'; return; }
+        ok.disabled = true; err.textContent = '확인하는 중…';
+        try {
+          const r = await aiPost({ code: c, check: true });
+          if (!r.ok) throw await aiFail(r);
+          aiCode = c; store.set('acl-aicode', c); aiState(); end(c);
+        } catch (e) { err.textContent = e.status ? e.message : NET_MSG; ok.disabled = false; }
+      };
+      $('#aiDlgNo').onclick = () => end(null);
+      inp.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); ok.click(); } };
+      dlg.onclose = () => end(null);
+      dlg.showModal(); inp.focus(); inp.select();
+    });
+  }
+
+  // POST /api/ai and read the simple SSE stream: {meta}, {delta}*, {done} (or {error})
+  async function aiStream(ex, messages, h, signal) {
+    let r;
+    try { r = await aiPost({ code: aiCode, ex, messages }, signal); }
+    catch (e) { if (e.name === 'AbortError') throw e; throw Object.assign(new Error(NET_MSG), { code: 'net' }); }
+    if (!r.ok) throw await aiFail(r);
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    let buf = '', fin = false;
+    const line = l => {
+      if (!l.startsWith('data:')) return;
+      let o; try { o = JSON.parse(l.slice(5)); } catch (e) { return; }
+      if (o.meta) h.meta(o.meta);
+      else if (o.error) throw Object.assign(new Error(o.error), { code: 'stream' });
+      else if (o.delta) h.delta(o.delta);
+      else if (o.done) { fin = true; h.done(o); }
+    };
+    for (;;) {
+      let chunk;
+      try { chunk = await rd.read(); } catch (e) { if (e.name === 'AbortError') throw e; throw Object.assign(new Error('연결이 중간에 끊겼습니다. 다시 눌러 주세요.'), { code: 'cut' }); }
+      if (chunk.done) break;
+      buf += dec.decode(chunk.value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { line(buf.slice(0, i).replace(/\r$/, '').trim()); buf = buf.slice(i + 1); }
+    }
+    if (buf.trim()) line(buf.trim());
+    if (!fin) throw Object.assign(new Error('답이 중간에 끊겼습니다. 다시 눌러 주세요.'), { code: 'cut' });
+  }
+  // asks for the class code first if none is saved; one retry after a wrong saved code. Resolves false if the user cancels.
+  async function aiRun(ex, messages, h, signal) {
+    if (!aiCode && !(await askCode())) return false;
+    for (let tries = 0; ; tries++) {
+      try { await aiStream(ex, messages, h, signal); return true; }
+      catch (e) {
+        if (e.code !== 'bad_code' || tries) throw e;
+        aiCode = ''; store.set('acl-aicode', ''); aiState();
+        if (!(await askCode('저장된 코드가 맞지 않습니다. 다시 입력해 주세요.'))) return false;
+      }
+    }
+  }
+
+  // Markdown answer -> HTML (tables, headings, lists, code fences) reusing blocks(); everything is escaped first
+  const inlineMd = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+  function mdParts(text) {
+    const parts = [], re = /```[ \t]*([\w+-]*)[^\n]*\n([\s\S]*?)(?:```|$)/g;
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) parts.push({ md: text.slice(last, m.index) });
+      parts.push({ code: m[2].replace(/\n$/, '') });
+      last = re.lastIndex;
+    }
+    if (last < text.length) parts.push({ md: text.slice(last) });
+    return parts;
+  }
+  const tableHtml = rows => '<table><thead><tr>' + rows[0].map(c => '<th>' + inlineMd(c) + '</th>').join('') + '</tr></thead><tbody>'
+    + rows.slice(1).map(r => '<tr>' + rows[0].map((_, k) => '<td>' + inlineMd(r[k] || '') + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+  const mdHtml = text => mdParts(text).map(p => p.code != null ? '<pre><code>' + esc(p.code) + '</code></pre>'
+    : blocks(p.md).map(b => b.t === 'table' ? tableHtml(b.rows)
+      : b.t === 'h' ? '<h5>' + inlineMd(b.text) + '</h5>'
+      : b.t === 'li' ? '<p class="li' + (b.lvl ? ' l2' : '') + '">' + inlineMd(b.text) + '</p>'
+      : b.t === 'blank' ? '' : '<p>' + inlineMd(b.text) + '</p>').join('')).join('');
+  // plain-text twin of the answer: tables become tab-separated rows (pastes into a sheet), code loses its fences
+  const mdPlain = text => mdParts(text).map(p => p.code != null ? p.code
+    : blocks(p.md).map(b => b.t === 'table' ? b.rows.map(r => r.join('\t')).join('\n') : b.t === 'blank' ? ''
+      : (b.t === 'li' && b.lvl ? '  ' : '') + b.text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`/g, '')).join('\n')).join('\n');
+  async function copyRich(html, plain, msg) {
+    try {
+      if (window.ClipboardItem) {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html.replace(/<table>/g, '<table border="1" cellspacing="0" cellpadding="4">')], { type: 'text/html' }),
+          'text/plain': new Blob([plain], { type: 'text/plain' })
+        })]);
+        toast(msg); return;
+      }
+    } catch (e) {}
+    copy(plain, msg);
+  }
+
+  function aiPane(m) {
+    return '<div class="aipane" id="ao-' + m.id + '" hidden>'
+      + '<div class="aihead"><span class="aichip">AI ONE</span><span id="ao-meta-' + m.id + '"></span><button class="mini" data-aistop="' + m.id + '" hidden>멈추기</button></div>'
+      + '<div class="aiout" id="ao-out-' + m.id + '" aria-live="polite"></div>'
+      + '<div class="aierr" id="ao-err-' + m.id + '" hidden></div>'
+      + '<div class="aifoot" id="ao-foot-' + m.id + '" hidden><button class="btn red" data-aicopy="' + m.id + '">답 복사</button>'
+      + '<a class="btn ghostb" href="#mine">내 결과물 모음 보기</a><button class="mini" data-airedo="' + m.id + '">처음부터 다시</button><span class="saved" id="ao-saved-' + m.id + '"></span></div>'
+      + '<div class="aiask" id="ao-ask-' + m.id + '" hidden><input id="ao-in-' + m.id + '" placeholder="이어서 부탁하기 (예: 3주차를 짝 활동으로 바꿔 줘)"><button class="btn" data-aisend="' + m.id + '">보내기</button></div>'
+      + '<div class="aichips" id="ao-chips-' + m.id + '" hidden>' + m.next.map((q, i) => '<button class="chip" data-aiq="' + m.id + ':' + i + '">' + esc(q) + '</button>').join('') + '</div>'
+      + '</div>';
+  }
+  async function aiExercise(id, follow) {
+    const m = byId(id), st = aiChats[id] = aiChats[id] || { msgs: [], ctl: null, last: '', html: '' };
+    if (st.ctl) return;
+    const $$id = k => $('#ao-' + k + '-' + id);
+    const out = $$id('out'), meta = $$id('meta'), err = $$id('err'), foot = $$id('foot'), ask = $$id('ask'), chips = $$id('chips'), stop = $('[data-aistop="' + id + '"]');
+    let userText;
+    if (follow !== undefined) { userText = String(follow).trim(); if (!userText) return; }
+    else { userText = $('#p-' + id).value.trim(); if (!userText) { toast('프롬프트가 비어 있습니다.'); return; } st.msgs = []; out.innerHTML = ''; st.last = ''; st.html = ''; }
+    const base = st.msgs.length;
+    st.msgs.push({ role: 'user', content: userText });
+    $('#ao-' + id).hidden = false;
+    if (follow !== undefined) out.insertAdjacentHTML('beforeend', '<div class="aiq">' + esc(userText) + '</div>');
+    const ans = document.createElement('div'); ans.className = 'aia'; out.appendChild(ans);
+    meta.textContent = '연결하는 중…'; err.hidden = true; foot.hidden = ask.hidden = chips.hidden = true; stop.hidden = false;
+    $$('[data-run="' + id + '"], [data-aisend="' + id + '"], [data-airedo="' + id + '"]').forEach(b => { b.disabled = true; });
+    const ctl = st.ctl = new AbortController();
+    let text = '', raf = 0, truncated = false;
+    const paint = () => {
+      raf = 0;
+      const near = out.scrollHeight - out.scrollTop - out.clientHeight < 80;
+      ans.innerHTML = mdHtml(text);
+      if (near) out.scrollTop = out.scrollHeight;
+    };
+    try {
+      const ran = await aiRun(id, st.msgs, {
+        meta: mm => { meta.innerHTML = '자동 선택 · <b>' + esc(mm.label) + '</b> — ' + esc(mm.why); },
+        delta: t => { text += t; if (!raf) raf = requestAnimationFrame(paint); },
+        done: o => { truncated = !!o.truncated; }
+      }, ctl.signal);
+      if (!ran) { st.msgs.length = base; ans.remove(); if (!base) $('#ao-' + id).hidden = true; return; }
+      cancelAnimationFrame(raf); paint();
+      st.msgs.push({ role: 'assistant', content: text }); st.last = text; st.html = ans.innerHTML;
+      if (truncated) ans.insertAdjacentHTML('beforeend', '<p class="note">답이 길어서 여기서 끊겼습니다. 아래에 "이어서 써 줘"라고 보내 보세요.</p>');
+      aiAutoSave(id, text);
+      const page = /```[ \t]*html/i.test(text) ? extractHtml(text) : '';
+      if (/<(!doctype|html|body)/i.test(page) && /<\/html>|<\/body>/i.test(page)) {
+        const pv = document.createElement('div'); pv.className = 'aiprev';
+        pv.innerHTML = '<div class="ph">LIVE PREVIEW · 만든 결과가 바로 실행됩니다' + (m.studio ? ' <a href="#vibe">스튜디오에서 크게 보기</a>' : '') + '</div><iframe title="실행 결과" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe>';
+        out.appendChild(pv); pv.querySelector('iframe').srcdoc = withGuard(page);
+        if (m.studio) { $('#vCode').value = page; vRun(); }
+      }
+      foot.hidden = ask.hidden = chips.hidden = false;
+    } catch (e) {
+      cancelAnimationFrame(raf);
+      if (e.name === 'AbortError') {
+        paint();
+        if (text.trim()) { st.msgs.push({ role: 'assistant', content: text }); st.last = text; st.html = ans.innerHTML; foot.hidden = ask.hidden = chips.hidden = false; meta.insertAdjacentHTML('beforeend', ' (멈춤)'); }
+        else { st.msgs.length = base; ans.remove(); }
+      } else {
+        st.msgs.length = base; if (!text.trim()) ans.remove(); else paint();
+        err.textContent = e.message; err.hidden = false;
+        if (st.last) { foot.hidden = ask.hidden = chips.hidden = false; }
+      }
+    } finally {
+      st.ctl = null; stop.hidden = true;
+      $$('[data-run="' + id + '"], [data-aisend="' + id + '"], [data-airedo="' + id + '"]').forEach(b => { b.disabled = false; });
+    }
+  }
+  function aiCopy(id) {
+    const st = aiChats[id]; if (!st || !st.last) return;
+    copyRich(st.html, mdPlain(st.last), '답을 복사했습니다. 표는 한글·워드·구글 시트에 붙이면 칸이 나뉩니다.');
+  }
+  // every finished answer lands in MY RESULT (and so in the "내 결과물" list and the Word/PDF download) without a click:
+  // it replaces the previous auto-saved answer, but appends if the professor edited the box in between.
+  function aiAutoSave(id, text) {
+    const st = aiChats[id], ta = $('#r-' + id), t = text.trim();
+    ta.value = !ta.value.trim() || ta.value === st.saved ? t : ta.value.replace(/\s+$/, '') + '\n\n' + t;
+    st.saved = ta.value;
+    saveResult(id, ta.value);
+    $('#ao-saved-' + id).textContent = '내 결과물에 자동 저장했습니다.';
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const d = b.dataset;
+    if (d.run) aiExercise(d.run);
+    else if (d.airedo) aiExercise(d.airedo);
+    else if (d.aisend) { const i = $('#ao-in-' + d.aisend), t = i.value; i.value = ''; aiExercise(d.aisend, t); }
+    else if (d.aiq) { const [id, k] = d.aiq.split(':'); aiExercise(id, byId(id).next[Number(k)]); }
+    else if (d.aistop) { const st = aiChats[d.aistop]; if (st && st.ctl) st.ctl.abort(); }
+    else if (d.aicopy) aiCopy(d.aicopy);
+    else if (b.hasAttribute('data-aicode')) askCode().then(c => { if (c) toast('수업 코드를 저장했습니다.'); });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.isComposing || !e.target.id || !e.target.id.startsWith('ao-in-')) return;
+    e.preventDefault();
+    const id = e.target.id.slice(6), t = e.target.value; e.target.value = ''; aiExercise(id, t);
+  });
+
+  // vibe-coding studio: build / fix with AI ONE, keep the model's HTML, and run it
+  let vAiCtl = null;
+  async function vAiGenerate(promptText) {
+    if (vAiCtl) { toast('AI ONE이 만드는 중입니다. 멈추려면 위의 멈추기를 누르세요.'); return; }
+    if (!promptText.trim()) { toast('프롬프트가 비어 있습니다.'); return; }
+    $('#vUseAi').checked = true; store.set('acl-vuseai', true); vAiMode();
+    const ctl = vAiCtl = new AbortController(), btn = $('#vRunAi');
+    let text = '', label = '', truncated = false;
+    btn.innerHTML = '<span class="k">STOP</span>멈추기';
+    vStatus('AI ONE에 연결하는 중…');
+    try {
+      const ran = await aiRun('vibe', [{ role: 'user', content: promptText }], {
+        meta: mm => { label = mm.label; vStatus(label + '가 코드를 쓰는 중… (' + mm.why + ')'); },
+        delta: t => { text += t; vStatus(label + '가 코드를 쓰는 중… ' + text.length.toLocaleString('ko-KR') + '자'); },
+        done: o => { truncated = !!o.truncated; }
+      }, ctl.signal);
+      if (!ran) { vStatus('취소했습니다.'); return; }
+      const code = extractHtml(text);
+      if (!/<(!doctype|html|body|div|script)/i.test(code)) { vStatus('AI 답에서 코드를 찾지 못했습니다. 한 번 더 눌러 주세요.', true); return; }
+      if (truncated && !/<\/html>/i.test(code)) { vStatus('코드가 길어서 중간에 끊겼습니다. 한 번 더 눌러 주세요.', true); return; }
+      $('#vCode').value = code; vRun();
+      toast(label + '로 만든 코드를 실행했습니다.');
+    } catch (e) {
+      if (e.name === 'AbortError') vStatus('멈췄습니다. 기존 코드는 그대로입니다.');
+      else vStatus(e.message, true);
+    } finally {
+      vAiCtl = null; btn.innerHTML = '<span class="k">RUN</span>AI ONE으로 만들기';
+    }
+  }
+  function vAiMode() {
+    const on = $('#vUseAi').checked;
+    $('#vAskCopy').textContent = on ? 'AI ONE으로 고치기' : '고칠 점 복사';
+    $('#vAskFix').textContent = on ? '오류를 AI ONE으로 고치기' : '오류를 AI에게 물어보기';
+  }
+  $('#vUseAi').checked = !!store.get('acl-vuseai', false);
+  $('#vUseAi').addEventListener('change', () => { store.set('acl-vuseai', $('#vUseAi').checked); vAiMode(); });
+  vAiMode();
+  $('#vRunAi').onclick = () => { if (vAiCtl) vAiCtl.abort(); else vAiGenerate($('#vPrompt').value); };
 
   /* ---------- deep links: #s2-1 opens that mission ---------- */
   // Deck buttons open the page with a #hash: jump there instantly on load, glide only for in-page hash changes.

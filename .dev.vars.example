@@ -1,0 +1,19 @@
+# Copy to .dev.vars for `npx wrangler pages dev` (gitignored). In Cloudflare Pages set the same
+# names under Settings > Variables and Secrets (AI_GATEWAY_API_KEY and AI_CLASS_CODE as secrets).
+# Never deploy a folder that contains .dev.vars: wrangler pages deploy would publish it as a file.
+
+# Required
+AI_GATEWAY_API_KEY=
+AI_CLASS_CODE=
+
+# Optional
+AI_GATEWAY_BASE_URL=
+AI_ENABLED=
+AI_LIMIT_IP_10M=
+AI_LIMIT_INFLIGHT=
+AI_LIMIT_BADCODE_10M=
+AI_LIMIT_CODE_DAY=
+AI_LIMIT_GLOBAL_DAY=
+AI_LIMIT_GLOBAL_MIN=
+
+# KV binding (not a variable): bind a KV namespace as AI_KV; locally use `--kv AI_KV`.
