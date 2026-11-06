@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>prof.kimcook · LIVE</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&display=swap">
+<script src="vendor/qrcode/qrcode.js"></script>
+<style>
+:root{
+  --paper:#F2F2F2; --sheet:#F8F8F8; --ink:#1A1A1A; --ink2:#4A4A4A; --mute:#8E8E8E;
+  --line:#D2D2D2; --line2:#BCBCBC; --red:#E54536; --night:#161616;
+  --sans:"Pretendard","Pretendard Variable",system-ui,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  --display:"Montserrat","Pretendard",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums}
+.mark{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.01em;white-space:nowrap;text-decoration:none;color:inherit}
+.mark i{font-style:normal;color:var(--red)}
+.mark .lab{font-weight:700;font-size:10px;letter-spacing:.32em;color:var(--mute);margin-left:12px}
+.btn{font:600 15px var(--sans);border:1px solid var(--ink);background:var(--ink);color:#fff;padding:11px 18px;border-radius:2px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.btn:hover{background:#000}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.ghost:hover{background:#fff}
+.btn.red{background:var(--red);border-color:var(--red)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.mini{font:600 13px var(--sans);border:1px solid var(--line2);background:transparent;border-radius:2px;padding:6px 10px;cursor:pointer;color:var(--ink);white-space:nowrap}
+.mini:hover{border-color:var(--ink)}
+.mini.on{background:var(--ink);border-color:var(--ink);color:#fff}
+input,textarea{width:100%;font:17px/1.5 var(--sans);color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:2px;padding:12px 14px}
+input:focus,textarea:focus{outline:none;border-color:var(--ink)}
+.note{font-size:13px;color:var(--mute)}
+.err{color:var(--red);font-weight:600}
+
+/* ---------- board (projector) ---------- */
+.bar{display:flex;align-items:center;gap:22px;height:64px;padding:0 28px;border-bottom:1px solid var(--line);background:rgba(236,236,234,.96);position:sticky;top:0;z-index:5}
+.tabs{display:flex;gap:4px}
+.tab{font:700 15px var(--sans);border:0;background:transparent;padding:8px 14px;cursor:pointer;color:var(--ink2);border-bottom:3px solid transparent}
+.tab b{font:800 12px var(--display);color:var(--mute);margin-right:6px}
+.tab.on{color:var(--ink);border-color:var(--red)}
+.tab .n{font:700 12px var(--display);color:var(--red);margin-left:6px}
+.bar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--line2);display:inline-block}
+.dot.ok{background:#2E9E5B}.dot.bad{background:var(--red)}
+.pane{padding:34px 40px 40px;min-height:calc(100vh - 64px)}
+.q{font-weight:800;font-size:clamp(28px,3.2vw,46px);line-height:1.25;letter-spacing:-.02em;margin:0 0 6px}
+.kick{font:700 13px var(--display);letter-spacing:.24em;color:var(--red);margin:0 0 10px}
+.split{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:44px;align-items:start}
+.qrbox{background:#fff;border:1px solid var(--line);padding:18px}
+.qrbox svg{display:block;width:100%;height:auto}
+.qrbox .url{font:600 14px var(--display);word-break:break-all;margin:12px 0 0}
+.qrbox .code{font-size:14px;color:var(--ink2);margin:4px 0 0}
+.feedhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+.feedhead .big{font:900 56px/1 var(--display)}
+.feedhead .lbl{font-size:16px;color:var(--ink2)}
+.feedhead .tools{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.cards{columns:3 260px;column-gap:14px}
+.card{break-inside:avoid;background:#fff;border:1px solid var(--line);padding:14px 16px 16px;margin:0 0 14px;font-size:19px;line-height:1.5;position:relative;white-space:pre-wrap;word-break:break-word}
+.card.new{animation:pop .7s ease}
+@keyframes pop{0%{transform:translateY(8px);opacity:0;border-color:var(--red)}100%{transform:none;opacity:1}}
+.card .x{position:absolute;top:4px;right:6px;border:0;background:transparent;color:var(--mute);font-size:18px;cursor:pointer;opacity:0}
+.card:hover .x{opacity:1}
+.empty{color:var(--mute);font-size:18px;padding:30px 0}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.grp{background:#fff;border:1px solid var(--line);border-top:4px solid var(--ink);padding:18px 20px}
+.grp:first-child{border-top-color:var(--red)}
+.grp h3{margin:0;font-size:24px;line-height:1.3}
+.grp .cnt{font:800 14px var(--display);color:var(--red);letter-spacing:.06em;margin:4px 0 10px}
+.grp .quote{font-size:17px;color:var(--ink2);border-left:3px solid var(--line2);padding-left:10px;margin:0 0 10px}
+.grp .ans{font-size:17px;font-weight:600;margin:0}
+.airaw{white-space:pre-wrap;background:#fff;border:1px solid var(--line);padding:18px;font-size:17px}
+
+/* scores */
+.scoregrid{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:48px;align-items:start}
+.avg{font:900 clamp(110px,14vw,190px)/.9 var(--display);letter-spacing:-.04em}
+.avg small{font:800 30px var(--sans);letter-spacing:0;margin-left:6px}
+.avgl{font-size:20px;color:var(--ink2);margin:14px 0 0}
+.hist{display:grid;grid-template-columns:repeat(10,1fr);gap:8px;align-items:end;height:300px;border-bottom:2px solid var(--ink);padding-top:30px}
+.hist .b{position:relative;background:var(--ink);min-height:2px;transition:height .5s ease}
+.hist .b.hot{background:var(--red)}
+.hist .b span{position:absolute;top:-26px;left:0;right:0;text-align:center;font:800 16px var(--display)}
+.hx{display:grid;grid-template-columns:repeat(10,1fr);gap:8px;font:600 13px var(--display);color:var(--mute);text-align:center;margin-top:6px}
+.cmp{display:flex;height:54px;margin:34px 0 8px;border:1px solid var(--ink)}
+.cmp div{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;color:#fff;overflow:hidden;white-space:nowrap;transition:flex-grow .5s ease}
+.cmp .ai{background:var(--red)}.cmp .same{background:var(--ink2)}.cmp .student{background:#fff;color:var(--ink)}
+.cmpl{display:flex;gap:24px;flex-wrap:wrap;font-size:16px;color:var(--ink2)}
+.cmpl b{color:var(--ink)}
+table.types{border-collapse:collapse;margin-top:28px;font-size:17px;min-width:420px}
+table.types td,table.types th{border-bottom:1px solid var(--line);padding:8px 14px 8px 0;text-align:left}
+table.types th{font:700 12px var(--display);letter-spacing:.16em;color:var(--mute)}
+
+/* gallery */
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.app{background:#fff;border:1px solid var(--line);padding:16px 18px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:150px;font:inherit;color:inherit}
+.app:hover{border-color:var(--ink)}
+.app.pick{border:2px solid var(--red)}
+.app .no{font:800 13px var(--display);color:var(--mute);letter-spacing:.1em}
+.app h3{margin:0;font-size:21px;line-height:1.3}
+.app .who{font-size:14px;color:var(--ink2)}
+.app .desc{font-size:14px;color:var(--mute);margin-top:auto}
+.ov{position:fixed;inset:0;background:var(--night);z-index:20;display:grid;grid-template-rows:auto 1fr}
+.ovbar{display:flex;align-items:center;gap:16px;padding:12px 20px;color:#EDEDEA;border-bottom:1px solid #2C2C2C}
+.ovbar h3{margin:0;font-size:20px}
+.ovbar .who{color:#B8B8B4;font-size:14px}
+.ovbar .right{margin-left:auto;display:flex;gap:8px}
+.ovbar .mini{color:#EDEDEA;border-color:#555}
+.ovbody{display:grid;grid-template-columns:minmax(0,1fr) auto;min-height:0}
+.ovbody iframe{width:100%;height:100%;border:0;background:#fff}
+.ovqr{width:300px;background:#fff;padding:20px;display:flex;flex-direction:column;gap:10px}
+.ovqr b{font-size:18px}
+.ovqr .url{font:600 12px var(--display);word-break:break-all;color:var(--ink2)}
+
+/* ---------- join (phone) ---------- */
+.join{max-width:560px;margin:0 auto;padding:22px 20px 40px}
+.join .q{font-size:28px;margin:26px 0 8px}
+.join textarea{min-height:140px;font-size:18px;margin-top:14px}
+.join .btn{width:100%;justify-content:center;font-size:17px;padding:15px;margin-top:12px}
+.join .sent{background:#fff;border:1px solid var(--ink);padding:18px;margin-top:18px;font-size:17px}
+
+/* ---------- app viewer ---------- */
+body.appmode{background:#fff}
+#appFrame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff}
+.badge{position:fixed;left:10px;bottom:10px;z-index:3;background:rgba(22,22,22,.86);color:#EDEDEA;font:600 12px var(--sans);padding:6px 10px;border-radius:2px;display:flex;gap:10px;align-items:center}
+.badge a{color:#EDEDEA}
+.badge button{border:0;background:transparent;color:#B8B8B4;cursor:pointer;font-size:14px;padding:0}
+.center{max-width:560px;margin:12vh auto;padding:0 24px;text-align:left}
+
+@media (max-width:900px){
+  .split,.scoregrid{grid-template-columns:1fr;gap:26px}
+  .pane{padding:22px 18px}
+  .bar{padding:0 14px;gap:10px;overflow-x:auto}
+  .mark .lab{display:none}
+  .ovbody{grid-template-columns:1fr}
+  .ovqr{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- board -->
+<div id="board" hidden>
+  <header class="bar">
+    <a class="mark" href="./">prof<i>.</i>kimcook<span class="lab">LIVE BOARD</span></a>
+    <nav class="tabs" id="tabs">
+      <button class="tab on" data-tab="worry"><b>1</b>걱정<span class="n" id="n-worry"></span></button>
+      <button class="tab" data-tab="score"><b>2</b>AI 답안 점수<span class="n" id="n-score"></span></button>
+      <button class="tab" data-tab="apps"><b>3</b>전시<span class="n" id="n-apps"></span></button>
+      <button class="tab" data-tab="take"><b>4</b>다음 학기 한 가지<span class="n" id="n-take"></span></button>
+    </nav>
+    <div class="right">
+      <span class="dot" id="dot" title="연결 상태"></span>
+      <button class="mini" id="since" title="연습으로 들어온 것을 화면에서 치웁니다. 저장된 내용은 지우지 않습니다.">지금부터 새로</button>
+      <button class="mini" id="full">전체 화면</button>
+    </div>
+  </header>
+
+  <section class="pane" data-pane="worry"></section>
+  <section class="pane" data-pane="take" hidden></section>
+
+  <section class="pane" data-pane="score" hidden>
+    <p class="kick">MISSION 1 · 내 과제, AI가 풀면 몇 점?</p>
+    <div class="scoregrid">
+      <div>
+        <div class="avg num" id="avg">–</div>
+        <p class="avgl" id="avgl">실습실 M1–2에서 "강의장 화면으로 보내기"를 누르면 여기에 모입니다.</p>
+      </div>
+      <div>
+        <div class="hist" id="hist"></div>
+        <div class="hx">
+          <span>0</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>60</span><span>70</span><span>80</span><span>90+</span>
+        </div>
+        <div class="cmp" id="cmp"></div>
+        <div class="cmpl" id="cmpl"></div>
+        <table class="types" id="types"></table>
+      </div>
+    </div>
+  </section>
+
+  <section class="pane" data-pane="apps" hidden>
+    <p class="kick">MISSION 2 · 다음 주 수업에 쓸 앱</p>
+    <div class="feedhead">
+      <span class="big num" id="appCount">0</span><span class="lbl">개의 앱이 올라왔습니다</span>
+      <div class="tools"><button class="btn red" id="pick">하나 뽑기</button></div>
+    </div>
+    <div class="apps" id="apps"></div>
+  </section>
+</div>
+
+<div class="ov" id="ov" hidden>
+  <div class="ovbar">
+    <div><h3 id="ovTitle"></h3><div class="who" id="ovWho"></div></div>
+    <div class="right"><button class="mini" id="ovQrBtn">휴대폰 QR</button><button class="mini" id="ovClose">닫기 (Esc)</button></div>
+  </div>
+  <div class="ovbody">
+    <iframe id="ovFrame" title="앱 실행 화면" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe>
+    <aside class="ovqr" id="ovQr"><b>휴대폰으로 열기</b><div id="ovQrSvg"></div><span class="url" id="ovUrl"></span><span class="note">학생에게 이 주소를 주면 휴대폰에서 바로 열립니다.</span></aside>
+  </div>
+</div>
+
+<!-- join (phone) -->
+<div id="join" class="join" hidden>
+  <a class="mark" href="./">prof<i>.</i>kimcook</a>
+  <p class="q" id="jq"></p>
+  <p class="note" id="jsub">이름은 가지 않습니다. 보내면 강의장 화면에 바로 뜹니다.</p>
+  <div id="jcodeBox" hidden>
+    <input id="jcode" placeholder="수업 코드 (강의장 화면에 있습니다)" autocomplete="off" autocapitalize="off" spellcheck="false">
+  </div>
+  <textarea id="jtext" maxlength="300" placeholder="한두 문장이면 충분합니다"></textarea>
+  <button class="btn red" id="jsend">보내기</button>
+  <p class="err" id="jerr"></p>
+  <div class="sent" id="jsent" hidden>보냈습니다. 강의장 화면을 봐 주세요.<br><button class="mini" id="jmore" style="margin-top:12px">하나 더 쓰기</button></div>
+</div>
+
+<!-- app viewer (the link a professor hands to students) -->
+<div id="appv" hidden>
+  <iframe id="appFrame" title="수업 앱" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe>
+  <div class="badge" id="badge"><span>prof.kimcook · 수업 앱</span><button id="badgeX" title="숨기기">×</button></div>
+</div>
+<div class="center" id="msg" hidden></div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const OWN = /(^|\.)kimcook-edu\.pages\.dev$|^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  const API = (OWN ? '' : 'https://kimcook-edu.pages.dev');
+  const LIVE_URL = API + '/api/live', AI_URL = API + '/api/ai';
+  const PUBLIC = (OWN ? location.origin : 'https://kimcook-edu.pages.dev') + '/live';
+  const q = new URLSearchParams(location.search);
+  const room = /^[a-z0-9-]{1,24}$/.test(q.get('r') || '') ? q.get('r') : 'main';
+  const roomQ = room === 'main' ? '' : '&r=' + room;
+
+  // a QR link carries the class code once (?c=); keep it in this browser and clean the address bar
+  let code = store.get('acl-aicode', '');
+  if (q.get('c')) {
+    code = q.get('c').trim().slice(0, 64); store.set('acl-aicode', code); q.delete('c');
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  }
+  let client = store.get('acl-client', '');
+  if (!/^[a-z0-9]{8,40}$/.test(client)) { client = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => (b % 36).toString(36)).join(''); store.set('acl-client', client); }
+
+  async function live(body) {
+    let r;
+    try { r = await fetch(LIVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ code, room }, body)) }); }
+    catch (e) { throw Object.assign(new Error('참여판 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.'), { code: 'net' }); }
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || '요청에 실패했습니다.'), { code: j.code || 'http' });
+    return j;
+  }
+  function qrSvg(text) {
+    const qr = qrcode(0, 'M'); qr.addData(text); qr.make();
+    const n = qr.getModuleCount(); let d = '';
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += 'M' + c + ',' + r + 'h1v1h-1z';
+    return '<svg viewBox="-3 -3 ' + (n + 6) + ' ' + (n + 6) + '" shape-rendering="crispEdges" role="img" aria-label="QR 코드"><rect x="-3" y="-3" width="' + (n + 6) + '" height="' + (n + 6) + '" fill="#fff"/><path d="' + d + '" fill="#000"/></svg>';
+  }
+  // the sandboxed app has no storage of its own: give it an in-memory localStorage so apps that save do not crash
+  const GUARD = '<script>(function(){try{localStorage.getItem("x")}catch(e){var m={},st={getItem:function(k){return k in m?m[k]:null},setItem:function(k,v){m[k]=String(v)},'
+    + 'removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}};'
+    + 'try{Object.defineProperty(window,"localStorage",{value:st,configurable:true});Object.defineProperty(window,"sessionStorage",{value:st,configurable:true})}catch(e2){}}})()<\/script>';
+  function withGuard(html) {
+    for (const re of [/<head[^>]*>/i, /<html[^>]*>/i, /^\s*<!doctype[^>]*>/i]) if (re.test(html)) return html.replace(re, t => t + GUARD);
+    return GUARD + html;
+  }
+  const QUESTION = {
+    worry: { q: 'AI 때문에 내 수업에서 가장 걱정되는 것은?', kick: 'OPENING · 학생이 되어 보기', group: '걱정' },
+    take: { q: '다음 학기에 바로 해 볼 한 가지는?', kick: 'CLOSING · 오늘 가져가는 것', group: '다짐' }
+  };
+  function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
+
+  /* ================= app viewer ================= */
+  if (q.get('app')) {
+    document.body.classList.add('appmode');
+    const token = q.get('app');
+    (async () => {
+      let j = {};
+      try {
+        const r = await fetch(LIVE_URL + '?app=' + encodeURIComponent(token));
+        j = await r.json();
+        if (!r.ok || !j.ok) throw new Error(j.error || '앱을 열지 못했습니다.');
+      } catch (e) {
+        showMsg('<a class="mark" href="./">prof<i>.</i>kimcook</a><h2 style="margin-top:28px">앱을 열지 못했습니다</h2><p>' + esc(e.message || '') + '</p><p class="note">링크가 맞는지, 인터넷에 연결되어 있는지 확인해 주세요.</p>');
+        return;
+      }
+      document.title = j.title + ' · prof.kimcook';
+      $('#appv').hidden = false;
+      $('#appFrame').srcdoc = withGuard(j.html);
+      $('#badgeX').onclick = () => { $('#badge').hidden = true; };
+    })();
+    return;
+  }
+
+  /* ================= join (phone) ================= */
+  const jkind = q.get('j');
+  if (jkind) {
+    const kind = QUESTION[jkind] ? jkind : 'worry';
+    $('#join').hidden = false;
+    $('#jq').textContent = QUESTION[kind].q;
+    document.title = QUESTION[kind].q + ' · prof.kimcook';
+    $('#jcodeBox').hidden = !!code;
+    const send = async () => {
+      const text = $('#jtext').value.trim();
+      $('#jerr').textContent = '';
+      if (!code) { code = $('#jcode').value.trim(); if (!code) { $('#jcode').focus(); $('#jerr').textContent = '수업 코드를 적어 주세요.'; return; } }
+      if (!text) { $('#jtext').focus(); $('#jerr').textContent = '한 줄이라도 적어 주세요.'; return; }
+      $('#jsend').disabled = true;
+      try {
+        await live({ op: 'post', kind, text, client });
+        store.set('acl-aicode', code); $('#jcodeBox').hidden = true;
+        $('#jtext').value = ''; $('#jtext').hidden = true; $('#jsend').hidden = true; $('#jsent').hidden = false;
+      } catch (e) {
+        if (e.code === 'bad_code') { code = ''; store.set('acl-aicode', ''); $('#jcodeBox').hidden = false; }
+        $('#jerr').textContent = e.message;
+      }
+      $('#jsend').disabled = false;
+    };
+    $('#jsend').onclick = send;
+    $('#jmore').onclick = () => { $('#jsent').hidden = true; $('#jtext').hidden = false; $('#jsend').hidden = false; $('#jtext').focus(); };
+    return;
+  }
+
+  /* ================= board (projector) ================= */
+  $('#board').hidden = false;
+  const SINCE_KEY = 'acl-live-since-' + room, HIDE_KEY = 'acl-live-hide-' + room;
+  let since = store.get(SINCE_KEY, 0);
+  const hidden = new Set(store.get(HIDE_KEY, []));
+  let feed = { texts: [], scores: [], apps: [] }, seen = new Set(), first = true, tab = 'worry';
+  const groups = { worry: null, take: null }, grouping = { worry: false, take: false }, view = { worry: 'cards', take: 'cards' };
+
+  function askBoardCode(msg) {
+    const c = prompt((msg ? msg + '\n' : '') + '수업 코드를 입력하세요. (실습실에서 쓰는 코드와 같습니다)', code || '');
+    if (c && c.trim()) { code = c.trim(); store.set('acl-aicode', code); return true; }
+    return false;
+  }
+
+  function textPane(kind) {
+    const el = $('[data-pane="' + kind + '"]'), Q = QUESTION[kind];
+    const url = PUBLIC + '?j=' + kind + roomQ + (code ? '&c=' + encodeURIComponent(code) : '');
+    const shortUrl = PUBLIC.replace(/^https?:\/\//, '') + '?j=' + kind + roomQ;
+    el.innerHTML = '<p class="kick">' + esc(Q.kick) + '</p><div class="split"><div><div class="qrbox">' + (typeof qrcode === 'function' ? qrSvg(url) : '')
+      + '<p class="url">' + esc(shortUrl) + '</p>' + (code ? '<p class="code">수업 코드 <b>' + esc(code) + '</b></p>' : '') + '</div>'
+      + '<p class="note" style="margin-top:10px">휴대폰 카메라로 찍으면 바로 열립니다. 이름은 가지 않습니다.</p></div>'
+      + '<div><p class="q">' + esc(Q.q) + '</p><div class="feedhead"><span class="big num" id="cnt-' + kind + '">0</span><span class="lbl">개가 들어왔습니다</span>'
+      + '<div class="tools"><button class="mini on" data-view="' + kind + ':cards">모두 보기</button><button class="mini" data-view="' + kind + ':groups">AI로 묶어 보기</button></div></div>'
+      + '<div id="body-' + kind + '"></div></div></div>';
+  }
+  function renderText(kind) {
+    const list = feed.texts.filter(t => t.kind === kind && t.at >= since && !hidden.has(t.id));
+    $('#n-' + kind).textContent = list.length || '';
+    const cnt = $('#cnt-' + kind); if (cnt) cnt.textContent = list.length;
+    $$('[data-view^="' + kind + ':"]').forEach(b => b.classList.toggle('on', b.dataset.view === kind + ':' + view[kind]));
+    const body = $('#body-' + kind); if (!body) return;
+    if (view[kind] === 'groups') {
+      if (grouping[kind]) { body.innerHTML = '<p class="empty">AI가 비슷한 것끼리 묶고 있습니다…</p>'; return; }
+      const g = groups[kind];
+      if (!g) { body.innerHTML = '<p class="empty">아직 묶지 않았습니다.</p>'; return; }
+      if (g.error) { body.innerHTML = '<p class="empty err">' + esc(g.error) + '</p><button class="mini" data-regroup="' + kind + '">다시 묶기</button>'; return; }
+      body.innerHTML = (g.items.length
+        ? '<div class="groups">' + g.items.map(x => '<div class="grp"><h3>' + esc(x.title) + '</h3><div class="cnt">' + esc(x.count) + '</div>'
+          + (x.quote ? '<p class="quote">' + esc(x.quote) + '</p>' : '') + (x.answer ? '<p class="ans">' + esc(x.answer) + '</p>' : '') + '</div>').join('') + '</div>'
+        : '<div class="airaw">' + esc(g.raw) + '</div>')
+        + '<p class="note" style="margin-top:14px">' + g.n + '개를 묶었습니다 · ' + esc(g.at) + ' · <button class="mini" data-regroup="' + kind + '">다시 묶기</button></p>';
+      return;
+    }
+    if (!list.length) { body.innerHTML = '<p class="empty">QR을 찍고 한 줄씩 보내 주세요.</p>'; return; }
+    body.innerHTML = '<div class="cards">' + list.map(t => '<div class="card' + (!first && !seen.has(t.id) ? ' new' : '') + '">' + esc(t.text)
+      + '<button class="x" data-hide="' + t.id + '" title="화면에서 숨기기">×</button></div>').join('') + '</div>';
+  }
+
+  function renderScores() {
+    const s = feed.scores.filter(x => x.at >= since);
+    $('#n-score').textContent = s.length || '';
+    if (!s.length) { $('#avg').innerHTML = '–'; $('#avgl').textContent = '실습실 M1–2에서 "강의장 화면으로 보내기"를 누르면 여기에 모입니다.'; }
+    else {
+      const avg = s.reduce((a, x) => a + x.num, 0) / s.length;
+      const sorted = s.map(x => x.num).sort((a, b) => a - b);
+      $('#avg').innerHTML = Math.round(avg) + '<small>점</small>';
+      $('#avgl').innerHTML = '교수님 <b>' + s.length + '분</b>이 매긴 AI 답안 평균<br><span class="note">가장 낮은 ' + sorted[0] + '점 · 가장 높은 ' + sorted[sorted.length - 1] + '점</span>';
+    }
+    const bins = Array(10).fill(0);
+    s.forEach(x => { bins[Math.min(9, Math.floor(x.num / 10))]++; });
+    const max = Math.max(1, ...bins), top = bins.indexOf(Math.max(...bins));
+    $('#hist').innerHTML = bins.map((n, i) => '<div class="b' + (n && i === top ? ' hot' : '') + '" style="height:' + (n / max * 100) + '%">' + (n ? '<span>' + n + '</span>' : '') + '</div>').join('');
+    const c = { ai: 0, same: 0, student: 0 };
+    s.forEach(x => { if (c[x.cmp] !== undefined) c[x.cmp]++; });
+    const tot = c.ai + c.same + c.student;
+    $('#cmp').innerHTML = tot ? [['ai', 'AI가 더 낫다'], ['same', '비슷하다'], ['student', '학생이 더 낫다']].map(([k, l]) => '<div class="' + k + '" style="flex-grow:' + c[k] + '">' + (c[k] ? l : '') + '</div>').join('') : '';
+    $('#cmp').hidden = !tot;
+    $('#cmpl').innerHTML = tot ? '<span>우리 학생 평균 답안과 비교하면 · </span><span>AI가 더 낫다 <b>' + c.ai + '</b></span><span>비슷하다 <b>' + c.same + '</b></span><span>학생이 더 낫다 <b>' + c.student + '</b></span>' : '';
+    const types = {};
+    s.forEach(x => { const k = x.type || '기타'; (types[k] = types[k] || []).push(x.num); });
+    const rows = Object.entries(types).sort((a, b) => b[1].length - a[1].length);
+    $('#types').innerHTML = rows.length ? '<tr><th>과제 종류</th><th>교수님</th><th>평균</th></tr>' + rows.map(([k, v]) => '<tr><td>' + esc(k) + '</td><td class="num">' + v.length + '</td><td class="num"><b>' + Math.round(v.reduce((a, b) => a + b, 0) / v.length) + '</b></td></tr>').join('') : '';
+  }
+
+  let picked = null;
+  function renderApps() {
+    const a = feed.apps.filter(x => x.at >= since);
+    $('#n-apps').textContent = a.length || '';
+    $('#appCount').textContent = a.length;
+    $('#apps').innerHTML = a.length ? a.slice().reverse().map((x, i) => '<button class="app' + (picked === x.token ? ' pick' : '') + '" data-open="' + esc(x.token) + '"><span class="no">NO. ' + String(i + 1).padStart(2, '0') + '</span><h3>' + esc(x.title) + '</h3>'
+      + '<span class="who">' + esc([x.dept, x.name].filter(Boolean).join(' · ') || '익명 교수님') + '</span>' + (x.desc ? '<span class="desc">' + esc(x.desc) + '</span>' : '') + '</button>').join('')
+      : '<p class="empty">실습실 미션 2의 "전시판에 올리기"를 누르면 여기에 모입니다.</p>';
+  }
+  async function openApp(token) {
+    const meta = feed.apps.find(x => x.token === token) || {};
+    $('#ovTitle').textContent = meta.title || '수업 앱';
+    $('#ovWho').textContent = [meta.dept, meta.name].filter(Boolean).join(' · ') || '익명 교수님';
+    const link = PUBLIC + '?app=' + token;
+    $('#ovQrSvg').innerHTML = typeof qrcode === 'function' ? qrSvg(link) : '';
+    $('#ovUrl').textContent = link.replace(/^https?:\/\//, '');
+    $('#ovFrame').srcdoc = '<p style="font:16px sans-serif;padding:24px;color:#888">불러오는 중…</p>';
+    $('#ov').hidden = false;
+    try {
+      const r = await fetch(LIVE_URL + '?app=' + encodeURIComponent(token)); const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || '앱을 열지 못했습니다.');
+      $('#ovFrame').srcdoc = withGuard(j.html);
+    } catch (e) { $('#ovFrame').srcdoc = '<p style="font:16px sans-serif;padding:24px;color:#E54536">' + esc(e.message) + '</p>'; }
+  }
+  const closeOv = () => { $('#ov').hidden = true; $('#ovFrame').srcdoc = ''; };
+
+  function render() {
+    ['worry', 'take'].forEach(renderText);
+    renderScores(); renderApps();
+    feed.texts.forEach(t => seen.add(t.id));
+    first = false;
+  }
+  function setTab(t) {
+    tab = t;
+    $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    $$('.pane').forEach(p => { p.hidden = p.dataset.pane !== t; });
+  }
+
+  async function group(kind) {
+    const list = feed.texts.filter(t => t.kind === kind && t.at >= since && !hidden.has(t.id));
+    if (!list.length) { groups[kind] = { error: '아직 들어온 것이 없습니다.', items: [], n: 0 }; renderText(kind); return; }
+    grouping[kind] = true; view[kind] = 'groups'; renderText(kind);
+    const Q = QUESTION[kind];
+    const prompt = ['아래는 대학 교수 ' + list.length + '명이 이름 없이 쓴 "' + Q.q + '"에 대한 답이야. 하나도 빠뜨리지 말고 비슷한 것끼리 3~6개 묶음으로 정리해 줘.',
+      '형식을 정확히 지켜. 다른 말은 쓰지 마.',
+      '## 묶음 이름 | 몇 명',
+      '> 원문에서 그대로 고른 대표 문장 하나',
+      kind === 'worry' ? '→ 오늘 연수에서 이 걱정에 줄 수 있는 짧은 답 한 줄' : '→ 이걸 실제로 해 볼 때 도움이 되는 짧은 팁 한 줄',
+      '인원이 많은 묶음부터. 묶음 이름은 열두 글자 안쪽으로.', '', '[답 목록]'].concat(list.map((t, i) => (i + 1) + '. ' + t.text.replace(/\s+/g, ' '))).join('\n');
+    let raw = '';
+    try {
+      await aiStream('lv-group', [{ role: 'user', content: prompt }], d => { raw += d; });
+      groups[kind] = { raw, items: parseGroups(raw), n: list.length, at: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) };
+    } catch (e) {
+      if (e.code === 'bad_code' && askBoardCode('수업 코드가 맞지 않습니다.')) { grouping[kind] = false; return group(kind); }
+      groups[kind] = { error: e.message || 'AI가 묶지 못했습니다.', items: [], n: list.length };
+    }
+    grouping[kind] = false; renderText(kind);
+  }
+  function parseGroups(raw) {
+    const out = []; let cur = null;
+    raw.split('\n').forEach(l => {
+      const s = l.trim();
+      let m;
+      if ((m = s.match(/^#{1,4}\s*(.+?)\s*[|｜]\s*(.+)$/))) { cur = { title: m[1].replace(/\*\*/g, ''), count: m[2].replace(/\*\*/g, ''), quote: '', answer: '' }; out.push(cur); }
+      else if (cur && /^>/.test(s)) cur.quote = s.replace(/^>\s*/, '').replace(/^["“]|["”]$/g, '');
+      else if (cur && /^(→|->)/.test(s)) cur.answer = s.replace(/^(→|->)\s*/, '');
+    });
+    return out;
+  }
+  // POST /api/ai and read its SSE stream ({meta}, {delta}*, {done} or {error})
+  async function aiStream(ex, messages, onDelta) {
+    if (!code && !askBoardCode()) throw new Error('수업 코드가 필요합니다.');
+    let r;
+    try { r = await fetch(AI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, ex, messages }) }); }
+    catch (e) { throw new Error('AI ONE 서버에 연결하지 못했습니다.'); }
+    if (!r.ok) { let j = {}; try { j = await r.json(); } catch (e) {} throw Object.assign(new Error(j.error || 'AI 요청에 실패했습니다.'), { code: j.code }); }
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', fin = false;
+    const line = l => {
+      if (!l.startsWith('data:')) return; let o; try { o = JSON.parse(l.slice(5)); } catch (e) { return; }
+      if (o.error) throw new Error(o.error); if (o.delta) onDelta(o.delta); if (o.done) fin = true;
+    };
+    for (;;) {
+      const c = await rd.read(); if (c.done) break;
+      buf += dec.decode(c.value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { line(buf.slice(0, i).trim()); buf = buf.slice(i + 1); }
+    }
+    if (buf.trim()) line(buf.trim());
+    if (!fin) throw new Error('답이 중간에 끊겼습니다. 다시 눌러 주세요.');
+  }
+
+  let failCount = 0, timer = null, lastSig = '';
+  async function poll() {
+    clearTimeout(timer);
+    if (!code) { $('#dot').className = 'dot bad'; return; }
+    try {
+      const f = await live({ op: 'feed' });
+      $('#dot').className = 'dot ok'; $('#dot').title = '연결됨 · ' + new Date().toLocaleTimeString('ko-KR');
+      failCount = 0;
+      feed = f;
+      const sig = JSON.stringify([f.texts, f.scores, f.apps]);
+      if (sig !== lastSig) { lastSig = sig; render(); }  // re-render only on change, so a click on a card is never lost
+    } catch (e) {
+      $('#dot').className = 'dot bad'; $('#dot').title = e.message;
+      if (e.code === 'bad_code') { if (askBoardCode('수업 코드가 맞지 않습니다.')) { textPane('worry'); textPane('take'); } else return; }
+      failCount++;
+    }
+    timer = setTimeout(poll, document.hidden ? 15000 : Math.min(30000, 4000 * (1 + failCount)));
+  }
+
+  if (!code) askBoardCode();
+  textPane('worry'); textPane('take');
+  const t0 = q.get('tab'); if (['worry', 'score', 'apps', 'take'].includes(t0)) setTab(t0);
+  render(); poll();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.tab) setTab(b.dataset.tab);
+    else if (b.dataset.view) { const [k, v] = b.dataset.view.split(':'); view[k] = v; if (v === 'groups' && (!groups[k] || groups[k].error) && !grouping[k]) group(k); else renderText(k); }
+    else if (b.dataset.regroup) group(b.dataset.regroup);
+    else if (b.dataset.hide) { hidden.add(Number(b.dataset.hide)); store.set(HIDE_KEY, [...hidden]); render(); }
+    else if (b.dataset.open) openApp(b.dataset.open);
+  });
+  $('#since').onclick = () => {
+    if (!confirm('지금까지 들어온 것을 화면에서 치울까요? (저장된 내용은 지우지 않습니다. 리허설 뒤 본 연수 전에 누르세요.)')) return;
+    since = feed.now || Date.now(); store.set(SINCE_KEY, since); hidden.clear(); store.set(HIDE_KEY, []);
+    groups.worry = groups.take = null; view.worry = view.take = 'cards'; render();
+  };
+  $('#full').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); };
+  $('#pick').onclick = () => {
+    const a = feed.apps.filter(x => x.at >= since && x.token !== picked);
+    if (!a.length) return;
+    picked = a[Math.floor(Math.random() * a.length)].token; renderApps();
+    const el = $('[data-open="' + picked + '"]'); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  };
+  $('#ovClose').onclick = closeOv;
+  $('#ovQrBtn').onclick = () => { $('#ovQr').hidden = !$('#ovQr').hidden; };
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input,textarea')) return;
+    if (e.key === 'Escape' && !$('#ov').hidden) { closeOv(); return; }
+    const k = { 1: 'worry', 2: 'score', 3: 'apps', 4: 'take' }[e.key];
+    if (k && $('#ov').hidden) setTab(k);
+  });
+})();
+</script>
+</body>
+</html>

@@ -21,6 +21,7 @@ test('route table: exercise -> tier, model, maxTokens', () => {
     's1-3': ['balanced', 6000], 's2-1': ['balanced', 6000], 's3-3': ['balanced', 6000],
     's4-1': ['balanced', 8000], 's4-2': ['balanced', 8000], 's4-3': ['balanced', 8000],
     's4-4': ['strong', 12000], vibe: ['strong', 12000],
+    'm1-1': ['balanced', 6000], 'm1-2': ['balanced', 4000], 'm1-3': ['balanced', 8000], 'lv-group': ['balanced', 3000],
   };
   const models = { fast: 'claude-haiku-5-5', balanced: 'claude-sonnet-5-5', strong: 'claude-opus-5-5' };
   for (const [ex, [tier, max]] of Object.entries(table)) {

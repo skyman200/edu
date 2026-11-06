@@ -8,7 +8,7 @@ find functions -name '._*' -delete
 S=$(mktemp -d /tmp/kimcook-edu-deploy.XXXXXX)
 trap 'rm -rf "$S"' EXIT
 mkdir -p "$S/public"
-cp index.html check.html ping.js ai-class-slides.pdf ppt-kit.js office-kit.js "$S/public/"
+cp index.html live.html check.html ping.js ai-class-slides.pdf ppt-kit.js office-kit.js "$S/public/"
 cp -R vendor "$S/public/vendor"
 find "$S" -name '._*' -delete
 cp -R functions "$S/functions"

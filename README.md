@@ -9,12 +9,14 @@
 - 접속 점검: `/check` — 연수 장소 네트워크에서 실습 사이트·AI 서비스·구글이 열리는지 확인하고, 막히면 전산 요청문을 만들어 줍니다.
 - 과제 바로가기: `#s1-1` ~ `#s5-4`, `#p-1` ~ `#p-4` (예: `/#s2-1`)
 - AI ONE 바로 실행: 구독이 없는 교수님용. 실습마다 'AI ONE으로 바로 실행' 버튼이 DIT AI-ONE 게이트웨이(Claude)로 프롬프트를 보내 답을 이 페이지에서 받습니다. 모델은 서버가 실습별로 자동 선택하고(짧은 요약은 Haiku 5.5, 표·계획·슬라이드·Apps Script는 Sonnet 5.5, 바이브코딩 웹앱은 Opus 5.5), 고른 모델과 이유를 답 위에 표시합니다. API 키는 브라우저에 오지 않고 Cloudflare Pages Function(`functions/api/ai.js`)에만 있습니다. 수업 코드(`AI_CLASS_CODE`)를 아는 사람만 쓸 수 있고, IP·코드·하루 전체 호출 한도가 걸려 있습니다. `/?c=코드` 링크(QR)로 열면 코드가 자동 입력됩니다.
+- 연수 흐름(2026-11-07 개편): 첫 화면은 "오늘의 미션 2개"입니다. 미션 1(`#mission1`, `#m1-1`~`#m1-3`)은 내 과제를 AI가 학생처럼 풀게 하고, 교수가 채점해 점수를 강의장 화면으로 보낸 뒤, AI 시대에 맞게 과제를 다시 설계합니다. 미션 2(`#vibe`)는 바이브코딩 스튜디오로 수업 앱을 만들고, 옆 교수와 바꿔 써 본 뒤, 전시판에 올려 학생용 휴대폰 링크를 받습니다. 기존 STEP 1~5·PLUS·AI 작업실은 `#library`(자료실) 아래에 그대로 있고 주소(`#s1-1` 등)도 같습니다.
+- 참여판(LIVE): `/live` — 강의장 화면용. 1 걱정(QR로 휴대폰 참여, "AI로 묶어 보기"), 2 AI 답안 점수(평균·분포·비교), 3 전시(올라온 앱 열기·휴대폰 QR·하나 뽑기), 4 다음 학기 한 가지. 숫자 키 1~4로 넘기고 Esc로 앱을 닫습니다. "지금부터 새로"는 리허설 데이터를 화면에서만 치웁니다(저장된 내용은 그대로). 휴대폰 참여 주소는 `/live?j=worry`·`/live?j=take`, 학생용 앱 주소는 `/live?app=<토큰>`(수업 코드 없이 열림). 방을 나누려면 `?r=이름`(기본 main)을 붙입니다.
 - 입력한 수업 정보는 브라우저(localStorage)에만 저장되고 어디에도 전송되지 않습니다.
 - 내 결과물: 실습마다 'MY RESULT' 칸에 AI 답을 붙여 두면 `#mine`에 모이고, Word(.docx)·PDF(인쇄)·전체 복사로 한 번에 가져갈 수 있습니다. 이것도 브라우저에만 저장됩니다. .docx는 외부 라이브러리 없이 페이지 안에서 만듭니다.
 
 ## 고친 뒤 반영
 
-`./deploy.sh` 한 번이면 됩니다. 공개할 파일(index.html, check.html, ping.js, ai-class-slides.pdf)과 `functions/`만 임시 폴더에 모아 Cloudflare Pages(`kimcook-edu`)에 올립니다. wrangler는 `functions/`를 올리는 폴더가 아니라 현재 폴더에서 찾기 때문에, `wrangler pages deploy .`처럼 직접 올리지 마세요(README·`._*`·`.dev.vars`가 함께 공개되거나 Function이 빠집니다).
+`./deploy.sh` 한 번이면 됩니다. 공개할 파일(index.html, live.html, check.html, ping.js, ai-class-slides.pdf, vendor/)과 `functions/`만 임시 폴더에 모아 Cloudflare Pages(`kimcook-edu`)에 올립니다. wrangler는 `functions/`를 올리는 폴더가 아니라 현재 폴더에서 찾기 때문에, `wrangler pages deploy .`처럼 직접 올리지 마세요(README·`._*`·`.dev.vars`가 함께 공개되거나 Function이 빠집니다).
 GitHub Pages 예비 주소는 `git push`(main)로 반영합니다. 예비 주소에는 Function이 없어서 AI ONE 버튼은 `kimcook-edu.pages.dev/api/ai`를 호출합니다(CORS 허용 목록에 있음).
 
 ## AI ONE 운영 (Cloudflare Pages 설정)
@@ -24,6 +26,7 @@ GitHub Pages 예비 주소는 `git push`(main)로 반영합니다. 예비 주소
 - 한도 기본값(코드 수정 없이 환경변수로 덮어쓸 수 있음): `AI_LIMIT_IP_10M=1500`, `AI_LIMIT_INFLIGHT=150`, `AI_LIMIT_BADCODE_10M=1000`, `AI_LIMIT_CODE_DAY=2500`, `AI_LIMIT_GLOBAL_DAY=3000`, `AI_LIMIT_GLOBAL_MIN=100`(게이트웨이는 회원당 60초 120건). 연수장은 IP 하나를 다 같이 쓰므로 IP별 한도는 사실상 연수장 전체 한도입니다.
 - KV(`AI_KV`)는 연결하지 않았습니다. 연결하지 않으면 한도는 서버 인스턴스별 메모리로 셉니다. Workers Free의 KV 쓰기는 하루 1,000회라 모델 요청 약 160건이면 바닥납니다.
 - 비상 정지: AI-ONE에서 키를 폐기·교체합니다(`AI_ENABLED=0`도 있지만 재배포가 필요하고, 이전 배포 주소 `<해시>.kimcook-edu.pages.dev`는 옛 설정으로 남습니다). 행사 뒤에는 키를 교체하고 이전 배포를 지웁니다.
-- 로컬 시험: `.dev.vars.example`을 보고 `.dev.vars`를 만든 뒤 `npx wrangler pages dev .`. 라우터 시험: `node functions/_lib/route.test.mjs`.
+- 참여판 저장소: D1 데이터베이스 `kimcook-edu-live`를 Pages 프로젝트에 `LIVE_DB`로 연결했습니다(Production·Preview). 표는 `functions/api/live.js`가 처음 요청 때 스스로 만듭니다. 쓰기는 모두 수업 코드(`AI_CLASS_CODE`)가 필요하고, 학생용 앱 주소만 코드 없이 읽힙니다. 끄려면 `LIVE_ENABLED=0`. 연습 데이터 지우기: `npx wrangler d1 execute kimcook-edu-live --remote --command "DELETE FROM posts WHERE room='main'"`. Free 한도(하루 쓰기 10만·읽기 500만 행) 안에서 넉넉합니다.
+- 로컬 시험: `.dev.vars.example`을 보고 `.dev.vars`를 만든 뒤 `npx wrangler pages dev public --d1 LIVE_DB=local` (deploy.sh처럼 공개 파일을 public/에 모은 뒤). 라우터 시험: `node functions/_lib/route.test.mjs`.
 
 prof.kimcook · 김강훈 (동의과학대학교 물리치료과)

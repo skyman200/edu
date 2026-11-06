@@ -24,6 +24,10 @@ const STRONG = '가장 강한 Claude Opus 5.5를 골랐습니다';
 
 // [tier, maxTokens, why]
 export const EXERCISES = {
+  'm1-1': ['balanced', 6000, `학생이 낼 법한 답안을 과제 조건에 맞춰 제대로 써야 해서 ${BAL}`],
+  'm1-2': ['balanced', 4000, `답안을 교수자 기준으로 꼼꼼히 진단해야 해서 ${BAL}`],
+  'm1-3': ['balanced', 8000, `과제, 루브릭, 안내문을 한 흐름으로 다시 짜야 해서 ${BAL}`],
+  'lv-group': ['balanced', 3000, `여러 사람의 답을 빠짐없이 묶어야 해서 ${BAL}`],
   's1-1': ['fast', 1500, `짧은 요약과 질문이라 ${FAST}`],
   's1-2': ['balanced', 4000, `블룸 분류에 맞춰 목표 문장을 정확히 다듬어야 해서 ${BAL}`],
   's1-3': ['balanced', 6000, `표와 긴 계획을 정확히 짜야 해서 ${BAL}`],
