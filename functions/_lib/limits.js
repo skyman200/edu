@@ -6,9 +6,16 @@
 export const SIZE = {
   maxMessages: 24,
   maxContent: 12000,
-  maxTotal: 40000,
+  maxTotal: 40000, // messages only; attachments have their own caps below
   maxCode: 64,
-  maxBodyBytes: 512 * 1024,
+  maxFiles: 3, // documents, as text the browser extracted (PDF, DOCX, PPTX, HWPX, TXT)
+  maxFileChars: 100000,
+  maxFilesTotal: 150000,
+  maxName: 80, // longer attachment names are cut
+  maxImages: 4, // data:image/(png|jpeg|webp);base64 URLs, downscaled in the browser
+  maxImageUrl: 1_400_000,
+  maxImagesTotal: 4_000_000,
+  maxBodyBytes: 6 * 1024 * 1024, // 150,000 Korean chars are ~450 KB of UTF-8, images up to ~4 MB
 };
 
 // Defaults assume ~60 professors sharing one venue NAT address and one class code.
@@ -121,6 +128,81 @@ export function validateMessages(messages) {
     return fail(400, 'bad_request', '마지막 메시지는 질문이어야 합니다.');
   }
   return { ok: true, messages: clean };
+}
+
+// Attachment names reach the prompt inside «» markers: control characters and line breaks become
+// spaces, invisible format characters and the marker quotes are dropped.
+const NAME_SPACE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+const NAME_DROP = /[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff«»]/g;
+const IMAGE_PREFIXES = ['data:image/png;base64,', 'data:image/jpeg;base64,', 'data:image/webp;base64,'];
+const BASE64_TAIL = /[A-Za-z0-9+/]+={0,2}$/y; // sticky: one anchored attempt at lastIndex, linear time
+
+function cleanName(name, fallback) {
+  let s = typeof name === 'string' ? name.slice(0, 400) : '';
+  s = s.replace(NAME_SPACE, ' ').replace(NAME_DROP, '').replace(/\s+/g, ' ').trim();
+  if (s.length > SIZE.maxName) s = s.slice(0, SIZE.maxName).replace(/[\ud800-\udbff]$/, '').trim();
+  return s || fallback;
+}
+
+function isImageDataUrl(url) {
+  const prefix = IMAGE_PREFIXES.find((p) => url.startsWith(p));
+  if (!prefix || (url.length - prefix.length) % 4 !== 0) return false;
+  BASE64_TAIL.lastIndex = prefix.length;
+  return BASE64_TAIL.test(url);
+}
+
+const isList = (a) => a == null || Array.isArray(a);
+const badItem = (x, key) => !x || typeof x !== 'object' || typeof x[key] !== 'string' || (x.name != null && typeof x.name !== 'string');
+
+// Optional attachments: files [{name, text}] and images [{name, url}]. Called after validateMessages.
+// Returns { ok:true, files, images } with cleaned names (empty lists when none) or a rejection.
+// Attachments go into the first user turn, so with attachments the client's first message must be a question.
+export function validateAttachments(files, images, messages) {
+  if (!isList(files)) return fail(400, 'bad_request', '첨부 파일 형식이 올바르지 않습니다.');
+  if (!isList(images)) return fail(400, 'bad_request', '첨부 이미지 형식이 올바르지 않습니다.');
+  const fileList = files || [];
+  const imageList = images || [];
+  if (fileList.length > SIZE.maxFiles) return fail(413, 'too_long', `파일은 한 번에 ${SIZE.maxFiles}개까지 첨부할 수 있습니다.`);
+  if (imageList.length > SIZE.maxImages) return fail(413, 'too_long', `이미지는 한 번에 ${SIZE.maxImages}장까지 첨부할 수 있습니다.`);
+
+  const cleanFiles = [];
+  let fileTotal = 0;
+  for (const f of fileList) {
+    if (badItem(f, 'text')) return fail(400, 'bad_request', '첨부 파일 형식이 올바르지 않습니다.');
+    const name = cleanName(f.name, `파일 ${cleanFiles.length + 1}`);
+    if (f.text.length > SIZE.maxFileChars) {
+      return fail(413, 'too_long', `«${name}» 파일의 글이 100,000자를 넘습니다. 필요한 부분만 남겨 다시 첨부해 주세요.`);
+    }
+    fileTotal += f.text.length;
+    if (fileTotal > SIZE.maxFilesTotal) {
+      return fail(413, 'too_long', '첨부 파일의 글은 모두 합쳐 150,000자까지 보낼 수 있습니다. 파일 수를 줄여 다시 보내 주세요.');
+    }
+    if (!/\S/.test(f.text)) {
+      return fail(400, 'bad_request', `«${name}» 파일에서 읽을 수 있는 글자를 찾지 못했습니다. 스캔한 이미지 PDF라면 글자를 고를 수 있는 파일로 바꿔 주세요.`);
+    }
+    cleanFiles.push({ name, text: f.text });
+  }
+
+  const cleanImages = [];
+  let imageTotal = 0;
+  for (const im of imageList) {
+    if (badItem(im, 'url')) return fail(400, 'bad_request', '첨부 이미지 형식이 올바르지 않습니다.');
+    const name = cleanName(im.name, `이미지 ${cleanImages.length + 1}`);
+    if (im.url.length > SIZE.maxImageUrl) return fail(413, 'too_long', `«${name}» 이미지가 너무 큽니다. 더 작게 줄여 다시 첨부해 주세요.`);
+    imageTotal += im.url.length;
+    if (imageTotal > SIZE.maxImagesTotal) {
+      return fail(413, 'too_long', '첨부 이미지를 모두 합친 크기가 너무 큽니다. 이미지 수를 줄여 다시 보내 주세요.');
+    }
+    if (!isImageDataUrl(im.url)) {
+      return fail(400, 'bad_request', `«${name}» 이미지를 읽을 수 없습니다. PNG, JPEG, WebP 이미지만 첨부할 수 있습니다.`);
+    }
+    cleanImages.push({ name, url: im.url });
+  }
+
+  if ((cleanFiles.length || cleanImages.length) && messages?.[0]?.role !== 'user') {
+    return fail(400, 'bad_request', '첨부 자료는 첫 질문과 함께 보내야 합니다.');
+  }
+  return { ok: true, files: cleanFiles, images: cleanImages };
 }
 
 // ---------- access code ----------

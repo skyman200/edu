@@ -174,6 +174,57 @@ textarea.result{min-height:150px;font:14px/1.7 var(--sans)}
 dialog.aidlg{border:1px solid var(--ink);border-radius:2px;padding:24px 26px;width:min(92vw,420px);background:var(--sheet);color:var(--ink)}
 dialog.aidlg::backdrop{background:rgba(0,0,0,.45)}
 dialog.aidlg h3{margin:0 0 6px;font-size:18px}
+[hidden]{display:none!important}
+.aiout.isdoc{max-height:none;padding:0;background:#E9E9E7;overflow:visible}
+.aiout.isdoc .aiq{margin:14px 18px 8px}
+.aidoc{padding:18px}
+.airaw{margin:0;padding:14px 18px;background:var(--night);color:#EDEDEA;font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow:auto}
+.aiprog{font-size:12px;color:var(--mute)}
+.aiextra{display:flex;gap:10px;margin-top:12px}
+.aiextra input{flex:1;min-width:0}
+.segrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px}
+.segl{font:700 11px var(--display);letter-spacing:.16em;color:var(--mute);text-transform:uppercase}
+.seg{display:inline-flex;border:1px solid var(--ink);background:#fff}
+.seg button{font:600 13px var(--sans);padding:8px 14px;background:#fff;color:var(--ink);border:0;border-right:1px solid var(--ink);cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:#fff}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.aitheme{font:600 13px var(--sans);padding:8px 10px;border:1px solid var(--ink);background:#fff}
+.aiatt{margin-top:12px;border:1px dashed var(--mute);background:#fff}
+.aiatt>summary{cursor:pointer;padding:10px 14px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;list-style:none}
+.aiatt>summary::-webkit-details-marker{display:none}
+.aiatt>summary b{white-space:nowrap}
+.aiatt>summary b::before{content:"+ ";color:var(--red)}
+.aiatt[open]>summary b::before{content:"− "}
+.attdrop{display:block;margin:0 14px 12px;padding:18px;border:2px dashed var(--line2);text-align:center;cursor:pointer;background:var(--paper);font-size:14px}
+.attdrop.over{border-color:var(--red);background:#fff}
+.attdrop small{display:block;color:var(--mute);margin-top:4px}
+.attlist{list-style:none;margin:0 14px 12px;padding:0}
+.attlist li{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.attlist .k{font:700 10px var(--display);letter-spacing:.14em;background:var(--ink);color:#fff;padding:2px 6px}
+.attlist .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attlist .bad{color:var(--red);display:block}
+.attlist .busy{color:var(--mute)}
+.starters{margin-top:14px}
+.starters h4 .note{font-weight:400;letter-spacing:0;text-transform:none;margin-left:8px}
+.stg{margin:10px 0}
+.stl{display:block;font:700 11px var(--display);letter-spacing:.2em;color:var(--mute);margin-bottom:6px}
+.stc{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.chip.st{display:flex;flex-direction:column;gap:3px;text-align:left;align-items:flex-start;padding:10px 12px;height:100%}
+.chip.st b{font-size:14px}
+.chip.st small{font-size:12px;color:var(--mute);line-height:1.45}
+.chip.st .vb{font:700 10px var(--display);letter-spacing:.12em;font-style:normal;border:1px solid var(--ink);padding:1px 6px;margin-top:auto}
+.chg{padding:18px;background:#fff}
+.chg .sum{font-size:16px;line-height:1.7;margin:0 0 12px}
+.chghead{font:700 12px var(--display);letter-spacing:.14em;color:var(--red);margin:0 0 8px}
+.chgrow{display:grid;grid-template-columns:110px minmax(0,1fr) minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px;line-height:1.6}
+.chgrow .sl{font:700 11px var(--display);letter-spacing:.1em;color:var(--mute)}
+.chgrow .bf{color:var(--mute);text-decoration:line-through;white-space:pre-wrap}
+.chgrow .af{white-space:pre-wrap;font-weight:600}
+dialog.crdlg{width:min(94vw,520px)}
+.crdlg label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+.crdlg input{width:100%}
+@media (max-width:700px){.chgrow{grid-template-columns:1fr}.stc{grid-template-columns:1fr}}
 
 /* my results */
 .mine-list{margin-top:22px;border-top:1px solid var(--ink)}
@@ -280,6 +331,7 @@ body.focus section.keep{padding:28px 0;border:0}
     <a class="mark" href="#top">prof<i>.</i>kimcook<span class="lab">AI CLASS LAB</span></a>
     <nav class="nav">
       <a href="#course">내 수업 정보</a>
+      <a href="#work">AI 작업실</a>
       <a href="#rules">안전 수칙</a>
       <a href="#step1">STEP 1</a>
       <a href="#step2">STEP 2</a>
@@ -387,6 +439,20 @@ body.focus section.keep{padding:28px 0;border:0}
     </div>
   </section>
 
+  <section class="block" id="work">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">AI<small>WORKSHOP</small></div>
+        <div>
+          <h2>AI 작업실<span class="lv">자유 입력 · 파일 출력</span></h2>
+          <p class="sub">PPT, PDF, Word, 한글, 엑셀, 이미지를 올리고 하고 싶은 일을 적으면, 결과가 이 화면에 나오고 진짜 파일(.pptx .docx .xlsx PDF)로 내려받아집니다. 올린 PPT는 글만 고쳐서 새 파일로 돌려받습니다. 파일은 이 브라우저에서 읽고, 글만 AI에게 보냅니다.</p>
+          <div class="prog" data-step="w"><span class="track"><span class="fill"></span></span><span class="cnt">0 / 0</span></div>
+        </div>
+      </div>
+      <div id="list-w"></div>
+    </div>
+  </section>
+
   <section class="block" id="step1">
     <div class="wrap">
       <div class="head">
@@ -398,7 +464,7 @@ body.focus section.keep{padding:28px 0;border:0}
         </div>
       </div>
       <div class="tip aitip" id="aiTip">
-        <b>AI 구독이 없어도 됩니다.</b> 각 실습의 <b>AI ONE으로 바로 실행</b> 버튼은 이 연수에서 준비한 AI(DIT AI-ONE)로 답을 바로 받습니다. 실습마다 알맞은 모델이 자동으로 골라지고, 어떤 모델이 왜 골라졌는지 답 위에 표시됩니다. 수업 코드는 강의장 화면에 있습니다. 여기에서도 학생 실명·성적은 넣지 않습니다.
+        <b>AI 구독이 없어도 됩니다.</b> 각 실습의 <b>AI ONE으로 바로 실행</b> 버튼은 이 연수에서 준비한 AI(DIT AI-ONE)로 답을 바로 받습니다. 실습마다 알맞은 모델이 자동으로 골라지고, 어떤 모델이 왜 골라졌는지 답 위에 표시됩니다. 파일을 올리거나 PPT·Word·Excel 파일로 받고 싶으면 위쪽 <a href="#work">AI 작업실</a>을 쓰세요. 수업 코드는 강의장 화면에 있습니다. 여기에서도 학생 실명·성적은 넣지 않습니다.
         <div class="row" style="margin-top:10px"><button class="mini" data-aicode>수업 코드 입력</button><span class="saved" id="aiState"></span></div>
       </div>
       <div id="list-1"></div>
@@ -585,6 +651,110 @@ body.focus section.keep{padding:28px 0;border:0}
   </div>
 </footer>
 
+<dialog class="aidlg crdlg" id="crDlg">
+  <h3>내 수업 정보를 알려 주세요</h3>
+  <p class="note" style="margin:0">프롬프트의 빈 칸 (교과목명) (학년·인원) 등을 채웁니다. 한 번만 적으면 모든 실습에 들어가고, 위 "내 수업 정보"에서도 고칠 수 있습니다.</p>
+  <label for="crc">교과목명 *</label><input id="crc" data-cr="course" autocomplete="off" placeholder="예: 비즈니스 영어 커뮤니케이션">
+  <label for="crt">대상 (학년·인원)</label><input id="crt" data-cr="target" autocomplete="off" placeholder="예: 2학년 30명">
+  <label for="crp">핵심 내용</label><input id="crp" data-cr="topics" autocomplete="off" placeholder="예: 업무 이메일, 회의 영어, 발표">
+  <label for="crl">학생 특징</label><input id="crl" data-cr="learners" autocomplete="off" placeholder="예: 읽기는 잘하지만 말하기에 자신이 없음">
+  <div class="row" style="margin-top:14px"><button class="btn red" id="crOk">채워서 실행</button><button class="btn ghostb" id="crSkip">그대로 실행</button><button class="mini" id="crEx">예시로 채우기</button></div>
+</dialog>
+<script type="text/plain" id="docKit">
+:host{display:block}
+*{box-sizing:border-box}
+.doc{font:16px/1.7 Pretendard,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;color:#1A1A1A;background:#fff;max-width:860px;margin:0 auto;padding:56px 64px 40px;word-break:keep-all;overflow-wrap:anywhere;border:1px solid #D2D2D2}
+.doc.isdeck{background:transparent;border:0;max-width:980px;padding:20px}
+.doc h1,.doc h2,.doc h3,.doc h4{margin:0;line-height:1.3}
+.doc h1{font-size:40px;font-weight:800;letter-spacing:-.025em;margin:.15em 0 .25em}
+.doc h2{font-size:24px;font-weight:800;letter-spacing:-.015em;margin:0 0 14px;display:flex;align-items:baseline;gap:12px}
+.doc h2 .no{font:700 13px Montserrat,system-ui,sans-serif;letter-spacing:.22em;color:#E54536}
+.doc h3{font-size:17px;font-weight:700;margin:0 0 6px}
+.doc h4{font-size:15px;font-weight:700;margin:0 0 4px}
+.doc p{margin:0 0 .7em}
+.doc ul,.doc ol{margin:0 0 .8em;padding-left:1.3em}
+.doc li{margin:0 0 .25em}
+.doc b,.doc strong{font-weight:700}
+.doc small,.doc .sm{font-size:13px;color:#6F6F6F}
+.doc .mute{color:#6F6F6F}
+.doc hr{border:0;border-top:1px solid #D2D2D2;margin:24px 0}
+.cover{border-top:6px solid #1A1A1A;padding:26px 0 30px;margin:0 0 36px;border-bottom:1px solid #D2D2D2}
+.cover .kicker{font:700 12px Montserrat,system-ui,sans-serif;letter-spacing:.28em;color:#E54536;text-transform:uppercase;margin:0 0 10px}
+.cover .sub{font-size:18px;color:#444;margin:0 0 18px}
+.cover .meta{display:flex;flex-wrap:wrap;gap:6px 28px;font-size:14px;color:#6F6F6F}
+.cover .meta b{color:#1A1A1A;margin-right:6px}
+.sec{margin:0 0 38px}
+.lead{font-size:18px;line-height:1.75;color:#333;border-left:4px solid #E54536;padding:2px 0 2px 16px;margin:0 0 20px}
+.cols2,.cols3,.cols4{display:grid;gap:16px;margin:0 0 18px}
+.cols2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cols3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cols4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card{border:1px solid #D2D2D2;padding:16px 18px;background:#fff}
+.card.hl{border-left:4px solid #E54536}
+.card.dark{background:#1A1A1A;color:#fff;border-color:#1A1A1A}
+.card.dark small,.card.dark .mute{color:#BDBDBD}
+.card p:last-child,.card ul:last-child{margin-bottom:0}
+.tag{display:inline-block;font:600 12px/1.6 Pretendard,system-ui,sans-serif;border:1px solid #1A1A1A;padding:0 8px;margin:0 6px 4px 0;white-space:nowrap}
+.tag.red{background:#E54536;border-color:#E54536;color:#fff}
+.tag.gray{border-color:#BDBDBD;color:#6F6F6F}
+.stat{border-top:3px solid #1A1A1A;padding-top:10px}
+.stat b{display:block;font:800 40px/1.05 Montserrat,Pretendard,system-ui,sans-serif;letter-spacing:-.02em}
+.stat span{font-size:13px;color:#6F6F6F}
+.bar{height:8px;background:#E4E4E2;margin:6px 0 10px}
+.bar i{display:block;height:100%;width:var(--w,0%);background:#1A1A1A}
+.bar.red i{background:#E54536}
+.timeline{border-left:2px solid #1A1A1A;margin:0 0 18px 8px}
+.wk{position:relative;padding:0 0 18px 26px}
+.wk::before{content:"";position:absolute;left:-8px;top:7px;width:14px;height:14px;background:#fff;border:2px solid #1A1A1A}
+.wk .n{display:block;font:700 12px Montserrat,system-ui,sans-serif;letter-spacing:.16em;color:#6F6F6F;margin-bottom:2px}
+.wk h4{font-size:16px}
+.wk p{margin:2px 0 4px;color:#333}
+.wk.mid::before,.wk.fin::before{background:#E54536;border-color:#E54536}
+.wk.mid h4,.wk.fin h4{color:#E54536}
+.steps{counter-reset:s;list-style:none;margin:0 0 18px;padding:0}
+.steps li{counter-increment:s;display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;padding:12px 0;border-top:1px solid #D2D2D2;margin:0}
+.steps li:last-child{border-bottom:1px solid #D2D2D2}
+.steps li::before{content:counter(s,decimal-leading-zero);font:800 24px/1.2 Montserrat,system-ui,sans-serif;color:#E54536}
+.callout{background:#F2F2F2;border-left:4px solid #1A1A1A;padding:14px 18px;margin:0 0 18px}
+.callout.warn{border-left-color:#E54536}
+.callout p:last-child{margin-bottom:0}
+.say{border-left:3px solid #E54536;padding:4px 0 4px 14px;margin:0 0 12px;font-size:15px}
+.say b{display:block;font-size:12px;letter-spacing:.08em;color:#6F6F6F;font-weight:600;margin-bottom:2px}
+.doc table{width:100%;border-collapse:collapse;font-size:14.5px;margin:0 0 18px;line-height:1.55}
+.doc th{background:#1A1A1A;color:#fff;font-weight:600;text-align:left;padding:9px 12px;vertical-align:bottom}
+.doc td{border-bottom:1px solid #D2D2D2;padding:9px 12px;vertical-align:top}
+.doc tbody tr:nth-child(even) td{background:#FAFAFA}
+.rubric td:first-child{font-weight:700;width:17%;background:#F2F2F2}
+.rubric .pt{display:block;font:700 12px Montserrat,system-ui,sans-serif;color:#E54536;margin-bottom:2px}
+.sheet{border:1.5px solid #1A1A1A;padding:26px 30px;margin:0 0 20px}
+.sheet .name{display:flex;gap:22px;font-size:14px;margin:0 0 20px}
+.sheet .name span{flex:1;border-bottom:1px solid #1A1A1A;padding-bottom:2px}
+.q{margin:0 0 20px}
+.q .qt{font-weight:700;margin:0 0 8px}
+.q ol.opts{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.q ol.opts li{border:1px solid #D2D2D2;padding:7px 12px;margin:0}
+.line{border-bottom:1px solid #1A1A1A;height:30px}
+.box{border:1px solid #1A1A1A;min-height:96px;padding:8px 10px;margin:0 0 14px}
+.fill{display:inline-block;min-width:96px;border-bottom:1px solid #1A1A1A}
+.ans{font-size:13px;color:#6F6F6F;border-top:1px dashed #BDBDBD;margin-top:8px;padding-top:6px}
+.deck{display:grid;gap:22px}
+.slide{container-type:inline-size;aspect-ratio:16/9;background:#F2F2F2;border:1px solid #1A1A1A;padding:6cqw 7cqw;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.slide h2{display:block;font-size:4.2cqw;line-height:1.25;margin:0 0 2.4cqw}
+.slide h3{font-size:2.6cqw;margin:0 0 1cqw}
+.slide p,.slide li{font-size:2.3cqw;line-height:1.6;margin:0 0 1cqw}
+.slide ul{margin:0;padding-left:1.4em}
+.slide .big{font:800 11cqw/1 Montserrat,Pretendard,system-ui,sans-serif;color:#E54536;letter-spacing:-.03em;margin:0 0 1.5cqw}
+.slide .kicker{font:700 1.5cqw Montserrat,system-ui,sans-serif;letter-spacing:.28em;color:#E54536;margin:0 0 2cqw}
+.slide .src{font-size:1.5cqw;color:#6F6F6F;margin-top:auto}
+.slide .pg{position:absolute;left:7cqw;bottom:3cqw;font:700 1.3cqw Montserrat,system-ui,sans-serif;letter-spacing:.2em;color:#6F6F6F}
+.slide.dark{background:#1A1A1A;color:#fff;border-color:#1A1A1A}
+.slide.dark .pg,.slide.dark .src{color:#BDBDBD}
+.slide .cols2{gap:3cqw;margin:0}
+.foot{margin-top:36px;padding-top:12px;border-top:1px solid #D2D2D2;font-size:12px;color:#6F6F6F}
+.pb{break-after:page}
+@media (max-width:700px){.doc{padding:28px 20px}.doc h1{font-size:30px}.cols2,.cols3,.cols4{grid-template-columns:1fr}}
+@media print{.doc{border:0;padding:0;max-width:none}.sec,.card,.wk,.q,.sheet,.callout,.say,.stat,tr{break-inside:avoid}.slide{break-inside:avoid;break-after:page}.deck{gap:0}}
+</script>
 <dialog class="aidlg" id="aiDlg">
   <h3>수업 코드를 입력하세요</h3>
   <p class="note" style="margin:0 0 12px">강의장 화면에 보이는 코드입니다. 한 번 입력하면 이 브라우저에 저장됩니다.</p>
@@ -835,6 +1005,61 @@ function removeAlarms() {
   const startText = a => a.asst ? (course.course ? '내 과목 정보야. 기억해 두고 할 수 있는 일을 번호로 보여 줘.\n\n' + info() : '시작') : brief();
 
   const M = [
+    /* ---------- AI 작업실: free-form input + files in, designed documents / pptx / xlsx out ---------- */
+    { id: 'w-1', ex: 'chat', step: 'w', title: 'AI 작업실: 자료를 올리고, 결과를 파일로', sub: '프롬프트를 고르거나 자유롭게 쓰고, PPT·문서·표를 바로 받습니다', min: 15,
+      steps: ['아래 "자주 쓰는 프롬프트"에서 하나를 누르거나, 프롬프트 칸에 하고 싶은 일을 자유롭게 적습니다.',
+        '자료가 있으면 "자료 첨부"에 올립니다. PDF, PPT, Word, 한글(hwpx), 엑셀, 텍스트, 이미지를 읽습니다. PPT를 고치려면 .pptx를 올리고 "내 PPT 고치기"를 고릅니다.',
+        '"결과를 이렇게 받기"에서 디자인 문서, PPT 파일, 글·표 중 하나를 고르고 RUN을 누릅니다.',
+        '결과가 화면에 바로 나오고, 내려받기 버튼으로 .pptx, .docx, .xlsx, PDF 파일을 받습니다. 마음에 안 들면 아래 입력칸으로 이어서 고칩니다.'],
+      prompt: () => '',
+      starters: [
+        { g: '슬라이드 만들기', label: '수업 슬라이드 새로 만들기', desc: '내 자료로 한 장에 메시지 하나, 장마다 다른 구성의 PPT', view: 'deck', text: () => [
+          '아래 수업의 16:9 발표 슬라이드를 만들어 줘. 자료를 첨부했으면 그 내용만 근거로 삼고, 없는 내용은 "자료에 없음"으로 표시해 줘.', '', info(), '',
+          '- 이번 수업 주제: 【이번 수업 주제】',
+          '- 분량: 10장 안팎, 장마다 구성을 다르게(큰 숫자, 세 칸 비교, 타임라인, 짧은 인용 등)',
+          '- 한 장에 메시지 하나, 제목은 짧은 문장형, 본문은 작게 왼쪽 정렬',
+          '- 강조색은 하나, 그라데이션·이모지·둥근 그림자 카드는 쓰지 마',
+          '- 발표자 노트에 장마다 말할 내용을 두세 문장으로 써 줘'].join('\n') },
+        { g: '슬라이드 만들기', label: '강의자료 PDF를 발표 슬라이드로', desc: '올린 자료의 핵심만 뽑아 쪽수 근거와 함께', view: 'deck', text: () => [
+          '첨부한 강의자료를 근거로 학생에게 설명하는 발표 슬라이드 8장을 만들어 줘.', '- 자료에 있는 내용만 쓰고, 장마다 근거 쪽수를 출처로 달아 줘', '- 핵심 개념, 사례, 확인 질문이 한 번씩 나오게 구성해 줘', '- 어려운 용어는 쉬운 설명을 함께 넣어 줘', '- 발표자 노트에 말할 내용을 써 줘'].join('\n') },
+        { g: '내 PPT 고치기', label: '내 PPT 문구 다듬기', desc: '내용은 그대로, 문장만 짧고 또렷하게', view: 'edit', text: () => [
+          '첨부한 PPT의 글을 다듬어 줘. 내용, 숫자, 순서는 바꾸지 말고 문장만 고쳐 줘.', '- 제목은 짧은 문장형으로, 마침표 없이', '- 본문은 한 장에 다섯 줄 이하, 문장 나열은 짧은 구로', '- 어색한 번역투와 겹치는 표현을 정리', '- 사진, 도형, 디자인은 건드리지 마'].join('\n') },
+        { g: '내 PPT 고치기', label: '내 PPT에서 AI 티 걷어내기', desc: '이모지, 문장형 글머리표, 과한 수식어를 정리', view: 'edit', text: () => [
+          '첨부한 PPT에서 "AI가 만들었네" 싶은 글 신호를 고쳐 줘. 내용은 바꾸지 말고 표현만.', '- 이모지는 지워 줘', '- 문장으로 된 글머리표는 짧은 구로, 한 장에 다섯 줄 이하로', '- "혁신적인", "다양한", "효과적으로" 같은 빈 수식어는 구체적인 말로 바꾸거나 지워 줘', '- 제목은 결론을 말하는 한 문장으로'].join('\n') },
+        { g: '내 PPT 고치기', label: '내 PPT에 발표 대본 넣기', desc: '장마다 말할 내용과 강조점을 발표자 노트에', view: 'edit', text: () => [
+          '첨부한 PPT의 각 슬라이드 발표자 노트를 써 줘.', '- 형식: [발표 대본 · 약 N초] 두세 문장 + [강조 포인트] 한 줄', '- 말하듯 쉬운 존댓말로, 슬라이드에 없는 사실은 지어내지 마', '- 노트에 이미 쓴 내용이 있으면 지우지 말고 아래에 "── 원본 메모 ──"로 남겨 줘', '- 슬라이드 글은 바꾸지 마'].join('\n') },
+        { g: '내 PPT 고치기', label: '내 PPT에 모핑 전환 걸기', desc: '이어지는 개체에 !!이름을 붙이고 전환을 모핑으로', view: 'edit', text: () => [
+          '첨부한 PPT에 모핑 전환이 자연스럽게 되도록 해 줘.', '- 앞뒤 장에서 같은 역할을 하는 개체(제목, 선, 큰 숫자)는 같은 이름 !!이름으로 바꿔 줘', '- 2장부터 전환을 모핑으로 설정해 줘', '- 글 내용은 바꾸지 마'].join('\n') },
+        { g: '내 PPT 고치기', label: '영어 PPT를 한국어로', desc: '슬라이드와 노트를 자연스럽게, 전문용어는 원어 병기', view: 'edit', text: () => [
+          '첨부한 PPT의 모든 글과 발표자 노트를 자연스러운 한국어로 번역해 줘.', '- 전문 용어는 한국어(원어)로 처음 한 번만 병기', '- 제목은 짧게, 본문은 원문 길이를 넘지 않게', '- 숫자, 고유명사, 약어는 그대로'].join('\n') },
+        { g: '강의자료 활용', label: '강의자료로 학생용 예습 가이드', desc: '핵심 개념, 예습 질문, 헷갈리는 용어 카드', view: 'doc', text: () => [
+          '첨부한 파일은 내가 만든 강의자료야. 이 자료만 근거로 학생용 예습 가이드를 만들어 줘.', '', info(), '',
+          '- 구성: 이번 주 핵심 개념 5개(한 줄 설명), 예습 질문 3개, 헷갈리기 쉬운 용어 카드 5장(용어 | 쉬운 설명 | 예시)', '- 항목마다 근거가 된 자료 쪽수를 [쪽 N]으로 달아 줘', '- 자료에 없는 내용은 쓰지 말고 "자료에 없음"으로 표시해 줘'].join('\n') },
+        { g: '강의자료 활용', label: '수준별 과제 세트', desc: '같은 목표, 기본·표준·도전 세 단계', view: 'doc', text: () => [
+          '첨부한 강의자료에서 같은 학습목표를 다루는 과제를 세 가지 난이도로 만들어 줘.', '', info(), '', '- 기본(따라 하기), 표준(적용하기), 도전(만들어 보기) 각 1개', '- 과제마다 제출물, 소요 시간, 평가 기준 3개를 표로', '- 학생에게 말하는 말투로, 자료에 없는 내용은 만들지 마'].join('\n') },
+        { g: '강의자료 활용', label: '시험 문항 점검', desc: '정답 오류, 애매한 보기, 수준 쏠림을 미리', view: 'doc', text: () => [
+          '첨부한 시험 문항을 점검해 줘.', '', '- 문항별로 정답이 하나뿐인지, 보기가 애매하거나 겹치지 않는지, 지문 단서로 정답이 새지 않는지 확인', '- 문항을 기억·이해·적용 수준으로 나눠 분포를 표와 비율 막대로 보여 줘', '- 고칠 문항은 고친 안을 함께 써 줘', '- 확실하지 않은 정답은 추측하지 말고 "교수 확인 필요"로 표시해 줘'].join('\n') },
+        { g: '강의자료 활용', label: '강의평가 주관식 → 개선계획', desc: '의견을 묶고, 다음 학기 CQI 보고서 초안까지', view: 'doc', text: () => [
+          '첨부한 강의평가 주관식 의견을 분석해 줘. (학생 실명은 이미 지운 자료야)', '', info(), '',
+          '- 의견을 주제별로 묶고 건수와 대표 의견 한 줄씩', '- 칭찬은 유지할 것, 불만은 개선할 것으로 나누기', '- 다음 학기에 바꿀 일 3가지를 주차와 함께 제안', '- 마지막에 CQI 보고서에 붙일 "개선 계획" 초안 한 문단'].join('\n') },
+        { g: '수업 설계 문서', label: '15주 강의계획서', desc: '주차별 주제·활동·평가를 타임라인과 표로', view: 'doc', text: () => [
+          '아래 과목의 15주 강의계획서를 만들어 줘.', '', info(), '', '- 표지에 과목 정보, 상단에 한 단락 요약', '- 주차 | 주제 | 학습 활동 | 과제·평가 표 (8주 중간, 15주 기말 자리)', '- 평가 비율을 막대로, 학생이 알아야 할 AI 사용 원칙을 주의 상자로', '- 사실이 불확실한 항목은 "확인 필요"'].join('\n') },
+        { g: '수업 설계 문서', label: '루브릭(평가 기준표)', desc: '기준 4개 × 수준 4단계, 칸마다 배점', view: 'doc', text: () => [
+          '아래 과제의 루브릭을 만들어 줘.', '', info(), '', '- 과제: 【과제 이름】', '- 기준 4개 × 수준 4단계, 칸마다 점수', '- 수준 설명은 눈에 보이는 행동으로 (좋음, 보통 같은 말 금지)', '- 마지막에 학생에게 보여 줄 한 줄 안내'].join('\n') },
+        { g: '수업 설계 문서', label: '학생 활동지 A4 한 장', desc: '바로 인쇄해서 쓰는 형태', view: 'doc', text: () => [
+          '아래 수업의 학생용 활동지를 A4 한 장으로 만들어 줘.', '', info(), '', '- 주제: 【오늘 활동 주제】', '- 이름·날짜 칸, 따라 하기 3단계, 생각 쓰기 칸 2개, 짧은 확인 문제 3개', '- 학생에게 말하는 쉬운 말투'].join('\n') },
+        { g: '수업 설계 문서', label: '확인 퀴즈 표 (구글 폼용)', desc: '표로 받아 Excel로 저장, STEP 4에서 폼으로', view: 'text', text: () => [
+          '아래 수업 내용으로 객관식 확인 퀴즈 8문항을 표로 만들어 줘.', '', info(), '', '- 열 순서: 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설', '- 번호 열은 만들지 않고, 정답 칸은 1~4 숫자만', '- 보기 길이를 비슷하게, 오답은 그럴듯하게'].join('\n') },
+        { g: '디자인·이미지', label: '레퍼런스 슬라이드 → 디자인 명세', desc: '캡처를 올리면 색·서체·그리드·금지 목록으로', view: 'text', text: () => [
+          '첨부한 이미지는 내가 따라 하고 싶은 발표 슬라이드 디자인이야. 다른 사람이 똑같이 재현할 수 있게 "디자인 명세"로 정리해 줘.', '',
+          '1. 색: 배경, 본문 글자, 강조색의 hex 값과 대략적인 비율', '2. 서체: 제목, 본문, 숫자의 느낌. 한글은 무료 서체 중 가까운 것으로', '3. 그리드: 바깥 여백, 정렬, 단 나누기', '4. 반복 요소 3개: 이 디자인을 알아보게 하는 장치', '5. 이 디자인에서 절대 하지 않는 것 5개',
+          '표로 정리하고, 마지막에 "이 명세를 지켜 슬라이드를 만들 때 쓸 지시문"을 다섯 줄로 써 줘.'].join('\n') },
+        { g: '디자인·이미지', label: '슬라이드 배경 이미지 프롬프트', desc: '글자는 빼고 그림만, 이미지 AI에 붙여 넣기용', view: 'text', text: () => [
+          '수업 슬라이드에 쓸 배경 이미지를 이미지 생성 AI에 부탁할 영어 프롬프트 3개를 써 줘.', '', '- 주제: 【슬라이드 주제】', '- 스타일은 모두 같게: clean flat vector illustration, minimal palette of navy blue, light warm gray and one coral red accent, pure white background', '- 반드시 넣을 말: absolutely no text, no letters, no numbers, no logos, no watermark', '- 한글 글자는 AI가 깨뜨리니, 글자는 슬라이드에서 내가 직접 넣을 거야', '- 프롬프트마다 구도를 다르게(왼쪽 비움, 오른쪽 비움, 전면)'].join('\n') }
+      ],
+      checks: ['결과가 화면에 바로 나왔다', '내려받은 파일이 PowerPoint나 Word에서 열린다', '자료에 없는 내용이 섞이지 않았다'],
+      next: ['여기서 가장 중요한 한 가지를 첫 장에 큰 문장으로 넣어 줘.', '학생이 읽기 쉽게 더 짧게 줄여서 다시 만들어 줘.'] },
+
     { id: 's1-1', step: 1, title: 'AI에게 내 과목 소개하기', sub: '첫 대화로 AI가 내 수업을 어떻게 이해했는지 봅니다', min: 5,
       steps: ['프롬프트를 복사해 AI 채팅 창에 붙여 넣습니다.', 'AI가 요약한 소개가 내 과목과 맞는지 읽어 봅니다.', 'AI가 던진 질문 3개에 짧게 답해 줍니다. 대화는 이어서 씁니다.'],
       prompt: () => ['너는 대학 수업 설계를 돕는 교수학습 조교야.', '내가 이번 학기에 가르치는 과목은 아래와 같아.', '', info(), '',
@@ -1124,8 +1349,8 @@ function removeAlarms() {
       next: ['루틴 결과에 "지난주 미처 못 한 것"을 기억해 두었다가 함께 알려 주게 바꿔 줘.'] },
   ];
 
-  const STEPS = [1, 2, 'p', 3, 4, 5];
-  const label = id => id[0] === 'p' ? 'P–' + id.split('-')[1] : id.slice(1).replace('-', '–');
+  const STEPS = ['w', 1, 2, 'p', 3, 4, 5];
+  const label = id => /^[pw]-/.test(id) ? id[0].toUpperCase() + '–' + id.split('-')[1] : id.slice(1).replace('-', '–');
   const fieldVals = {};
   const fieldDefaults = m => { const o = {}; (m.fields || []).forEach(fd => o[fd.k] = (fieldVals[m.id] && fieldVals[m.id][fd.k]) || fd.def()); return o; };
 
@@ -1134,7 +1359,7 @@ function removeAlarms() {
   /* ---------- my results: pasted answers, kept only in this browser ---------- */
   let results = store.get('acl-results', {});
   const resultTimers = {};
-  const STEP_NAME = { 1: 'STEP 1 · AI와 첫 대화', 2: 'STEP 2 · 한 차시 설계', p: 'PLUS · 교육에 바로 쓰는 것들', 3: 'STEP 3 · 수업 슬라이드', 4: 'STEP 4 · 자동화와 수업 도구', 5: 'STEP 5 · Aside' };
+  const STEP_NAME = { w: 'AI 작업실', 1: 'STEP 1 · AI와 첫 대화', 2: 'STEP 2 · 한 차시 설계', p: 'PLUS · 교육에 바로 쓰는 것들', 3: 'STEP 3 · 수업 슬라이드', 4: 'STEP 4 · 자동화와 수업 도구', 5: 'STEP 5 · Aside' };
   const pad2 = n => String(n).padStart(2, '0');
   const hhmm = t => { const d = new Date(t); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
   const stamp = () => { const d = new Date(); return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. ' + hhmm(d); };
@@ -1366,6 +1591,7 @@ function removeAlarms() {
         }).join('');
         const aiBtns = AI.map(a => '<button class="btn ' + (a.name === 'ChatGPT' ? '' : 'ghostb') + '" data-ai="' + a.name + '" data-m="' + m.id + '"><span class="k">OPEN</span>' + aiName(a) + '</button>').join('');
         const promptBlock = m.prompt ? '<div><h4>' + (m.ai === false ? 'PROMPT FOR ASIDE' : 'PROMPT') + '</h4><textarea class="prompt" id="p-' + m.id + '" spellcheck="false"></textarea>'
+          + (m.ai === false ? '' : aiControls(m))
           + '<div class="row"><button class="btn red" data-copy="' + m.id + '">프롬프트 복사</button>'
           + (m.ai === false ? '' : '<button class="btn red" data-run="' + m.id + '"><span class="k">RUN</span>AI ONE으로 바로 실행</button>' + aiBtns)
           + '<button class="mini" data-reset="' + m.id + '">다시 만들기</button></div>' + (m.ai === false ? '' : aiPane(m)) + '</div>' : '';
@@ -1688,8 +1914,9 @@ function removeAlarms() {
   };
 
   /* ---------- AI ONE: run the prompt on the instructor's gateway account (no subscription needed) ---------- */
-  // The gateway key lives only in the Cloudflare Function at /api/ai. The browser sends the class code, the exercise id and the
-  // messages; the server picks the model (see functions/_lib/route.js) and says which one it used in the first stream event.
+  // The gateway key lives only in the Cloudflare Function at /api/ai. The browser sends the class code, the exercise id, the
+  // messages, optional attachments (text extracted here, images downscaled here) and the wanted view ('doc' = designed document);
+  // the server picks the model (see functions/_lib/route.js) and says which one it used in the first stream event.
   const AIONE_URL = (/(^|\.)kimcook-edu\.pages\.dev$|^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? '' : 'https://kimcook-edu.pages.dev') + '/api/ai';
   const NET_MSG = 'AI ONE 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고, 교내망에서 막혔다면 휴대폰 데이터로 시도해 보세요.';
   let aiCode = store.get('acl-aicode', '');
@@ -1735,10 +1962,32 @@ function removeAlarms() {
     });
   }
 
+  // blanks in a prompt ("(교과목명)") are filled right when the professor presses the button: a small form, not a trip back to the top
+  const PH = { '(교과목명)': 'course', '(교과목)': 'course', '(학년·인원)': 'target', '(대상)': 'target', '(핵심 내용)': 'topics', '(학생 특징)': 'learners' };
+  const PH_RE = /\((교과목명|교과목|학년·인원|대상|핵심 내용|학생 특징)\)/;
+  function askCourse() {
+    return new Promise(resolve => {
+      const dlg = $('#crDlg'), ins = $$('[data-cr]', dlg);
+      let settled = false;
+      const end = v => { if (settled) return; settled = true; if (dlg.open) dlg.close(); resolve(v); };
+      ins.forEach(i => { i.value = course[i.dataset.cr] || ''; });
+      const save = () => { fillForm(Object.fromEntries(ins.map(i => [i.dataset.cr, i.value.trim()]))); course = readForm(); store.set('acl-course', course); refreshPrompts(); };
+      $('#crOk').onclick = () => {
+        if (!ins[0].value.trim()) { ins[0].focus(); toast('과목 이름만이라도 적어 주세요.'); return; }
+        save(); end('ok');
+      };
+      $('#crEx').onclick = () => ins.forEach(i => { i.value = EXAMPLE[i.dataset.cr] || ''; });
+      $('#crSkip').onclick = () => end('skip');
+      dlg.onclose = () => end(null);
+      dlg.showModal(); ins[0].focus();
+    });
+  }
+  const fillBlanks = text => text.replace(/\((교과목명|교과목|학년·인원|대상|핵심 내용|학생 특징)\)/g, (s) => (course[PH[s]] || '').trim() || s);
+
   // POST /api/ai and read the simple SSE stream: {meta}, {delta}*, {done} (or {error})
-  async function aiStream(ex, messages, h, signal) {
+  async function aiStream(ex, messages, h, signal, extra) {
     let r;
-    try { r = await aiPost({ code: aiCode, ex, messages }, signal); }
+    try { r = await aiPost(Object.assign({ code: aiCode, ex, messages }, extra || {}), signal); }
     catch (e) { if (e.name === 'AbortError') throw e; throw Object.assign(new Error(NET_MSG), { code: 'net' }); }
     if (!r.ok) throw await aiFail(r);
     const rd = r.body.getReader(), dec = new TextDecoder();
@@ -1762,16 +2011,79 @@ function removeAlarms() {
     if (!fin) throw Object.assign(new Error('답이 중간에 끊겼습니다. 다시 눌러 주세요.'), { code: 'cut' });
   }
   // asks for the class code first if none is saved; one retry after a wrong saved code. Resolves false if the user cancels.
-  async function aiRun(ex, messages, h, signal) {
+  async function aiRun(ex, messages, h, signal, extra) {
     if (!aiCode && !(await askCode())) return false;
     for (let tries = 0; ; tries++) {
-      try { await aiStream(ex, messages, h, signal); return true; }
+      try { await aiStream(ex, messages, h, signal, extra); return true; }
       catch (e) {
         if (e.code !== 'bad_code' || tries) throw e;
         aiCode = ''; store.set('acl-aicode', ''); aiState();
         if (!(await askCode('저장된 코드가 맞지 않습니다. 다시 입력해 주세요.'))) return false;
       }
     }
+  }
+
+  /* ---------- designed documents: the model writes a fragment with the doc-kit classes, we sanitize it and show it as a page ---------- */
+  // Everything the model sends is untrusted: only these tags, plain class names and numeric data-w survive; no script, style, link, image or URL.
+  const DOC_TAGS = new Set('DIV SECTION ARTICLE HEADER FOOTER ASIDE H1 H2 H3 H4 P UL OL LI TABLE THEAD TBODY TR TH TD SPAN B STRONG EM I SMALL BR HR BLOCKQUOTE DL DT DD MARK FIGURE FIGCAPTION'.split(' '));
+  const DOC_DROP = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|NOSCRIPT|SVG|MATH|FORM|INPUT|BUTTON|TEXTAREA|SELECT|IMG|PICTURE|VIDEO|AUDIO|CANVAS|TEMPLATE|HEAD|TITLE|BASE|FRAME|FRAMESET)$/;
+  const docCss = () => $('#docKit').textContent;
+  function docFragment(text) {
+    let t = text;
+    const f = t.indexOf('```');
+    if (f >= 0) { const nl = t.indexOf('\n', f); t = nl < 0 ? '' : t.slice(nl + 1); const end = t.indexOf('```'); if (end >= 0) t = t.slice(0, end); }
+    const lt = t.indexOf('<');
+    return lt < 0 ? '' : t.slice(lt);
+  }
+  function docClean(html) {
+    const d = new DOMParser().parseFromString('<!doctype html><body>' + html, 'text/html');
+    const out = document.createElement('div');
+    (function walk(src, dst) {
+      for (const n of src.childNodes) {
+        if (n.nodeType === 3) dst.appendChild(document.createTextNode(n.textContent));
+        else if (n.nodeType === 1) {
+          if (DOC_DROP.test(n.tagName)) continue;
+          if (!DOC_TAGS.has(n.tagName)) { walk(n, dst); continue; }
+          const e = document.createElement(n.tagName.toLowerCase());
+          const c = n.getAttribute('class'); if (c && /^[\w -]{1,80}$/.test(c)) e.className = c;
+          if (n.tagName === 'TD' || n.tagName === 'TH') for (const a of ['colspan', 'rowspan']) { const v = n.getAttribute(a); if (v && /^\d{1,2}$/.test(v)) e.setAttribute(a, v); }
+          const w = n.getAttribute('data-w'); if (w && /^\d{1,3}$/.test(w)) e.style.setProperty('--w', Math.min(100, +w) + '%');
+          walk(n, e); dst.appendChild(e);
+        }
+      }
+    })(d.body, out);
+    return out.innerHTML;
+  }
+  const DOC_FOOT = '<footer class="foot">prof.kimcook · AI Class Lab · AI ONE이 만든 초안입니다. 사실·숫자·출처는 교수자가 확인하세요.</footer>';
+  function docPaint(host, text, done) {
+    const clean = docClean(docFragment(text));
+    const key = clean + (done ? '#' : '');
+    if (host._k === key) return clean;
+    host._k = key;
+    const sr = host.shadowRoot || host.attachShadow({ mode: 'open' });
+    const deck = /class="[^"]*\bslide\b/.test(clean);
+    sr.innerHTML = '<style>' + docCss() + '</style><article class="doc' + (deck ? ' isdeck' : '') + '">' + clean + (done && clean ? DOC_FOOT : '') + '</article>';
+    return clean;
+  }
+  const docArticle = host => host && host.shadowRoot && host.shadowRoot.querySelector('.doc');
+  const docTitle = host => { const a = docArticle(host), h = a && a.querySelector('h1,h2'); return ((h && h.textContent) || '수업 설계').replace(/\s+/g, ' ').trim().slice(0, 40); };
+  function docStandalone(host) {
+    const a = docArticle(host), deck = a.classList.contains('isdeck');
+    return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(docTitle(host)) + '</title><style>'
+      + docCss() + '\nbody{margin:0;padding:24px 12px;background:#E9E9E7}@media print{body{background:#fff;padding:0}@page{size:' + (deck ? 'A4 landscape' : 'A4') + ';margin:12mm}}</style></head><body>' + a.outerHTML + '</body></html>';
+  }
+  function docSave(id) {
+    const host = aiChats[id] && aiChats[id].host; if (!docArticle(host)) return;
+    saveFile(new Blob([docStandalone(host)], { type: 'text/html;charset=utf-8' }), docTitle(host).replace(/[\\/:*?"<>|\s]+/g, '_') + '.html');
+    toast('HTML 문서로 저장했습니다. 더블클릭하면 브라우저에서 열리고, 인쇄하면 PDF가 됩니다.');
+  }
+  function docPrint(id) {
+    const host = aiChats[id] && aiChats[id].host; if (!docArticle(host)) return;
+    const fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    fr.srcdoc = docStandalone(host);
+    fr.onload = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast('인쇄 창을 열지 못했습니다. HTML로 저장한 뒤 인쇄해 주세요.'); } setTimeout(() => fr.remove(), 120000); };
+    document.body.appendChild(fr);
   }
 
   // Markdown answer -> HTML (tables, headings, lists, code fences) reusing blocks(); everything is escaped first
@@ -1811,78 +2123,444 @@ function removeAlarms() {
     copy(plain, msg);
   }
 
+  /* ---------- attachments: documents are read in this browser (nothing is uploaded except the extracted text), images are downscaled ---------- */
+  const ATT_ACCEPT = '.pdf,.docx,.pptx,.hwpx,.xlsx,.txt,.md,.csv,.tsv,.png,.jpg,.jpeg,.webp,image/*';
+  const ATT = { files: 3, images: 4, textOne: 100000, textAll: 150000, bytes: 25 * 1024 * 1024, imgSide: 1568 };
+  const ATT_HINT = {
+    'p-1': '강의 PDF, 슬라이드(PPT), 워드 파일을 올려 주세요. 올린 자료만 근거로 답합니다.',
+    'p-3': '시험 문항 파일(PDF, 워드, 한글 hwpx)을 올리면 붙여 넣지 않아도 됩니다.',
+    'p-4': '강의평가 의견 파일(csv, 텍스트, 워드)을 올려 주세요. 학생 실명은 지우고 올립니다.',
+    's3-2': '레퍼런스 슬라이드 이미지를 올리거나, 프롬프트 칸에 캡처를 붙여 넣으세요(' + paste + ').',
+    's3-4': '고칠 PPT(.pptx)를 올리세요. 글의 AI 티를 걷어내고 새 파일로 돌려받습니다.',
+    's3-5': '모핑을 걸 PPT(.pptx)를 올리세요. 이름 맞추기와 전환 설정까지 해서 돌려받습니다.',
+    'w-1': '올린 자료를 읽고 답합니다. PDF, 워드, PPT, 한글(hwpx), 엑셀, 텍스트, 이미지. PPT를 고치려면 .pptx를 올리세요.'
+  };
+  const ATT_OPEN = new Set(['p-1', 'p-3', 'p-4', 's3-2', 's3-4', 's3-5', 'w-1']);
+  const aiAtt = {};
+  const attOf = id => aiAtt[id] = aiAtt[id] || { files: [], images: [], busy: 0, msg: '', pptx: null };
+  function aiAttach(m) {
+    const id = m.id;
+    return '<details class="aiatt" id="at-' + id + '"' + (ATT_OPEN.has(id) ? ' open' : '') + '><summary><b>자료 첨부</b><span class="note">' + esc(ATT_HINT[id] || '참고할 파일이나 이미지가 있으면 올려 주세요. (선택)') + '</span></summary>'
+      + '<label class="attdrop" data-attdrop="' + id + '"><input type="file" multiple hidden data-attfile="' + id + '" accept="' + ATT_ACCEPT + '"><b>파일 올리기</b> 또는 여기로 끌어다 놓기'
+      + '<small>PDF · Word · PPT · 한글(hwpx) · 엑셀 · 텍스트 · 이미지 (한 번에 문서 3개, 이미지 4장)</small></label>'
+      + '<ul class="attlist" id="at-list-' + id + '"></ul></details>';
+  }
+  function attRender(id) {
+    const a = attOf(id), ul = $('#at-list-' + id); if (!ul) return;
+    const row = (kind, i, name, note) => '<li><span class="k">' + (kind === 'f' ? '문서' : '이미지') + '</span><span class="nm">' + esc(name) + '</span><span class="note">' + esc(note) + '</span><button class="mini" data-attdel="' + id + ':' + kind + ':' + i + '">지우기</button></li>';
+    ul.innerHTML = a.files.map((f, i) => row('f', i, f.name, f.note)).join('') + a.images.map((f, i) => row('i', i, f.name, f.note)).join('')
+      + (a.busy ? '<li class="busy">파일을 읽는 중…</li>' : '') + (a.msg ? '<li class="bad">' + esc(a.msg) + '</li>' : '');
+    const det = $('#at-' + id); if (det && (a.files.length || a.images.length || a.msg)) det.open = true;
+    segRender(id);
+  }
+  const extOf = n => (n.split('.').pop() || '').toLowerCase();
+  const decodeXml = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&');
+  const tidy = s => s.replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  async function unzip(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf), ent = {};
+    let e = -1;
+    for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error('not a zip');
+    const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true);
+    for (let k = 0; k < n && dv.getUint32(p, true) === 0x02014b50; k++) {
+      const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+      ent[new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl))] = { method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), off: dv.getUint32(p + 42, true) };
+      p += 46 + nl + xl + cl;
+    }
+    return {
+      names: Object.keys(ent),
+      async read(name) {
+        const f = ent[name]; if (!f) return '';
+        const start = f.off + 30 + dv.getUint16(f.off + 26, true) + dv.getUint16(f.off + 28, true), data = u8.subarray(start, start + f.size);
+        if (f.method === 0) return new TextDecoder().decode(data);
+        return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+      }
+    };
+  }
+  const numSort = (a, b) => (parseInt(a.replace(/\D+/g, ''), 10) || 0) - (parseInt(b.replace(/\D+/g, ''), 10) || 0);
+  const paras = (xml, endTag, textRe) => xml.split(endTag).map(p => { let s = ''; for (const m of p.matchAll(textRe)) s += decodeXml(m[1].replace(/<[^>]+>/g, '')); return s.trim(); }).filter(Boolean).join('\n');
+  const readers = {
+    async docx(buf) { const z = await unzip(buf); return paras(await z.read('word/document.xml'), '</w:p>', /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g); },
+    async pptx(buf) {
+      const z = await unzip(buf), out = [];
+      for (const nm of z.names.filter(x => /^ppt\/slides\/slide\d+\.xml$/.test(x)).sort(numSort)) {
+        const t = paras(await z.read(nm), '</a:p>', /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g);
+        if (t) out.push('[슬라이드 ' + (parseInt(nm.replace(/\D+/g, ''), 10)) + ']\n' + t);
+      }
+      return out.join('\n\n');
+    },
+    async hwpx(buf) {
+      const z = await unzip(buf), out = [];
+      for (const nm of z.names.filter(x => /^Contents\/section\d+\.xml$/i.test(x)).sort(numSort)) out.push(paras(await z.read(nm), '</hp:p>', /<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g));
+      return out.join('\n');
+    },
+    async xlsx(buf) {
+      const z = await unzip(buf), ss = [];
+      for (const m of (await z.read('xl/sharedStrings.xml')).matchAll(/<si>([\s\S]*?)<\/si>/g)) ss.push(decodeXml([...m[1].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')));
+      const out = [];
+      for (const nm of z.names.filter(x => /^xl\/worksheets\/sheet\d+\.xml$/.test(x)).sort(numSort)) {
+        const rows = [];
+        for (const r of (await z.read(nm)).matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
+          const cells = [];
+          for (const c of r[1].matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+            const col = ((c[1].match(/r="([A-Z]+)\d+"/) || [])[1] || 'A').split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+            const v = (c[2] || '').match(/<v>([\s\S]*?)<\/v>/), is = (c[2] || '').match(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/);
+            cells[col] = /t="s"/.test(c[1]) && v ? ss[+v[1]] || '' : is ? decodeXml(is[1]) : v ? decodeXml(v[1]) : '';
+          }
+          if (cells.some(Boolean)) rows.push(Array.from(cells, x => x || '').join('\t'));
+        }
+        if (rows.length) out.push('[시트 ' + (parseInt(nm.replace(/\D+/g, ''), 10)) + ']\n' + rows.join('\n'));
+      }
+      return out.join('\n\n');
+    }
+  };
+  async function readTextFile(file) {
+    const buf = await file.arrayBuffer();
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { return new TextDecoder('euc-kr').decode(buf); }
+  }
+  let pdfLib;
+  async function loadPdf() {
+    if (!pdfLib) {
+      pdfLib = await import('./vendor/pdfjs/pdf.min.mjs');
+      pdfLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', location.href).href;
+    }
+    return pdfLib;
+  }
+  function canvasUrl(src, w, h) {
+    const k = Math.min(1, ATT.imgSide / Math.max(w, h)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.82);
+  }
+  async function readPdf(file) {
+    const lib = await loadPdf();
+    const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    let text = '', chars = 0;
+    for (let i = 1; i <= pdf.numPages && text.length < ATT.textOne * 1.3; i++) {
+      const tc = await (await pdf.getPage(i)).getTextContent();
+      const s = tc.items.map(it => it.str + (it.hasEOL ? '\n' : ' ')).join('').replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
+      chars += s.length;
+      text += '[쪽 ' + i + ']\n' + s + '\n\n';
+    }
+    if (chars >= 40 * Math.min(pdf.numPages, 3)) return { text: text.trim(), pages: pdf.numPages };
+    const images = [], n = Math.min(pdf.numPages, ATT.images);  // a scan has no text layer: send the first pages as pictures
+    for (let i = 1; i <= n; i++) {
+      const pg = await pdf.getPage(i), vp0 = pg.getViewport({ scale: 1 }), sc = ATT.imgSide / Math.max(vp0.width, vp0.height), vp = pg.getViewport({ scale: sc });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      await pg.render({ canvasContext: c.getContext('2d'), viewport: vp, background: '#fff' }).promise;
+      images.push(c.toDataURL('image/jpeg', 0.82));
+    }
+    return { images, pages: pdf.numPages };
+  }
+  async function readImage(file) {
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch (e) { throw new Error('이 이미지 형식은 읽을 수 없습니다. PNG나 JPG로 저장해 올려 주세요. (아이폰 HEIC는 안 됩니다)'); }
+    const url = canvasUrl(bmp, bmp.width, bmp.height); if (bmp.close) bmp.close();
+    return url;
+  }
+  const attChars = a => a.files.reduce((n, f) => n + f.text.length, 0);
+  async function attAdd(id, list) {
+    const a = attOf(id); a.msg = '';
+    for (const file of Array.from(list)) {
+      let pptxInfo = null;
+      const ext = extOf(file.name), isImg = /^image\//.test(file.type) || /^(png|jpe?g|webp)$/.test(ext);
+      a.busy++; attRender(id);
+      try {
+        if (file.size > ATT.bytes) throw new Error('파일이 너무 큽니다. 25MB 이하로 줄여 주세요.');
+        if (ext === 'hwp') throw new Error('예전 한글(.hwp)은 읽을 수 없습니다. 한글에서 "다른 이름으로 저장"으로 .hwpx나 PDF로 저장해 올려 주세요.');
+        if (/^(ppt|doc|xls)$/.test(ext)) throw new Error('예전 Office 형식(.' + ext + ')은 읽을 수 없습니다. .' + ext + 'x나 PDF로 저장해 올려 주세요.');
+        if (isImg ? a.images.length >= ATT.images : a.files.length >= ATT.files) throw new Error(isImg ? '이미지는 ' + ATT.images + '장까지 올릴 수 있습니다.' : '문서는 ' + ATT.files + '개까지 올릴 수 있습니다. 지우고 다시 올려 주세요.');
+        if (isImg) { a.images.push({ name: file.name.slice(0, 80), url: await readImage(file), note: '이미지 1장' }); continue; }
+        let text = '', note = '';
+        if (ext === 'pdf') {
+          const r = await readPdf(file);
+          if (r.images) {
+            r.images.slice(0, ATT.images - a.images.length).forEach((u, i) => a.images.push({ name: file.name.slice(0, 70) + ' ' + (i + 1) + '쪽', url: u, note: '글자 없는 스캔 PDF라 그림으로 올렸습니다' }));
+            if (!r.images.length) throw new Error('이미지는 ' + ATT.images + '장까지 올릴 수 있습니다.');
+            continue;
+          }
+          text = r.text; note = r.pages + '쪽';
+        } else if (ext === 'pptx') {
+          const buf = await file.arrayBuffer(); text = tidy(await readers.pptx(buf));
+          try { await loadPpt(); pptxInfo = { name: file.name.slice(0, 80), buf, outline: PptKit.outline(await PptKit.inspect(buf)).slice(0, ATT.textOne) }; } catch (e) { pptxInfo = null; }
+        } else if (readers[ext]) text = tidy(await readers[ext](await file.arrayBuffer()));
+        else if (/^(txt|md|csv|tsv|json|html?)$/.test(ext) || file.type.startsWith('text/')) text = tidy(await readTextFile(file));
+        else throw new Error('이 형식(.' + ext + ')은 읽을 수 없습니다. PDF, Word, PPT, 한글(hwpx), 엑셀, 텍스트, 이미지를 올려 주세요.');
+        text = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+        if (!text.trim()) throw new Error('읽을 수 있는 글자가 없습니다. 스캔한 문서라면 PDF나 이미지(JPG, PNG)로 올려 주세요.');
+        const room = ATT.textAll - attChars(a);
+        if (room < 500) throw new Error('올린 자료가 너무 많습니다. 하나를 지우고 올려 주세요.');
+        const cut = Math.min(ATT.textOne, room);
+        note = (note ? note + ' · ' : '') + text.length.toLocaleString('ko-KR') + '자' + (text.length > cut ? ' (앞 ' + cut.toLocaleString('ko-KR') + '자만 사용)' : '');
+        a.files.push({ name: file.name.slice(0, 80), text: text.slice(0, cut), note: note + (pptxInfo ? ' · 고치기 가능' : ''), outline: pptxInfo ? pptxInfo.outline : '', pptx: !!pptxInfo });
+        if (pptxInfo) a.pptx = pptxInfo;
+      } catch (e) { a.msg = file.name + ': ' + (e.message || '읽지 못했습니다.'); }
+      finally { a.busy = Math.max(0, a.busy - 1); attRender(id); }
+    }
+  }
+
+  /* ---------- kits (PPTX / Word / Excel), loaded on first use so the page stays light ---------- */
+  const KIT = {};
+  const loadScript = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('도구 파일을 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.')); document.head.appendChild(s); });
+  const once = (k, fn) => KIT[k] || (KIT[k] = fn().catch(e => { KIT[k] = null; throw e; }));
+  const loadZip = () => once('zip', async () => { if (!window.JSZip) await loadScript('vendor/jszip/jszip.min.js'); });
+  const loadPpt = () => once('ppt', async () => { await loadZip(); if (!window.PptxGenJS) await loadScript('vendor/pptxgenjs/pptxgen.bundle.js'); await loadScript('ppt-kit.js?v=1'); });
+  const loadOffice = () => once('office', async () => { await loadZip(); await loadScript('office-kit.js?v=1'); });
+
+  /* ---------- the four ways to get a result ---------- */
+  const VIEW_NAME = { doc: '디자인 문서', deck: 'PPT 파일', edit: '내 PPT 고치기', text: '글·표' };
+  const VIEW_NOTE = {
+    doc: '표지, 카드, 타임라인이 있는 인쇄용 문서로 만듭니다. HTML·Word·PDF로 저장합니다.',
+    deck: '슬라이드 미리보기와 함께 진짜 .pptx 파일을 만듭니다. 글은 모두 편집됩니다.',
+    edit: '올린 PPT의 글을 고쳐서 새 .pptx로 돌려받습니다. 디자인과 사진은 그대로입니다.',
+    text: '일반 글과 표로 받습니다. 복사하거나 표는 Excel로 저장합니다.'
+  };
+  const viewsFor = id => /^s4-/.test(id) ? [] : /^s3-[45]$/.test(id) ? ['edit', 'deck', 'text'] : id === 's3-3' ? ['deck', 'doc', 'text'] : ['doc', 'deck', 'edit', 'text'];
+  const VIEW_DEF = { 's1-1': 'text', 's1-4': 'text', 's2-5': 'text', 's3-1': 'text', 's3-2': 'text', 's3-3': 'deck', 's3-4': 'edit', 's3-5': 'edit' };
+  const viewOf = id => { const st = aiChats[id]; return (st && st.mode) || VIEW_DEF[id] || (/^(p|s1|s2|w)-/.test(id) ? 'doc' : 'text'); };
+  const chatState = id => aiChats[id] = aiChats[id] || { msgs: [], ctl: null, last: '', html: '' };
+
   function aiPane(m) {
+    const b = (v, cls, attr, label) => '<button class="btn ' + cls + '" data-v="' + v + '" ' + attr + '>' + label + '</button>';
     return '<div class="aipane" id="ao-' + m.id + '" hidden>'
-      + '<div class="aihead"><span class="aichip">AI ONE</span><span id="ao-meta-' + m.id + '"></span><button class="mini" data-aistop="' + m.id + '" hidden>멈추기</button></div>'
+      + '<div class="aihead"><span class="aichip">AI ONE</span><span id="ao-meta-' + m.id + '"></span><span class="aiprog" id="ao-prog-' + m.id + '"></span><button class="mini" data-aistop="' + m.id + '" hidden>멈추기</button></div>'
       + '<div class="aiout" id="ao-out-' + m.id + '" aria-live="polite"></div>'
       + '<div class="aierr" id="ao-err-' + m.id + '" hidden></div>'
-      + '<div class="aifoot" id="ao-foot-' + m.id + '" hidden><button class="btn red" data-aicopy="' + m.id + '">답 복사</button>'
+      + '<div class="aifoot" id="ao-foot-' + m.id + '" hidden>'
+      + b('deck', 'red', 'data-aippt="' + m.id + '"', 'PPT 파일 내려받기')
+      + '<select class="aitheme" data-v="deck" data-aitheme="' + m.id + '" aria-label="디자인 테마"></select>'
+      + b('edit', 'red', 'data-aieditdl="' + m.id + '"', '고친 PPT 내려받기')
+      + b('doc', 'red', 'data-aisave="' + m.id + '"', 'HTML 문서로 저장')
+      + b('doc', '', 'data-aidocx="' + m.id + '"', 'Word로 저장')
+      + b('doc', '', 'data-aiprint="' + m.id + '"', 'PDF로 저장(인쇄)')
+      + b('doc text', '', 'data-aixlsx="' + m.id + '"', 'Excel로 저장')
+      + b('doc deck edit text', 'ghostb', 'data-aicopy="' + m.id + '"', '복사')
+      + '<button class="mini" data-v="doc deck edit" data-airaw="' + m.id + '">원문 보기</button>'
       + '<a class="btn ghostb" href="#mine">내 결과물 모음 보기</a><button class="mini" data-airedo="' + m.id + '">처음부터 다시</button><span class="saved" id="ao-saved-' + m.id + '"></span></div>'
-      + '<div class="aiask" id="ao-ask-' + m.id + '" hidden><input id="ao-in-' + m.id + '" placeholder="이어서 부탁하기 (예: 3주차를 짝 활동으로 바꿔 줘)"><button class="btn" data-aisend="' + m.id + '">보내기</button></div>'
+      + '<div class="aiask" id="ao-ask-' + m.id + '" hidden><input id="ao-in-' + m.id + '" placeholder="이어서 부탁하기 (예: 3번째 장을 숫자 중심으로 바꿔 줘)"><button class="btn" data-aisend="' + m.id + '">보내기</button></div>'
       + '<div class="aichips" id="ao-chips-' + m.id + '" hidden>' + m.next.map((q, i) => '<button class="chip" data-aiq="' + m.id + ':' + i + '">' + esc(q) + '</button>').join('') + '</div>'
       + '</div>';
   }
+  function starterBlock(m) {
+    const groups = [...new Set(m.starters.map(s => s.g))];
+    return '<div class="starters"><h4>자주 쓰는 프롬프트 <span class="note">누르면 프롬프트 칸에 채워집니다. 【 】나 괄호 안만 내 것으로 고치세요.</span></h4>'
+      + groups.map(g => '<div class="stg"><span class="stl">' + esc(g) + '</span><div class="stc">' + m.starters.map((s, i) => s.g === g
+        ? '<button class="chip st" data-start="' + m.id + ':' + i + '"><b>' + esc(s.label) + '</b><small>' + esc(s.desc) + '</small><i class="vb">' + VIEW_NAME[s.view] + '</i></button>' : '').join('') + '</div></div>').join('') + '</div>';
+  }
+  function aiControls(m) {
+    if (m.ai === false) return '';
+    const id = m.id, vs = viewsFor(id);
+    const seg = vs.length ? '<div class="segrow"><span class="segl">결과를 이렇게 받기</span><span class="seg" id="seg-' + id + '" role="group" aria-label="결과 모양">'
+      + vs.map(v => '<button data-aimode="' + id + ':' + v + '">' + VIEW_NAME[v] + '</button>').join('') + '</span><span class="note" id="segnote-' + id + '"></span></div>' : '';
+    return (m.starters ? starterBlock(m) : '') + aiAttach(m)
+      + '<div class="aiextra"><input id="ax-' + id + '" placeholder="더 부탁할 것 (선택) 예: 표는 5행으로, 학생에게 존댓말로, 8주는 팀 프로젝트로"></div>' + seg;
+  }
+  function segRender(id) {
+    const s = $('#seg-' + id); if (!s) return;
+    const has = !!attOf(id).pptx, cur = viewOf(id);
+    $$('button', s).forEach(b => {
+      const v = b.dataset.aimode.split(':')[1];
+      b.classList.toggle('on', v === cur);
+      b.disabled = v === 'edit' && !has;
+      b.title = v === 'edit' && !has ? '먼저 위 "자료 첨부"에 고칠 .pptx 파일을 올려 주세요.' : '';
+    });
+    const n = $('#segnote-' + id); if (n) n.textContent = VIEW_NOTE[cur] + (cur === 'edit' && !has ? ' (PPT를 먼저 올려 주세요)' : '');
+  }
+
+  /* ---------- deck + edit results ---------- */
+  const asText = v => Array.isArray(v) ? v.join('\n') : String(v == null ? '' : v);
+  function deckSpec(text, st) {
+    let o; try { o = PptKit.parseModelJson(text); } catch (e) { return null; }
+    if (!o || !Array.isArray(o.slides) || !o.slides.length) return null;
+    const r = PptKit.validateDeck(o); if (st && st.theme) r.spec.theme = st.theme;
+    r.spec.__truncated = !!o.__truncated; r.spec.__warnings = r.warnings || [];
+    return r.spec;
+  }
+  const deckText = sp => (sp.title ? sp.title + '\n\n' : '') + (sp.slides || []).map((s, i) => {
+    const bits = [s.kicker, s.title, s.body, (s.items || []).map(x => [x.num, x.head, x.text].filter(Boolean).join(' ')).join(' / '), s.stat && [s.stat.value, s.stat.label].filter(Boolean).join(' ')].filter(Boolean);
+    return (i + 1) + '. ' + bits.join(' — ') + (s.notes ? '\n   [발표 노트] ' + s.notes : '');
+  }).join('\n');
+  function editHtml(obj, res) {
+    const rows = res.changed.slice(0, 80).map(c => '<div class="chgrow"><span class="sl">슬라이드 ' + esc(c.slide) + (c.shape != null ? ' · #' + esc(c.shape) : '') + '</span><div class="bf">' + esc(asText(c.before).slice(0, 500)) + '</div><div class="af">' + esc(asText(c.after).slice(0, 500)) + '</div></div>').join('');
+    const skip = res.skipped.length ? '<p class="note">적용하지 못한 ' + res.skipped.length + '곳: ' + res.skipped.slice(0, 5).map(s => esc(s.reason)).join(' / ') + '</p>' : '';
+    return '<div class="chg"><p class="sum">' + esc(obj.summary || 'PPT를 고쳤습니다.') + '</p><div class="chghead">바뀐 곳 ' + res.changed.length + '곳' + (obj.morph ? ' · 모핑 전환 적용' : '') + (res.changed.length > 80 ? ' (앞 80곳만 표시)' : '') + '</div>' + rows + skip + '</div>';
+  }
+  const editText = (obj, res) => (obj.summary || '') + '\n\n' + res.changed.map(c => '슬라이드 ' + c.slide + '\n  전: ' + asText(c.before).replace(/\n/g, ' ') + '\n  후: ' + asText(c.after).replace(/\n/g, ' ')).join('\n');
+  const baseName = () => ((hasCourse() ? course.course.replace(/[\\/:*?"<>|\s]+/g, '') + '_' : '') + 'AI').slice(0, 40);
+
   async function aiExercise(id, follow) {
-    const m = byId(id), st = aiChats[id] = aiChats[id] || { msgs: [], ctl: null, last: '', html: '' };
+    const m = byId(id), st = chatState(id);
     if (st.ctl) return;
     const $$id = k => $('#ao-' + k + '-' + id);
-    const out = $$id('out'), meta = $$id('meta'), err = $$id('err'), foot = $$id('foot'), ask = $$id('ask'), chips = $$id('chips'), stop = $('[data-aistop="' + id + '"]');
-    let userText;
-    if (follow !== undefined) { userText = String(follow).trim(); if (!userText) return; }
-    else { userText = $('#p-' + id).value.trim(); if (!userText) { toast('프롬프트가 비어 있습니다.'); return; } st.msgs = []; out.innerHTML = ''; st.last = ''; st.html = ''; }
+    const out = $$id('out'), meta = $$id('meta'), err = $$id('err'), foot = $$id('foot'), ask = $$id('ask'), chips = $$id('chips'), stop = $('[data-aistop="' + id + '"]'), prog = $$id('prog');
+    const att = attOf(id);
+    if (att.busy) { toast('파일을 읽는 중입니다. 잠시만 기다려 주세요.'); return; }
+    let userText, mode;
+    if (follow !== undefined) { userText = String(follow).trim(); if (!userText) return; mode = st.runMode || 'text'; }
+    else {
+      const ta = $('#p-' + id);
+      if (/【[^】]*】/.test(ta.value)) { toast('【 】 안을 먼저 채워 주세요.'); ta.focus(); return; }
+      if (PH_RE.test(ta.value)) {
+        const r = await askCourse(); if (r === null) return;
+        if (r === 'ok') ta.value = fillBlanks(ta.value);
+      }
+      userText = ta.value.trim(); if (!userText) { toast('프롬프트가 비어 있습니다. 위 칸에 부탁을 적거나 "자주 쓰는 프롬프트"를 눌러 보세요.'); ta.focus(); return; }
+      mode = viewsFor(id).length ? viewOf(id) : 'text';
+      if (mode === 'edit' && !att.pptx) { toast('고칠 PPT 파일을 먼저 올려 주세요. 위 "자료 첨부"에서 올립니다.'); const d = $('#at-' + id); if (d) d.open = true; return; }
+      const ex = $('#ax-' + id) && $('#ax-' + id).value.trim();
+      if (ex) userText += '\n\n[추가 부탁]\n' + ex;
+    }
+    if (mode === 'deck' || mode === 'edit') { try { await loadPpt(); } catch (e) { toast(e.message); return; } }
+    if (follow === undefined) { st.msgs = []; out.innerHTML = ''; st.last = ''; st.html = ''; st.host = null; st.deck = null; st.editBlob = null; st.runMode = mode; }
+    const structured = mode !== 'text';
     const base = st.msgs.length;
     st.msgs.push({ role: 'user', content: userText });
     $('#ao-' + id).hidden = false;
+    out.classList.toggle('isdoc', structured);
+    const prev = Array.from(out.children);
+    if (structured) prev.forEach(c => { c.hidden = true; });
     if (follow !== undefined) out.insertAdjacentHTML('beforeend', '<div class="aiq">' + esc(userText) + '</div>');
-    const ans = document.createElement('div'); ans.className = 'aia'; out.appendChild(ans);
-    meta.textContent = '연결하는 중…'; err.hidden = true; foot.hidden = ask.hidden = chips.hidden = true; stop.hidden = false;
-    $$('[data-run="' + id + '"], [data-aisend="' + id + '"], [data-airedo="' + id + '"]').forEach(b => { b.disabled = true; });
+    const ans = document.createElement('div'); ans.className = 'aia';
+    const host = document.createElement('div'); host.className = 'aidoc'; const raw = document.createElement('pre'); raw.className = 'airaw'; raw.hidden = true;
+    if (structured) ans.append(host, raw);
+    out.appendChild(ans); st.ans = ans;
+    meta.textContent = '연결하는 중…'; prog.textContent = ''; err.hidden = true; foot.hidden = ask.hidden = chips.hidden = true; stop.hidden = false;
+    const btns = $$('[data-run="' + id + '"], [data-aisend="' + id + '"], [data-airedo="' + id + '"]');
+    btns.forEach(b => { b.disabled = true; });
     const ctl = st.ctl = new AbortController();
-    let text = '', raf = 0, truncated = false;
+    const extra = {};
+    if (att.files.length) extra.files = att.files.map(f => ({ name: f.name, text: mode === 'edit' && f.outline ? f.outline : f.text }));
+    if (att.images.length) extra.images = att.images.map(i => ({ name: i.name, url: i.url }));
+    if (viewsFor(id).length) extra.view = mode;
+    const exId = m.ex || id;
+    let text = '', raf = 0, truncated = false, last = 0;
     const paint = () => {
       raf = 0;
-      const near = out.scrollHeight - out.scrollTop - out.clientHeight < 80;
-      ans.innerHTML = mdHtml(text);
-      if (near) out.scrollTop = out.scrollHeight;
+      if (mode === 'doc') { docPaint(host, text, false); prog.textContent = '문서를 짜는 중… ' + text.length.toLocaleString('ko-KR') + '자'; }
+      else if (mode === 'deck') {
+        const sp = deckSpec(text, st);
+        if (sp) { host.innerHTML = PptKit.previewHtml(sp); prog.textContent = '슬라이드 ' + sp.slides.length + '장째 짜는 중…'; }
+        else prog.textContent = '슬라이드 구성을 짜는 중… ' + text.length.toLocaleString('ko-KR') + '자';
+      } else if (mode === 'edit') prog.textContent = 'AI가 고칠 곳을 찾는 중… ' + text.length.toLocaleString('ko-KR') + '자';
+      else {
+        const near = out.scrollHeight - out.scrollTop - out.clientHeight < 80;
+        ans.innerHTML = mdHtml(text);
+        if (near) out.scrollTop = out.scrollHeight;
+      }
+    };
+    const showFoot = () => {
+      foot.hidden = ask.hidden = chips.hidden = false;
+      const root = mode === 'doc' ? docArticle(host) : mode === 'text' ? ans : null;
+      $$('[data-v]', foot).forEach(b => {
+        let on = b.dataset.v.split(' ').includes(mode);
+        if (on && b.hasAttribute('data-aixlsx')) on = !!(root && root.querySelector('table'));
+        b.hidden = !on;
+      });
+      const sel = $('[data-aitheme]', foot);
+      if (mode === 'deck' && !sel.options.length) sel.innerHTML = Object.keys(PptKit.THEMES).map(k => '<option value="' + k + '">' + esc(PptKit.THEMES[k].label) + '</option>').join('');
+      if (mode === 'deck' && st.deck) sel.value = st.deck.theme || sel.value;
+    };
+    const dropPrev = () => { prev.forEach(c => c.remove()); };
+    const restore = () => { prev.forEach(c => { c.hidden = false; }); };
+    const finishStructured = async () => {
+      if (mode === 'doc') {
+        const clean = docPaint(host, text, true);
+        if (!clean.trim()) throw new Error('문서를 만들지 못했습니다. "처음부터 다시"를 눌러 주세요.');
+        raw.textContent = docFragment(text); st.host = host; st.html = clean;
+        return docArticle(host).innerText || '';
+      }
+      raw.textContent = text; st.host = host;
+      if (mode === 'deck') {
+        const sp = deckSpec(text, st);
+        if (!sp) throw new Error('슬라이드를 만들지 못했습니다. "처음부터 다시"를 눌러 주세요.');
+        st.deck = sp; host.innerHTML = PptKit.previewHtml(sp);
+        if (sp.__warnings.length) host.insertAdjacentHTML('beforeend', '<p class="note" style="padding:0 18px 14px">' + esc(sp.__warnings.slice(0, 3).join(' · ')) + '</p>');
+        return deckText(sp);
+      }
+      let o; try { o = PptKit.parseModelJson(text); } catch (e) { o = null; }
+      if (!o || !Array.isArray(o.edits)) throw new Error('고칠 곳을 정하지 못했습니다. "처음부터 다시"를 눌러 주세요.');
+      const res = await PptKit.applyEdits(att.pptx.buf, o.edits, { morph: !!o.morph });
+      if (!res.changed.length && !o.morph) throw new Error('바뀐 곳이 없습니다. 부탁을 조금 더 구체적으로 적어 다시 눌러 주세요.' + (res.skipped.length ? ' (' + res.skipped[0].reason + ')' : ''));
+      st.editBlob = res.blob; st.editName = att.pptx.name; host.innerHTML = editHtml(o, res);
+      return editText(o, res);
     };
     try {
-      const ran = await aiRun(id, st.msgs, {
+      const ran = await aiRun(exId, st.msgs, {
         meta: mm => { meta.innerHTML = '자동 선택 · <b>' + esc(mm.label) + '</b> — ' + esc(mm.why); },
-        delta: t => { text += t; if (!raf) raf = requestAnimationFrame(paint); },
+        delta: t => { text += t; const now = Date.now(), gap = mode === 'doc' ? 180 : mode === 'deck' ? 700 : mode === 'edit' ? 400 : 0; if (!raf && now - last >= gap) { last = now; raf = requestAnimationFrame(paint); } },
         done: o => { truncated = !!o.truncated; }
-      }, ctl.signal);
-      if (!ran) { st.msgs.length = base; ans.remove(); if (!base) $('#ao-' + id).hidden = true; return; }
-      cancelAnimationFrame(raf); paint();
-      st.msgs.push({ role: 'assistant', content: text }); st.last = text; st.html = ans.innerHTML;
-      if (truncated) ans.insertAdjacentHTML('beforeend', '<p class="note">답이 길어서 여기서 끊겼습니다. 아래에 "이어서 써 줘"라고 보내 보세요.</p>');
-      aiAutoSave(id, text);
-      const page = /```[ \t]*html/i.test(text) ? extractHtml(text) : '';
+      }, ctl.signal, extra);
+      if (!ran) { st.msgs.length = base; ans.remove(); restore(); if (!base) $('#ao-' + id).hidden = true; return; }
+      cancelAnimationFrame(raf); prog.textContent = '';
+      let plain = text;
+      if (structured) plain = await finishStructured(); else { paint(); st.html = ans.innerHTML; }
+      st.msgs.push({ role: 'assistant', content: text }); st.last = text;
+      dropPrev();
+      if (truncated) ans.insertAdjacentHTML('beforeend', '<p class="note">' + (structured ? '답이 길어서 끝이 잘렸습니다. 아래에 "더 짧게 줄여서 다시 만들어 줘"를 보내 보세요.' : '답이 길어서 여기서 끊겼습니다. 아래에 "이어서 써 줘"라고 보내 보세요.') + '</p>');
+      aiAutoSave(id, plain);
+      const page = mode === 'text' && /```[ \t]*html/i.test(text) ? extractHtml(text) : '';
       if (/<(!doctype|html|body)/i.test(page) && /<\/html>|<\/body>/i.test(page)) {
         const pv = document.createElement('div'); pv.className = 'aiprev';
         pv.innerHTML = '<div class="ph">LIVE PREVIEW · 만든 결과가 바로 실행됩니다' + (m.studio ? ' <a href="#vibe">스튜디오에서 크게 보기</a>' : '') + '</div><iframe title="실행 결과" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe>';
         out.appendChild(pv); pv.querySelector('iframe').srcdoc = withGuard(page);
         if (m.studio) { $('#vCode').value = page; vRun(); }
       }
-      foot.hidden = ask.hidden = chips.hidden = false;
+      showFoot();
     } catch (e) {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf); prog.textContent = '';
       if (e.name === 'AbortError') {
-        paint();
-        if (text.trim()) { st.msgs.push({ role: 'assistant', content: text }); st.last = text; st.html = ans.innerHTML; foot.hidden = ask.hidden = chips.hidden = false; meta.insertAdjacentHTML('beforeend', ' (멈춤)'); }
-        else { st.msgs.length = base; ans.remove(); }
+        let ok = false;
+        if (text.trim()) {
+          try {
+            if (structured) await finishStructured(); else paint();
+            ok = true;
+          } catch (e2) { ok = false; }
+        }
+        if (ok) { st.msgs.push({ role: 'assistant', content: text }); st.last = text; dropPrev(); showFoot(); meta.insertAdjacentHTML('beforeend', ' (멈춤)'); }
+        else { st.msgs.length = base; ans.remove(); restore(); }
       } else {
-        st.msgs.length = base; if (!text.trim()) ans.remove(); else paint();
+        st.msgs.length = base;
+        if (!text.trim() || structured) { ans.remove(); restore(); } else paint();
         err.textContent = e.message; err.hidden = false;
-        if (st.last) { foot.hidden = ask.hidden = chips.hidden = false; }
+        if (st.last) showFoot();
       }
     } finally {
       st.ctl = null; stop.hidden = true;
-      $$('[data-run="' + id + '"], [data-aisend="' + id + '"], [data-airedo="' + id + '"]').forEach(b => { b.disabled = false; });
+      btns.forEach(b => { b.disabled = false; });
     }
   }
-  function aiCopy(id) {
+  async function aiCopy(id) {
     const st = aiChats[id]; if (!st || !st.last) return;
-    copyRich(st.html, mdPlain(st.last), '답을 복사했습니다. 표는 한글·워드·구글 시트에 붙이면 칸이 나뉩니다.');
+    if (st.runMode === 'doc' && docArticle(st.host)) {
+      const a = docArticle(st.host);
+      copyRich('<style>' + docCss() + '</style>' + a.outerHTML, a.innerText, '문서를 복사했습니다. 워드·구글 문서에 붙이면 표와 제목이 그대로 들어갑니다.');
+    } else if (st.runMode === 'deck' && st.deck) copy(deckText(st.deck), '슬라이드 글과 발표 노트를 복사했습니다.');
+    else if (st.runMode === 'edit') copy(st.host ? st.host.innerText : '', '바뀐 곳 목록을 복사했습니다.');
+    else copyRich(st.html, mdPlain(st.last), '답을 복사했습니다. 표는 한글·워드·구글 시트에 붙이면 칸이 나뉩니다.');
+  }
+  async function aiExport(kind, id) {
+    const st = aiChats[id]; if (!st) return;
+    try {
+      if (kind === 'ppt') {
+        if (!st.deck) return; await loadPpt();
+        saveFile(await PptKit.buildDeck(st.deck), (st.deck.title ? st.deck.title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) : baseName()) + '.pptx');
+        toast('PPT 파일을 내려받았습니다. 더블클릭해서 PowerPoint나 Keynote에서 여세요.');
+      } else if (kind === 'edit') {
+        if (!st.editBlob) return;
+        saveFile(st.editBlob, (st.editName || 'slides.pptx').replace(/\.pptx$/i, '') + '_AI수정.pptx');
+        toast('고친 PPT를 내려받았습니다. 원본 파일은 그대로 있습니다.');
+      } else if (kind === 'docx') {
+        const a = docArticle(st.host); if (!a) return; await loadOffice();
+        saveFile(await OfficeKit.docx(a, {}), docTitle(st.host).replace(/[\\/:*?"<>|\s]+/g, '_') + '.docx');
+        toast('Word 파일로 저장했습니다.');
+      } else if (kind === 'xlsx') {
+        const root = st.runMode === 'doc' ? docArticle(st.host) : st.ans;
+        if (!root) return; await loadOffice();
+        const t = OfficeKit.tablesFromElement(root); if (!t.length) { toast('저장할 표가 없습니다.'); return; }
+        saveFile(await OfficeKit.xlsx(t, {}), baseName() + '_표.xlsx');
+        toast('Excel 파일로 저장했습니다. 구글 시트에서도 열립니다.');
+      }
+    } catch (e) { toast('저장하지 못했습니다: ' + (e.message || e)); }
   }
   // every finished answer lands in MY RESULT (and so in the "내 결과물" list and the Word/PDF download) without a click:
   // it replaces the previous auto-saved answer, but appends if the professor edited the box in between.
@@ -1902,13 +2580,56 @@ function removeAlarms() {
     else if (d.aiq) { const [id, k] = d.aiq.split(':'); aiExercise(id, byId(id).next[Number(k)]); }
     else if (d.aistop) { const st = aiChats[d.aistop]; if (st && st.ctl) st.ctl.abort(); }
     else if (d.aicopy) aiCopy(d.aicopy);
-    else if (b.hasAttribute('data-aicode')) askCode().then(c => { if (c) toast('수업 코드를 저장했습니다.'); });
+    else if (d.aisave) docSave(d.aisave);
+    else if (d.aippt) aiExport('ppt', d.aippt);
+    else if (d.aieditdl) aiExport('edit', d.aieditdl);
+    else if (d.aidocx) aiExport('docx', d.aidocx);
+    else if (d.aixlsx) aiExport('xlsx', d.aixlsx);
+    else if (d.aiprint) docPrint(d.aiprint);
+    else if (d.airaw) {
+      const st = aiChats[d.airaw]; if (!st || !st.host) return;
+      const raw = st.host.nextElementSibling, on = raw.hidden;
+      raw.hidden = !on; st.host.hidden = on; b.textContent = on ? '문서 보기' : '원문 보기';
+    } else if (d.aimode) {
+      const [id, md] = d.aimode.split(':'); chatState(id).mode = md; segRender(id);
+    } else if (d.attdel) {
+      const [id, kind, i] = d.attdel.split(':'), a = attOf(id), gone = (kind === 'f' ? a.files : a.images).splice(Number(i), 1)[0];
+      if (gone && gone.pptx) a.pptx = null;
+      a.msg = ''; attRender(id);
+    } else if (d.start) {
+      const [id, k] = d.start.split(':'), s = byId(id).starters[Number(k)], ta = $('#p-' + id);
+      ta.value = s.text(); edited[id] = true; chatState(id).mode = s.view; segRender(id);
+      if (s.view === 'edit' && !attOf(id).pptx) { const dt = $('#at-' + id); if (dt) dt.open = true; toast('고칠 PPT(.pptx)를 "자료 첨부"에 올려 주세요.'); }
+      else if (/첨부/.test(ta.value)) { const dt = $('#at-' + id); if (dt) dt.open = true; toast('자료를 "자료 첨부"에 올리고 RUN을 누르세요.'); }
+      ta.focus(); ta.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else if (b.hasAttribute('data-aicode')) askCode().then(c => { if (c) toast('수업 코드를 저장했습니다.'); });
+  });
+  document.addEventListener('change', e => {
+    const t = e.target; if (t.dataset && t.dataset.aitheme) {
+      const st = aiChats[t.dataset.aitheme]; if (!st || !st.deck) return;
+      st.theme = t.value; st.deck.theme = t.value; st.host.innerHTML = PptKit.previewHtml(st.deck); return;
+    }
+    if (!t.dataset || !t.dataset.attfile) return;
+    attAdd(t.dataset.attfile, t.files).then(() => { t.value = ''; });
+  });
+  ['dragover', 'drop'].forEach(ev => document.addEventListener(ev, e => {
+    const z = e.target.closest && e.target.closest('[data-attdrop]'); if (!z) return;
+    e.preventDefault(); z.classList.toggle('over', ev === 'dragover');
+    if (ev === 'drop' && e.dataTransfer && e.dataTransfer.files.length) attAdd(z.dataset.attdrop, e.dataTransfer.files);
+  }));
+  document.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('[data-attdrop]'); if (z) z.classList.remove('over'); });
+  document.addEventListener('paste', e => {  // a screenshot pasted into a prompt box becomes an attached image
+    const ta = e.target; if (!ta || !ta.id || !ta.id.startsWith('p-') || !e.clipboardData) return;
+    const imgs = Array.from(e.clipboardData.files || []).filter(f => /^image\//.test(f.type)); if (!imgs.length) return;
+    e.preventDefault(); attAdd(ta.id.slice(2), imgs); toast('붙여 넣은 그림을 자료로 올렸습니다.');
   });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing || !e.target.id || !e.target.id.startsWith('ao-in-')) return;
     e.preventDefault();
     const id = e.target.id.slice(6), t = e.target.value; e.target.value = ''; aiExercise(id, t);
   });
+  M.forEach(m => { if (m.ai !== false) { segRender(m.id); attRender(m.id); } });
+  { const c = $('#p-w-1'); if (c) c.placeholder = '하고 싶은 일을 편하게 적으세요. 위 "자주 쓰는 프롬프트"를 눌러 시작해도 됩니다. 예: 올린 강의자료로 4쪽짜리 학생용 예습 가이드를 만들어 줘.'; }
 
   // vibe-coding studio: build / fix with AI ONE, keep the model's HTML, and run it
   let vAiCtl = null;

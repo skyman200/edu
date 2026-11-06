@@ -1,9 +1,10 @@
 // Plain-node checks for the /api/ai proxy: `node functions/_lib/route.test.mjs`. No test framework.
 // The upstream is a fake fetch; nothing here calls the network.
 import assert from 'node:assert/strict';
-import { pickModel, normalizeEx, systemPromptFor, fallbackWhy, TIERS, isHeavyChat } from './route.js';
-import { validateMessages, readLimits, matchCode, clientKey, createStore, badCodeGate, admit, readJsonBody, _resetMemory } from './limits.js';
+import { pickModel, normalizeEx, systemPromptFor, withAttachments, fallbackWhy, TIERS, isHeavyChat } from './route.js';
+import { SIZE, validateMessages, validateAttachments, readLimits, matchCode, clientKey, createStore, badCodeGate, admit, readJsonBody, _resetMemory } from './limits.js';
 import { isAllowedOrigin } from './cors.js';
+import { normalizeView, applyView, viewPrompt, VIEWS } from './views.js';
 import { onRequest, createSseParser, parseRetryAfter } from '../api/ai.js';
 
 const tests = [];
@@ -15,8 +16,8 @@ test('route table: exercise -> tier, model, maxTokens', () => {
     's1-1': ['fast', 1500], 's2-5': ['fast', 1500],
     's1-2': ['balanced', 4000], 's1-4': ['balanced', 4000], 's2-2': ['balanced', 4000], 's2-3': ['balanced', 4000],
     's2-4': ['balanced', 4000], 's3-1': ['balanced', 4000], 's3-2': ['balanced', 4000], 's3-4': ['balanced', 4000],
-    's3-5': ['balanced', 4000], 'p-1': ['balanced', 4000], 'p-2': ['balanced', 4000], 'p-3': ['balanced', 4000],
-    'p-4': ['balanced', 4000], 'p-9': ['balanced', 4000],
+    's3-5': ['balanced', 4000], 'p-1': ['balanced', 6000], 'p-2': ['balanced', 6000], 'p-3': ['balanced', 6000],
+    'p-4': ['balanced', 6000], 'p-9': ['balanced', 6000],
     's1-3': ['balanced', 6000], 's2-1': ['balanced', 6000], 's3-3': ['balanced', 6000],
     's4-1': ['balanced', 8000], 's4-2': ['balanced', 8000], 's4-3': ['balanced', 8000],
     's4-4': ['strong', 12000], vibe: ['strong', 12000],
@@ -123,8 +124,16 @@ test('readJsonBody caps size and rejects non-objects', async () => {
   assert.equal((await readJsonBody(req('{"a":1}'))).ok, true);
   assert.equal((await readJsonBody(req('[1]'))).status, 400);
   assert.equal((await readJsonBody(req('{bad'))).status, 400);
-  assert.equal((await readJsonBody(req('x'.repeat(600 * 1024)))).status, 413);
+  assert.equal(SIZE.maxBodyBytes, 6 * 1024 * 1024);
+  assert.equal((await readJsonBody(req('x'.repeat(SIZE.maxBodyBytes + 1)))).status, 413);
+  assert.equal((await readJsonBody(req(JSON.stringify({ t: 'x'.repeat(SIZE.maxBodyBytes - 20) })))).ok, true);
   assert.equal((await readJsonBody(req('{}', { 'Content-Length': '999999999' }))).status, 413);
+  // no Content-Length and an endless body: reading stops at the byte cap
+  let pulled = 0;
+  const endless = new ReadableStream({ pull(c) { pulled += 65536; c.enqueue(new Uint8Array(65536)); } });
+  const cut = await readJsonBody(new Request('http://x/api/ai', { method: 'POST', body: endless, duplex: 'half' }));
+  assert.equal(cut.status, 413);
+  assert.ok(pulled <= SIZE.maxBodyBytes + 4 * 65536, `pulled ${pulled}`);
 });
 
 test('limits: defaults and env overrides', () => {
@@ -341,7 +350,7 @@ async function call(body, { env = {}, origin = 'https://kimcook-edu.pages.dev', 
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     const req = JSON.parse(init.body);
-    calls.push({ url, model: req.model, maxTokens: req.max_tokens, messages: req.messages, auth: init.headers.Authorization });
+    calls.push({ url, model: req.model, maxTokens: req.max_tokens, messages: req.messages, auth: init.headers.Authorization, body: req });
     return upstream ? upstream(req, calls.length) : okStream();
   };
   try {
@@ -497,6 +506,275 @@ test('handler: validation, origin, method, disabled', async () => {
   } finally {
     console.error = err;
   }
+});
+
+// ---------- attachments ----------
+
+const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+const JPG = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+const jpgOfLength = (n) => `data:image/jpeg;base64,${'A'.repeat(n - 23)}`;
+const doc = (text = '본문', name = 'a.pdf') => ({ name, text });
+const pic = (url = PNG, name = 'p.png') => ({ name, url });
+const CODE = 'TESTCODE';
+
+test('validateAttachments: counts and sizes', () => {
+  const va = (files, images, messages = [user('q')]) => validateAttachments(files, images, messages);
+  const none = va(undefined, null);
+  assert.deepEqual([none.ok, none.files, none.images], [true, [], []]);
+  assert.deepEqual([va([], []).files, va([], []).images], [[], []]);
+  assert.equal(va(Array.from({ length: 3 }, () => doc())).ok, true);
+  assert.deepEqual([va(Array.from({ length: 4 }, () => doc())).status, va(Array.from({ length: 4 }, () => doc())).code], [413, 'too_long']);
+  assert.equal(va([doc('x'.repeat(100000))]).ok, true);
+  assert.equal(va([doc('x'.repeat(100001))]).status, 413);
+  assert.equal(va([doc('x'.repeat(75000)), doc('x'.repeat(75000))]).ok, true);
+  assert.equal(va([doc('x'.repeat(75000)), doc('x'.repeat(75001))]).status, 413);
+  assert.equal(va(null, Array.from({ length: 4 }, () => pic())).ok, true);
+  assert.equal(va(null, Array.from({ length: 5 }, () => pic())).status, 413);
+  const max = jpgOfLength(1_399_999); // the longest valid base64 length under the 1,400,000 cap
+  assert.equal(va(null, [pic(max)]).ok, true);
+  assert.equal(va(null, [pic(jpgOfLength(1_400_003))]).status, 413);
+  assert.equal(va(null, [pic(max), pic(max)]).ok, true);
+  assert.equal(va(null, [pic(max), pic(max), pic(max)]).status, 413, 'all images together over 4,000,000');
+  const msgOnly = validateMessages([user('x'.repeat(12000))]);
+  assert.ok(msgOnly.ok && va([doc('x'.repeat(100000))], null, msgOnly.messages).ok, 'message caps do not count attachments');
+});
+
+test('validateAttachments: formats, empty text, first turn', () => {
+  const va = (files, images, messages = [user('q')]) => validateAttachments(files, images, messages);
+  const empty = va([doc(' \n\t ')]);
+  assert.deepEqual([empty.status, empty.code], [400, 'bad_request']);
+  assert.ok(empty.message.includes('«a.pdf»') && empty.message.includes('읽을 수 있는 글자'), empty.message);
+  for (const bad of ['x', {}, 3, true]) {
+    assert.equal(va(bad).status, 400, `files ${JSON.stringify(bad)}`);
+    assert.equal(va(null, bad).status, 400, `images ${JSON.stringify(bad)}`);
+  }
+  for (const bad of [[null], ['text'], [{ name: 'a' }], [{ text: 1 }], [{ name: 5, text: 'x' }]]) assert.equal(va(bad).status, 400, JSON.stringify(bad));
+  for (const bad of [[null], [PNG], [{ name: 'a' }], [{ url: 1 }]]) assert.equal(va(null, bad).status, 400, JSON.stringify(bad));
+  const badUrls = [
+    'data:image/gif;base64,R0lGODlh',
+    'data:image/svg+xml;base64,PHN2Zz4=',
+    'data:image/PNG;base64,iVBORw0KGgo=',
+    'data:image/png;base64,',
+    'data:image/png;base64,abc!',
+    'data:image/png;base64,abc',
+    'data:image/png;base64,ab==cd==',
+    'data:image/png;base64,iVBO RW0K',
+    'data:image/png;base64,iVBORw0KGgo=\n',
+    ' data:image/png;base64,iVBORw0KGgo=',
+    'data:image/png,iVBORw0KGgo=',
+    'data:text/html;base64,PGI+',
+    `data:image/jpeg;base64,${'é'.repeat(8)}`,
+    'https://example.com/a.png',
+  ];
+  for (const url of badUrls) {
+    const r = va(null, [pic(url)]);
+    assert.deepEqual([r.status, r.code], [400, 'bad_request'], JSON.stringify(url));
+  }
+  for (const url of [PNG, JPG, 'data:image/webp;base64,UklGRg==', 'data:image/png;base64,ab+/']) assert.equal(va(null, [pic(url)]).ok, true, url);
+  const t0 = Date.now();
+  assert.equal(va(null, [pic(`${jpgOfLength(1_399_998)}!`)]).status, 400, 'bad last char of a long url');
+  assert.ok(Date.now() - t0 < 1000, 'linear-time check');
+  const lead = va([doc()], null, [{ role: 'assistant', content: '안녕하세요' }, user('q')]);
+  assert.deepEqual([lead.status, lead.code], [400, 'bad_request']);
+  assert.equal(va(null, null, [{ role: 'assistant', content: '안녕하세요' }, user('q')]).ok, true, 'no attachments: unchanged');
+});
+
+test('validateAttachments: names are cleaned and cut', () => {
+  const va = (files, images) => validateAttachments(files, images, [user('q')]);
+  const r = va([doc('t', `a\nb\r\nc\u0000d\u202e«e»\u2028f\t${'g'.repeat(200)}`)], [pic(PNG, '\u0007\n'), pic(JPG, '  사진  1 ')]);
+  assert.ok(r.ok);
+  const n = r.files[0].name;
+  assert.ok(n.length <= 80, `length ${n.length}`);
+  assert.ok(!/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202e«»]/.test(n), JSON.stringify(n));
+  assert.ok(n.startsWith('a b c de f ggg'), JSON.stringify(n));
+  assert.deepEqual(r.images.map((im) => im.name), ['이미지 1', '사진 1']);
+  assert.equal(va([doc('t', `${'x'.repeat(79)}😀`)]).files[0].name, 'x'.repeat(79), 'no half surrogate');
+  assert.deepEqual(va([{ text: 'a' }, { name: '', text: 'b' }]).files.map((f) => f.name), ['파일 1', '파일 2']);
+  assert.equal(va([doc('본문', 'x'.repeat(5000))]).files[0].name.length, 80);
+});
+
+test('withAttachments: message shapes and order', () => {
+  const msgs = [user('원래 질문'), { role: 'assistant', content: '답' }, user('후속 질문')];
+  assert.equal(withAttachments(msgs, { files: [], images: [] }), msgs);
+  const files = [doc('A본문', 'a.pdf'), doc('B본문', 'b.txt')];
+  const block = '[첨부 자료 «a.pdf» 시작]\nA본문\n[첨부 자료 «a.pdf» 끝]\n\n[첨부 자료 «b.txt» 시작]\nB본문\n[첨부 자료 «b.txt» 끝]';
+  const f = withAttachments(msgs, { files, images: [] });
+  assert.deepEqual(f[0], user(`${block}\n\n원래 질문`));
+  assert.deepEqual(f.slice(1), msgs.slice(1));
+  const images = [pic(JPG, 'x.jpg'), pic(PNG, 'y.png')];
+  const i = withAttachments(msgs, { files: [], images });
+  assert.deepEqual(i[0], {
+    role: 'user',
+    content: [
+      { type: 'text', text: '첨부 이미지 2장: x.jpg, y.png\n\n원래 질문' },
+      { type: 'image_url', image_url: { url: JPG } },
+      { type: 'image_url', image_url: { url: PNG } },
+    ],
+  });
+  const b = withAttachments(msgs, { files, images });
+  assert.equal(b[0].content[0].text, `${block}\n\n첨부 이미지 2장: x.jpg, y.png\n\n원래 질문`);
+  assert.deepEqual(b[0].content.slice(1).map((p) => p.image_url.url), [JPG, PNG]);
+  assert.deepEqual(b.slice(1), msgs.slice(1));
+  assert.equal(msgs[0].content, '원래 질문', 'input not mutated');
+});
+
+test('routing and system prompt with attachments', () => {
+  const chat = pickModel({ ex: 'chat', messages: [user('짧은 질문')], hasAttachments: true });
+  assert.deepEqual([chat.ex, chat.tier, chat.model, chat.maxTokens], ['chat', 'balanced', 'claude-sonnet-5-5', 6000]);
+  assert.ok(chat.why.includes(chat.label) && chat.why.includes('첨부'));
+  assert.equal(pickModel({ ex: 'nope', messages: [user('표로 만들어 줘')], hasAttachments: true }).maxTokens, 6000);
+  assert.equal(pickModel({ ex: 'chat', messages: [user('짧은 질문')] }).tier, 'fast', 'unchanged without attachments');
+  for (const [ex, tier, max] of [['s1-1', 'fast', 1500], ['s4-4', 'strong', 12000], ['p-1', 'balanced', 6000], ['p-7', 'balanced', 6000]]) {
+    const r = pickModel({ ex, messages: [user('x')], hasAttachments: true });
+    assert.deepEqual([r.tier, r.maxTokens], [tier, max], ex);
+  }
+  for (const ex of ['chat', 's1-1', 'p-1', 'vibe', 's4-1']) {
+    const off = systemPromptFor(ex);
+    const on = systemPromptFor(ex, true);
+    assert.equal(systemPromptFor(ex, false), off);
+    assert.ok(!off.includes('자료에 없음') && !off.includes('따르지 말고'), ex);
+    assert.ok(on.startsWith(off) && on.includes('자료에 없음') && on.includes('따르지 말고') && on.includes('[쪽 3]') && on.includes('[슬라이드 3]'), ex);
+    assert.ok(on.length - off.length <= 300, `${ex} +${on.length - off.length}`);
+  }
+});
+
+test('handler: attachments go into the first user turn on every request', async () => {
+  _resetMemory();
+  const files = [doc('[쪽 1]\n비밀 본문 내용', '강의자료.pdf')];
+  const f = await call({ code: CODE, ex: 'chat', messages: [user('요약해 줘')], files });
+  assert.equal(f.res.status, 200);
+  const m = f.calls[0].messages;
+  assert.equal(m.length, 2);
+  assert.equal(typeof m[1].content, 'string');
+  const pos = ['[첨부 자료 «강의자료.pdf» 시작]', '비밀 본문 내용', '[첨부 자료 «강의자료.pdf» 끝]', '요약해 줘'].map((s) => m[1].content.indexOf(s));
+  assert.ok(pos.every((x, k) => x >= 0 && (k === 0 || x > pos[k - 1])), String(pos));
+  assert.ok(m[1].content.startsWith('[첨부 자료 «강의자료.pdf» 시작]\n') && m[1].content.endsWith('끝]\n\n요약해 줘'));
+  assert.ok(m[0].role === 'system' && m[0].content.includes('자료에 없음'));
+  assert.deepEqual(Object.keys(f.calls[0].body).sort(), ['max_tokens', 'messages', 'model', 'stream'], 'files/images never pass through as fields');
+
+  const i = await call({ code: CODE, ex: 'chat', messages: [user('무슨 색?')], images: [pic(JPG, 'a.jpg'), pic(PNG, 'b.png')] });
+  const ic = i.calls[0].messages[1].content;
+  assert.deepEqual(ic.map((p) => p.type), ['text', 'image_url', 'image_url']);
+  assert.equal(ic[0].text, '첨부 이미지 2장: a.jpg, b.png\n\n무슨 색?');
+  assert.deepEqual(ic.slice(1).map((p) => p.image_url.url), [JPG, PNG]);
+  assert.ok(i.calls[0].messages[0].content.includes('자료에 없음'));
+
+  const both = await call({ code: CODE, ex: 'chat', messages: [user('설명해 줘')], files, images: [pic(JPG, 'a.jpg')] });
+  const bc = both.calls[0].messages[1].content;
+  assert.deepEqual(bc.map((p) => p.type), ['text', 'image_url']);
+  assert.ok(bc[0].text.startsWith('[첨부 자료 «강의자료.pdf» 시작]\n') && bc[0].text.endsWith('끝]\n\n첨부 이미지 1장: a.jpg\n\n설명해 줘'), bc[0].text);
+
+  const turns = [user('첫 질문'), { role: 'assistant', content: '첫 답' }, user('둘째 질문')];
+  const follow = await call({ code: CODE, ex: 'chat', messages: turns, files, images: [pic(JPG, 'a.jpg')] });
+  const fm = follow.calls[0].messages;
+  assert.equal(fm.length, 4);
+  assert.ok(fm[1].content[0].text.includes('[첨부 자료 «강의자료.pdf» 시작]') && fm[1].content[0].text.endsWith('첫 질문'));
+  assert.deepEqual(fm.slice(2), turns.slice(1), 'later turns untouched');
+  assert.equal(follow.events[0].meta.tier, 'balanced', 'follow-ups keep the attachment route');
+
+  const big = await call({ code: CODE, ex: 'chat', messages: [user('x'.repeat(12000))], files: [doc('가'.repeat(100000), 'a'), doc('나'.repeat(50000), 'b')] });
+  assert.equal(big.res.status, 200, 'attachments do not count against the message caps');
+
+  const plain = await call({ code: CODE, ex: 'chat', messages: [user('질문')] });
+  assert.ok(!plain.calls[0].messages[0].content.includes('자료에 없음'));
+  assert.equal(plain.calls[0].messages[1].content, '질문');
+});
+
+test('handler: routing with attachments', async () => {
+  _resetMemory();
+  const files = [doc('본문', 'a.txt')];
+  const chat = await call({ code: CODE, ex: 'chat', messages: [user('짧은 질문')], files });
+  assert.deepEqual([chat.calls[0].model, chat.calls[0].maxTokens, chat.events[0].meta.tier], ['claude-sonnet-5-5', 6000, 'balanced']);
+  const imgs = await call({ code: CODE, messages: [user('hi')], images: [pic()] });
+  assert.deepEqual([imgs.calls[0].maxTokens, imgs.events[0].meta.tier], [6000, 'balanced']);
+  const p1 = await call({ code: CODE, ex: 'p-1', messages: [user('정리해 줘')], files });
+  assert.deepEqual([p1.calls[0].model, p1.calls[0].maxTokens], ['claude-sonnet-5-5', 6000]);
+  const s11 = await call({ code: CODE, ex: 's1-1', messages: [user('요약')], files });
+  assert.deepEqual([s11.calls[0].model, s11.calls[0].maxTokens], ['claude-haiku-5-5', 1500], 'exercise models stay fixed');
+  const vibe = await call({ code: CODE, ex: 'vibe', messages: [user('앱')], files });
+  assert.ok(vibe.calls[0].messages[0].content.includes('```html') && vibe.calls[0].messages[0].content.includes('자료에 없음'));
+  const plain = await call({ code: CODE, ex: 'chat', messages: [user('짧은 질문')] });
+  assert.deepEqual([plain.calls[0].maxTokens, plain.events[0].meta.tier], [1500, 'fast']);
+});
+
+test('handler: bad attachments -> 4xx before any budget or upstream call', async () => {
+  _resetMemory();
+  const env = { AI_LIMIT_IP_10M: '1' };
+  const q = (extra) => call({ code: CODE, ex: 'chat', messages: [user('q')], ...extra }, { env });
+  const cases = [
+    [{ files: Array.from({ length: 4 }, () => doc()) }, 413],
+    [{ files: [doc('x'.repeat(100001))] }, 413],
+    [{ files: [doc('x'.repeat(80000)), doc('x'.repeat(80000))] }, 413],
+    [{ files: [doc('  \n ')] }, 400],
+    [{ files: 'x' }, 400],
+    [{ images: [pic('data:image/gif;base64,R0lGODlh')] }, 400],
+    [{ images: [pic('data:image/png;base64,abc!')] }, 400],
+    [{ images: [pic('https://example.com/a.png')] }, 400],
+    [{ images: Array.from({ length: 5 }, () => pic()) }, 413],
+    [{ images: [pic(jpgOfLength(1_400_003))] }, 413],
+    [{ images: [pic(jpgOfLength(1_399_999)), pic(jpgOfLength(1_399_999)), pic(jpgOfLength(1_399_999))] }, 413],
+    [{ images: [pic(jpgOfLength(SIZE.maxBodyBytes + 100))] }, 413],
+    [{ messages: [{ role: 'assistant', content: '안녕하세요' }, user('q')], files: [doc()] }, 400],
+  ];
+  for (const [extra, status] of cases) {
+    const r = await q(extra);
+    const label = JSON.stringify(extra).slice(0, 90);
+    assert.equal(r.res.status, status, label);
+    assert.ok(/[가-힣]/.test(parseJson(r).error), label);
+    assert.equal(parseJson(r).code, status === 413 ? 'too_long' : 'bad_request', label);
+    assert.equal(r.calls.length, 0, label);
+  }
+  const wrong = await q({ code: 'nope', files: 'junk', images: 'junk' });
+  assert.deepEqual([wrong.res.status, wrong.calls.length], [401, 0], 'the code check comes first');
+  const ok = await q({ files: [doc()] });
+  assert.equal(ok.res.status, 200, 'rejected requests used no budget (ip10m = 1)');
+  const over = await q({ files: [doc()] });
+  assert.equal(over.res.status, 429, 'accepted requests do count');
+});
+
+test('handler: check:true ignores attachments', async () => {
+  _resetMemory();
+  const r = await call({ code: CODE, check: true, files: Array.from({ length: 9 }, () => ({ text: '' })), images: 'junk' });
+  assert.deepEqual([r.res.status, parseJson(r), r.calls.length], [200, { ok: true }, 0]);
+  const good = await call({ code: CODE, check: true, files: [doc()], images: [pic()] });
+  assert.deepEqual([good.res.status, parseJson(good), good.calls.length], [200, { ok: true }, 0]);
+});
+
+test('handler: attachment names, text and urls never reach the logs', async () => {
+  _resetMemory();
+  const logs = [];
+  const saved = { log: console.log, info: console.info, warn: console.warn, error: console.error, debug: console.debug };
+  for (const k of Object.keys(saved)) console[k] = (...a) => logs.push(a.map(String).join(' '));
+  try {
+    const files = [doc('SECRETTEXT', 'SECRETNAME.pdf')];
+    const images = [pic('data:image/jpeg;base64,U0VDUkVUSU1H', 'SECRETIMG.jpg')];
+    const r = await call({ code: CODE, ex: 's4-4', messages: [user('x')], files, images }, { upstream: (req, n) => (n === 1 ? new Response('{"detail":"boom"}', { status: 500 }) : okStream()) });
+    assert.equal(r.res.status, 200);
+    await call({ code: CODE, ex: 'chat', messages: [user('x')], files: [doc(' ', 'SECRETEMPTY')] });
+    await call({ code: CODE, ex: 'chat', messages: [user('x')], images: [pic('data:image/png;base64,SECRET!', 'SECRETBAD')] });
+    await call({ code: CODE, ex: 'chat', messages: [user('x')], files, images }, { upstream: () => { throw new TypeError('boom'); } });
+  } finally {
+    Object.assign(console, saved);
+  }
+  assert.ok(logs.length >= 1, 'the fallback was logged');
+  assert.ok(!logs.some((l) => /SECRET|U0VDUkVU|base64/.test(l)), logs.join('\n'));
+});
+
+test('views: unknown view ignored, known view forces balanced model and length, adds its prompt', () => {
+  assert.equal(normalizeView('x'), null);
+  assert.equal(normalizeView({}), null);
+  assert.equal(normalizeView('constructor'), null);
+  const labels = { 'claude-sonnet-5-5': 'Claude Sonnet 5.5' };
+  const base = pickModel({ ex: 's1-1', messages: [user('hi')] });
+  assert.equal(base.tier, 'fast');
+  assert.equal(applyView(base, null, TIERS, labels), base);
+  const r = applyView(base, 'doc', TIERS, labels);
+  assert.equal(r.model, 'claude-sonnet-5-5');
+  assert.equal(r.maxTokens, VIEWS.doc.maxTokens);
+  assert.ok(r.why.includes('Claude Sonnet 5.5'));
+  assert.ok(systemPromptFor('s2-3', false, 'doc').includes(viewPrompt('doc', 's2-3')));
+  assert.ok(viewPrompt('doc', 's2-3').length > 1000);
+  assert.ok(!systemPromptFor('s2-3', false, null).includes(viewPrompt('doc', 's2-3')));
 });
 
 let failed = 0;

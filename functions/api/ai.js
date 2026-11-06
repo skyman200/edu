@@ -1,16 +1,20 @@
 // POST /api/ai: runs a workshop exercise prompt through the DIT AI-ONE (Mindlogic) gateway.
 // The browser never sees the API key; the server picks the model (../_lib/route.js).
-// Request:  { code, ex, messages:[{role:'user'|'assistant', content}] }  or  { code, check:true }
+// Request:  { code, ex, messages:[{role:'user'|'assistant', content}][, files:[{name,text}]][, images:[{name,url}]] }
+//           or { code, check:true }. files carry text extracted in the browser; images are data:image/...;base64 URLs.
+//           Both are resent on every turn and go into the first user message (../_lib/route.js withAttachments).
 // Success:  text/event-stream of  data:{"meta":{model,label,tier,why}}, data:{"delta":"..."}...,
 //           then data:{"done":true[,"truncated":true][,"usage":{...}]}  or  data:{"error":"..."}
 // Failure:  JSON { error:<Korean>, code:bad_code|rate|budget|disabled|too_long|bad_request|upstream[, retryAfter] }
-import { pickModel, systemPromptFor, labelOf, fallbackWhy } from '../_lib/route.js';
+import { pickModel, systemPromptFor, withAttachments, labelOf, fallbackWhy, TIERS, MODEL_LABELS } from '../_lib/route.js';
+import { normalizeView, applyView } from '../_lib/views.js';
 import {
   SIZE,
   readLimits,
   isKillSwitchOff,
   readJsonBody,
   validateMessages,
+  validateAttachments,
   parseCodes,
   matchCode,
   clientKey,
@@ -103,7 +107,11 @@ async function handle(context, origin) {
   // Only roles and text pass through; model, system, max_tokens, tools... from the client are ignored.
   const v = validateMessages(body.messages);
   if (!v.ok) return fromFailure(v, origin);
-  const route = pickModel({ ex: body.ex, messages: v.messages });
+  const att = validateAttachments(body.files, body.images, body.messages);
+  if (!att.ok) return fromFailure(att, origin);
+  const hasAttachments = att.files.length + att.images.length > 0;
+  const view = normalizeView(body.view);
+  const route = applyView(pickModel({ ex: body.ex, messages: v.messages, hasAttachments }), view, TIERS, MODEL_LABELS);
 
   const adm = await admit(store, { ip, codeId, now: Date.now(), limits });
   if (!adm.ok) return fromFailure(adm, origin);
@@ -114,7 +122,8 @@ async function handle(context, origin) {
   const upstream = {
     url: `${String(env.AI_GATEWAY_BASE_URL || DEFAULT_BASE).trim().replace(/\/+$/, '')}/chat/completions`,
     apiKey,
-    messages: [{ role: 'system', content: systemPromptFor(route.ex) }, ...v.messages],
+    // Serialized once: with attachments it can be megabytes, and connect() may send it up to 9 times.
+    messagesJson: JSON.stringify([{ role: 'system', content: systemPromptFor(route.ex, hasAttachments, view) }, ...withAttachments(v.messages, att)]),
   };
   let conn;
   try {
@@ -248,7 +257,7 @@ async function tryModel(model, route, upstream, ctl) {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
       },
-      body: JSON.stringify({ model, messages: upstream.messages, max_tokens: route.maxTokens, stream: true }),
+      body: `{"model":${JSON.stringify(model)},"messages":${upstream.messagesJson},"max_tokens":${route.maxTokens},"stream":true}`,
       signal: ctl.signal,
     });
   } catch {

@@ -8,7 +8,10 @@ find functions -name '._*' -delete
 S=$(mktemp -d /tmp/kimcook-edu-deploy.XXXXXX)
 trap 'rm -rf "$S"' EXIT
 mkdir -p "$S/public"
-cp index.html check.html ping.js ai-class-slides.pdf "$S/public/"
+cp index.html check.html ping.js ai-class-slides.pdf ppt-kit.js office-kit.js "$S/public/"
+cp -R vendor "$S/public/vendor"
+find "$S" -name '._*' -delete
 cp -R functions "$S/functions"
+rm -f "$S/functions/_lib/"*.test.mjs
 cd "$S"
 npx --yes wrangler@latest pages deploy public --project-name kimcook-edu --branch main --commit-dirty=true
