@@ -180,6 +180,13 @@ dialog.aidlg h3{margin:0 0 6px;font-size:18px}
 .aidoc{padding:18px}
 .airaw{margin:0;padding:14px 18px;background:var(--night);color:#EDEDEA;font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow:auto}
 .aiprog{font-size:12px;color:var(--mute)}
+.blanks{margin:0 0 10px;border:1px solid var(--ink);background:#fff;padding:12px 14px}
+.blh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.blh .mini{margin-left:auto}
+.blg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:10px}
+.blf{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:700;color:var(--ink2)}
+.blf input{font:500 14px var(--sans);padding:8px 10px;border:1px solid var(--line2);background:var(--paper);width:100%;box-sizing:border-box}
+.blf input:focus{outline:2px solid var(--red);background:#fff}
 .aiextra{display:flex;gap:10px;margin-top:12px}
 .aiextra input{flex:1;min-width:0}
 .segrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px}
@@ -1590,7 +1597,7 @@ function removeAlarms() {
           return '<div class="' + (fd.full ? 'full' : '') + '"><label for="' + id + '">' + esc(fd.label) + '</label>' + ctl + '</div>';
         }).join('');
         const aiBtns = AI.map(a => '<button class="btn ' + (a.name === 'ChatGPT' ? '' : 'ghostb') + '" data-ai="' + a.name + '" data-m="' + m.id + '"><span class="k">OPEN</span>' + aiName(a) + '</button>').join('');
-        const promptBlock = m.prompt ? '<div><h4>' + (m.ai === false ? 'PROMPT FOR ASIDE' : 'PROMPT') + '</h4><textarea class="prompt" id="p-' + m.id + '" spellcheck="false"></textarea>'
+        const promptBlock = m.prompt ? '<div><h4>' + (m.ai === false ? 'PROMPT FOR ASIDE' : 'PROMPT') + '</h4><div class="blanks" id="bl-' + m.id + '" hidden></div><textarea class="prompt" id="p-' + m.id + '" spellcheck="false"></textarea>'
           + (m.ai === false ? '' : aiControls(m))
           + '<div class="row"><button class="btn red" data-copy="' + m.id + '">프롬프트 복사</button>'
           + (m.ai === false ? '' : '<button class="btn red" data-run="' + m.id + '"><span class="k">RUN</span>AI ONE으로 바로 실행</button>' + aiBtns)
@@ -1625,7 +1632,7 @@ function removeAlarms() {
         el.addEventListener('change', () => { fieldVals[m.id] = fieldVals[m.id] || {}; fieldVals[m.id][fd.k] = el.value; edited[m.id] = false; refreshPrompts(); });
       });
       const ta = $('#p-' + m.id);
-      if (ta) ta.addEventListener('input', () => { edited[m.id] = true; });
+      if (ta) ta.addEventListener('input', () => { edited[m.id] = true; blBuild(m.id); });
       const cb = $('[data-done="' + m.id + '"]');
       cb.checked = done.has(m.id);
       cb.addEventListener('change', () => { cb.checked ? done.add(m.id) : done.delete(m.id); store.set('acl-done', [...done]); progress(); });
@@ -1653,6 +1660,7 @@ function removeAlarms() {
       const ta = $('#p-' + m.id);
       if (ta && !edited[m.id]) ta.value = promptFor(m);
     });
+    M.forEach(m => { if (m.prompt) blBuild(m.id); });
     vPromptRefresh();  // the studio's build prompt also carries the course name
   }
   function progress() {
@@ -1983,6 +1991,74 @@ function removeAlarms() {
     });
   }
   const fillBlanks = text => text.replace(/\((교과목명|교과목|학년·인원|대상|핵심 내용|학생 특징)\)/g, (s) => (course[PH[s]] || '').trim() || s);
+
+  /* ---------- fill-in-the-blanks panel: the ( ) [ ] 【 】 spots of a prompt become small input boxes (optional, can be switched off) ---------- */
+  const BL_KEY = { '교과목명': 'course', '교과목': 'course', '학년·인원': 'target', '대상': 'target', '핵심 내용': 'topics', '학생 특징': 'learners' };
+  let blankOn = store.get('acl-blanks', true) !== false;
+  const blState = {};
+  // ( ) counts when it stands alone after a space (so "5개(한 줄 설명)" format hints are skipped); [ ] only after a colon (so "[과목 정보]" headings are skipped); 【 】 always
+  function scanBlanks(text) {
+    const out = [], re = /【([^】\n]{0,30})】|\(([^()\n|:,]{0,24})\)|\[([^\[\]\n|]{0,30})\]/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const ls = text.lastIndexOf('\n', m.index - 1) + 1, before = text.slice(ls, m.index);
+      if (m[2] !== undefined && m.index > 0 && !/\s/.test(text[m.index - 1])) continue;
+      if (m[3] !== undefined) {
+        const le = text.indexOf('\n', m.index), after = text.slice(m.index + m[0].length, le < 0 ? text.length : le);
+        if (!before.trim() && !after.trim()) continue;
+        if (!/[:：]\s*$/.test(before)) continue;
+      }
+      let label = (m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3]).trim();
+      if (label && (!/[가-힣A-Za-z]/.test(label) || /^예(시)?$/.test(label))) continue;
+      if (!label) label = before.replace(/^[\s\-•*\d.]+/, '').replace(/[:：\s]+$/, '').slice(-14) || '빈칸';
+      out.push({ i: m.index, len: m[0].length, label });
+    }
+    return out;
+  }
+  function blRender(st) {
+    let t = '', p = 0;
+    st.hits.forEach(h => { t += st.tpl.slice(p, h.i) + ((st.vals[h.label] || '').trim() || st.tpl.substr(h.i, h.len)); p = h.i + h.len; });
+    return t + st.tpl.slice(p);
+  }
+  // rebuild the boxes when the prompt text changed from outside (course info, starter, manual typing); typed box values are kept for blanks that are still there
+  function blBuild(id, force) {
+    const ta = $('#p-' + id), box = $('#bl-' + id); if (!ta || !box) return;
+    const st = blState[id] = blState[id] || { tpl: '', hits: [], vals: {}, last: null };
+    if (!force && st.last === ta.value) return;
+    st.tpl = ta.value; st.hits = scanBlanks(st.tpl);
+    const labels = [...new Set(st.hits.map(h => h.label))];
+    Object.keys(st.vals).forEach(k => { if (!labels.includes(k)) delete st.vals[k]; });
+    const t = blRender(st); if (t !== ta.value) ta.value = t;
+    st.last = ta.value;
+    box.hidden = !labels.length;
+    box.innerHTML = '<div class="blh"><b>빈칸만 채우기</b><span class="note">' + (blankOn ? '프롬프트의 ( ) [ ] 【 】 자리를 칸으로 채웁니다. 칸에 쓰면 아래 프롬프트에 바로 들어갑니다.' : '꺼져 있습니다. 프롬프트 칸에서 직접 고치세요.') + '</span><button class="mini" data-bltoggle>' + (blankOn ? '끄기' : '켜기') + '</button></div>'
+      + (blankOn ? '<div class="blg">' + labels.map(l => '<label class="blf"><span>' + esc(l) + '</span><input data-blk="' + id + '" data-bll="' + esc(l) + '" value="' + esc(st.vals[l] || '') + '" placeholder="' + esc(l) + '" autocomplete="off"></label>').join('') + '</div>' : '');
+  }
+  function blWriteBack(id) {  // values for course-info blanks are kept in "내 수업 정보" too, so the next exercise already has them
+    const st = blState[id]; if (!st) return;
+    const upd = {};
+    Object.keys(st.vals).forEach(l => { if (BL_KEY[l] && st.vals[l].trim()) upd[BL_KEY[l]] = st.vals[l].trim(); });
+    if (!Object.keys(upd).length) return;
+    fillForm(upd); course = readForm(); store.set('acl-course', course); refreshPrompts();
+  }
+  document.addEventListener('input', e => {
+    const t = e.target; if (!t.dataset || !t.dataset.blk) return;
+    const st = blState[t.dataset.blk]; if (!st) return;
+    st.vals[t.dataset.bll] = t.value;
+    const ta = $('#p-' + t.dataset.blk); ta.value = blRender(st); st.last = ta.value;
+    $$('[data-blk="' + t.dataset.blk + '"]').forEach(i => { if (i !== t && i.dataset.bll === t.dataset.bll) i.value = t.value; });
+  });
+  document.addEventListener('focusout', e => {
+    const t = e.target; if (!t.dataset || !t.dataset.blk) return;
+    const box = $('#bl-' + t.dataset.blk);
+    if (e.relatedTarget && box && box.contains(e.relatedTarget)) return;
+    blWriteBack(t.dataset.blk);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('[data-bltoggle]')) return;
+    blankOn = !blankOn; store.set('acl-blanks', blankOn);
+    M.forEach(m => { if (m.prompt) blBuild(m.id, true); });
+  });
 
   // POST /api/ai and read the simple SSE stream: {meta}, {delta}*, {done} (or {error})
   async function aiStream(ex, messages, h, signal, extra) {
@@ -2399,10 +2475,18 @@ function removeAlarms() {
     if (follow !== undefined) { userText = String(follow).trim(); if (!userText) return; mode = st.runMode || 'text'; }
     else {
       const ta = $('#p-' + id);
-      if (/【[^】]*】/.test(ta.value)) { toast('【 】 안을 먼저 채워 주세요.'); ta.focus(); return; }
-      if (PH_RE.test(ta.value)) {
-        const r = await askCourse(); if (r === null) return;
-        if (r === 'ok') ta.value = fillBlanks(ta.value);
+      if (blankOn) {
+        const left = [...new Set(scanBlanks(ta.value).map(h => h.label))];
+        if (left.length) {
+          const first = $$('[data-blk="' + id + '"]').find(i => !i.value.trim()); if (first) first.focus();
+          if (!confirm('아직 비어 있는 빈칸이 ' + left.length + '개 있습니다. (' + left.slice(0, 4).join(', ') + (left.length > 4 ? ' 외' : '') + ')\n비워 둔 채로 실행할까요? 취소를 누르면 칸을 채울 수 있습니다.')) return;
+        }
+      } else {
+        if (/【[^】]*】/.test(ta.value)) { toast('【 】 안을 먼저 채워 주세요.'); ta.focus(); return; }
+        if (PH_RE.test(ta.value)) {
+          const r = await askCourse(); if (r === null) return;
+          if (r === 'ok') ta.value = fillBlanks(ta.value);
+        }
       }
       userText = ta.value.trim(); if (!userText) { toast('프롬프트가 비어 있습니다. 위 칸에 부탁을 적거나 "자주 쓰는 프롬프트"를 눌러 보세요.'); ta.focus(); return; }
       mode = viewsFor(id).length ? viewOf(id) : 'text';
@@ -2598,7 +2682,7 @@ function removeAlarms() {
       a.msg = ''; attRender(id);
     } else if (d.start) {
       const [id, k] = d.start.split(':'), s = byId(id).starters[Number(k)], ta = $('#p-' + id);
-      ta.value = s.text(); edited[id] = true; chatState(id).mode = s.view; segRender(id);
+      ta.value = s.text(); edited[id] = true; blBuild(id); chatState(id).mode = s.view; segRender(id);
       if (s.view === 'edit' && !attOf(id).pptx) { const dt = $('#at-' + id); if (dt) dt.open = true; toast('고칠 PPT(.pptx)를 "자료 첨부"에 올려 주세요.'); }
       else if (/첨부/.test(ta.value)) { const dt = $('#at-' + id); if (dt) dt.open = true; toast('자료를 "자료 첨부"에 올리고 RUN을 누르세요.'); }
       ta.focus(); ta.scrollIntoView({ block: 'center', behavior: 'smooth' });
