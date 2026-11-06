@@ -2074,6 +2074,7 @@ function removeAlarms() {
       if (o.meta) h.meta(o.meta);
       else if (o.error) throw Object.assign(new Error(o.error), { code: 'stream' });
       else if (o.delta) h.delta(o.delta);
+      else if (o.cont) { if (h.cont) h.cont(o.cont); }
       else if (o.done) { fin = true; h.done(o); }
     };
     for (;;) {
@@ -2517,7 +2518,7 @@ function removeAlarms() {
     if (att.images.length) extra.images = att.images.map(i => ({ name: i.name, url: i.url }));
     if (viewsFor(id).length) extra.view = mode;
     const exId = m.ex || id;
-    let text = '', raf = 0, truncated = false, last = 0;
+    let text = '', raf = 0, truncated = false, last = 0, metaHtml = '', contN = 0;
     const paint = () => {
       raf = 0;
       if (mode === 'doc') { docPaint(host, text, false); prog.textContent = '문서를 짜는 중… ' + text.length.toLocaleString('ko-KR') + '자'; }
@@ -2570,9 +2571,10 @@ function removeAlarms() {
     };
     try {
       const ran = await aiRun(exId, st.msgs, {
-        meta: mm => { meta.innerHTML = '자동 선택 · <b>' + esc(mm.label) + '</b> — ' + esc(mm.why); },
+        meta: mm => { metaHtml = '자동 선택 · <b>' + esc(mm.label) + '</b> — ' + esc(mm.why); meta.innerHTML = metaHtml; },
+        cont: n => { contN = n; meta.innerHTML = metaHtml + ' · 답이 길어서 ' + n + '번째로 이어 쓰는 중'; },
         delta: t => { text += t; const now = Date.now(), gap = mode === 'doc' ? 180 : mode === 'deck' ? 700 : mode === 'edit' ? 400 : 0; if (!raf && now - last >= gap) { last = now; raf = requestAnimationFrame(paint); } },
-        done: o => { truncated = !!o.truncated; }
+        done: o => { truncated = !!o.truncated; contN = o.continued || 0; if (metaHtml) meta.innerHTML = metaHtml + (contN ? ' · 길어서 ' + contN + '번 이어 씀' : ''); }
       }, ctl.signal, extra);
       if (!ran) { st.msgs.length = base; ans.remove(); restore(); if (!base) $('#ao-' + id).hidden = true; return; }
       cancelAnimationFrame(raf); prog.textContent = '';
@@ -2580,7 +2582,7 @@ function removeAlarms() {
       if (structured) plain = await finishStructured(); else { paint(); st.html = ans.innerHTML; }
       st.msgs.push({ role: 'assistant', content: text }); st.last = text;
       dropPrev();
-      if (truncated) ans.insertAdjacentHTML('beforeend', '<p class="note">' + (structured ? '답이 길어서 끝이 잘렸습니다. 아래에 "더 짧게 줄여서 다시 만들어 줘"를 보내 보세요.' : '답이 길어서 여기서 끊겼습니다. 아래에 "이어서 써 줘"라고 보내 보세요.') + '</p>');
+      if (truncated) ans.insertAdjacentHTML('beforeend', '<p class="note">' + (structured ? '답이 너무 길어서 ' + (contN ? '여러 번 이어 썼지만 ' : '') + '끝나지 않았습니다. 아래에 "더 짧게 줄여서 다시 만들어 줘"를 보내 보세요.' : '답이 너무 길어서 ' + (contN ? '여러 번 이어 썼지만 ' : '') + '끝나지 않았습니다. 아래에 "이어서 써 줘"라고 보내 보세요.') + '</p>');
       aiAutoSave(id, plain);
       const page = mode === 'text' && /```[ \t]*html/i.test(text) ? extractHtml(text) : '';
       if (/<(!doctype|html|body)/i.test(page) && /<\/html>|<\/body>/i.test(page)) {
@@ -2728,13 +2730,14 @@ function removeAlarms() {
     try {
       const ran = await aiRun('vibe', [{ role: 'user', content: promptText }], {
         meta: mm => { label = mm.label; vStatus(label + '가 코드를 쓰는 중… (' + mm.why + ')'); },
+        cont: n => { vStatus(label + '가 코드가 길어서 ' + n + '번째로 이어 쓰는 중… ' + text.length.toLocaleString('ko-KR') + '자'); },
         delta: t => { text += t; vStatus(label + '가 코드를 쓰는 중… ' + text.length.toLocaleString('ko-KR') + '자'); },
         done: o => { truncated = !!o.truncated; }
       }, ctl.signal);
       if (!ran) { vStatus('취소했습니다.'); return; }
       const code = extractHtml(text);
       if (!/<(!doctype|html|body|div|script)/i.test(code)) { vStatus('AI 답에서 코드를 찾지 못했습니다. 한 번 더 눌러 주세요.', true); return; }
-      if (truncated && !/<\/html>/i.test(code)) { vStatus('코드가 길어서 중간에 끊겼습니다. 한 번 더 눌러 주세요.', true); return; }
+      if (truncated && !/<\/html>/i.test(code)) { vStatus('코드가 너무 길어서 여러 번 이어 썼는데도 끝나지 않았습니다. 더 작은 앱으로 한 번 더 눌러 주세요.', true); return; }
       $('#vCode').value = code; vRun();
       toast(label + '로 만든 코드를 실행했습니다.');
     } catch (e) {

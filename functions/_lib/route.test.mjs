@@ -464,7 +464,9 @@ test('handler: 402 credit -> budget, 401 -> upstream, no fallback, generic logs'
 test('handler: truncated, mid-stream failure, early stream error falls back', async () => {
   _resetMemory();
   const t = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, { upstream: () => sseResponse([chunk('a'), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n']) });
-  assert.deepEqual(t.events.at(-1), { done: true, truncated: true });
+  assert.deepEqual(t.events.at(-1), { done: true, truncated: true, continued: 3 }, 'a model that never finishes is continued 3 times, then reported as truncated');
+  assert.equal(t.calls.length, 4);
+  assert.equal(deltas(t), 'aaaa', 'text held at a seam is not lost when a continuation is itself cut off');
   const cut = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, { upstream: () => sseResponse([chunk('part')]) });
   assert.deepEqual(cut.events.slice(1).map((e) => Object.keys(e)[0]), ['delta', 'error']);
   const warn = console.warn;
@@ -476,6 +478,108 @@ test('handler: truncated, mid-stream failure, early stream error falls back', as
   } finally {
     console.warn = warn;
   }
+});
+
+const usageChunk = (p, c) => `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: p, completion_tokens: c, total_tokens: p + c } })}\n\n`;
+const deltas = (r) => r.events.filter((e) => 'delta' in e).map((e) => e.delta).join('');
+
+test('validateMessages: long earlier answers are accepted, user turns stay capped', () => {
+  const a = (n) => ({ role: 'assistant', content: 'a'.repeat(n) });
+  assert.equal(validateMessages([user('q'), a(60000), user('more')]).ok, true);
+  assert.equal(validateMessages([user('q'), a(200000), user('more')]).ok, true);
+  assert.equal(validateMessages([user('q'), a(200001), user('more')]).status, 413);
+  assert.equal(validateMessages([user('q'), a(120000), user('x'), a(80000), user('y'), a(1), user('z')]).status, 413);
+  assert.equal(validateMessages([user('q'), a(5000), user('x'.repeat(12001))]).status, 413);
+});
+
+test('handler: a cut-off answer is continued inside the same stream', async () => {
+  _resetMemory();
+  const r = await call(
+    { code: 'TESTCODE', ex: 's1-1', messages: [user('write a lot')], files: [{ name: 'a.txt', text: 'FILEBODY' }] },
+    {
+      upstream: (req, n) =>
+        n === 1
+          ? sseResponse([chunk('Hello, '), chunk(null, { finish_reason: 'length' }), usageChunk(100, 10), 'data: [DONE]\n\n'])
+          : sseResponse([chunk('world.'), chunk(null, { finish_reason: 'stop' }), usageChunk(120, 5), 'data: [DONE]\n\n']),
+    },
+  );
+  assert.equal(r.calls.length, 2);
+  assert.equal(deltas(r), 'Hello, world.');
+  assert.deepEqual(r.events.filter((e) => 'cont' in e), [{ cont: 1 }]);
+  assert.deepEqual(r.events.at(-1), { done: true, continued: 1, usage: { prompt_tokens: 220, completion_tokens: 15, total_tokens: 235 } });
+  const m = r.calls[1].messages;
+  assert.equal(m[0].role, 'system');
+  assert.deepEqual(m.slice(-2).map((x) => x.role), ['assistant', 'user']);
+  assert.equal(m.at(-2).content, 'Hello, ');
+  assert.ok(m.at(-1).content.includes('이어서'));
+  assert.ok(m.some((x) => x.role === 'user' && x.content.includes('FILEBODY')), 'attachments stay in the first user turn');
+  assert.deepEqual([r.calls[1].model, r.calls[1].maxTokens], [r.calls[0].model, r.calls[0].maxTokens]);
+  assert.ok(!r.text.includes('sk-test-secret'));
+});
+
+test('handler: a repeated tail at the seam is dropped, short continuations are not lost', async () => {
+  _resetMemory();
+  const tail = 'THE-LAST-LINE-WAS-RIGHT-HERE-0123456789';
+  const first = 'start of the answer. ' + tail;
+  const r = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+    upstream: (req, n) => n === 1
+      ? sseResponse([chunk(first), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n'])
+      : sseResponse([chunk(tail.slice(0, 20)), chunk(tail.slice(20) + ' and more.'), chunk(null, { finish_reason: 'stop' }), 'data: [DONE]\n\n']),
+  });
+  assert.equal(deltas(r), first + ' and more.');
+  const long = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+    upstream: (req, n) => n === 1
+      ? sseResponse([chunk(first), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n'])
+      : sseResponse([chunk(tail + ' ' + 'z'.repeat(300)), chunk(null, { finish_reason: 'stop' }), 'data: [DONE]\n\n']),
+  });
+  assert.equal(deltas(long), first + ' ' + 'z'.repeat(300));
+  const plain = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+    upstream: (req, n) => n === 1
+      ? sseResponse([chunk('abc'), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n'])
+      : sseResponse([chunk('abc'), chunk(null, { finish_reason: 'stop' }), 'data: [DONE]\n\n']),
+  });
+  assert.equal(deltas(plain), 'abcabc', 'short overlaps are real text, not a seam');
+});
+
+test('handler: continuations count against the per-minute cap', async () => {
+  _resetMemory();
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const r = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+      env: { AI_LIMIT_GLOBAL_MIN: '1' },
+      upstream: () => sseResponse([chunk('cut'), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n']),
+    });
+    assert.equal(r.calls.length, 1, 'no second gateway call once the minute cap is used');
+    assert.equal(deltas(r), 'cut');
+    assert.deepEqual(r.events.at(-1), { done: true, truncated: true });
+    _resetMemory();
+    const ok = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+      env: { AI_LIMIT_GLOBAL_MIN: '2' },
+      upstream: (req, n) => n === 1 ? sseResponse([chunk('cut'), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n']) : okStream('ted'),
+    });
+    assert.equal(deltas(ok), 'cutted');
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test('handler: continuation that cannot connect ends as truncated with the text so far', async () => {
+  _resetMemory();
+  const r = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+    upstream: (req, n) => n === 1
+      ? sseResponse([chunk('part one'), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n'])
+      : new Response('{"detail":"boom"}', { status: 500 }),
+  });
+  assert.equal(deltas(r), 'part one');
+  assert.deepEqual(r.events.at(-1), { done: true, truncated: true });
+  const again = await call({ code: 'TESTCODE', ex: 's1-1', messages: [user('x')] }, {
+    upstream: (req, n) => n === 1
+      ? sseResponse([chunk('part one'), chunk(null, { finish_reason: 'length' }), 'data: [DONE]\n\n'])
+      : sseResponse([chunk('part two'), 'data: {"error":{"message":"overloaded"}}\n\n']),
+  });
+  assert.equal(again.events.at(-1).error !== undefined, true, 'a failure after the continuation started is an error event');
+  assert.ok(deltas(again).startsWith('part one'));
 });
 
 test('handler: validation, origin, method, disabled', async () => {

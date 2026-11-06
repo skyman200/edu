@@ -6,7 +6,9 @@
 export const SIZE = {
   maxMessages: 24,
   maxContent: 12000,
-  maxTotal: 40000, // messages only; attachments have their own caps below
+  maxTotal: 40000, // user messages only; attachments have their own caps below
+  maxAssistant: 200000, // one earlier answer sent back by the browser; a 48k-token code answer written in continued parts is ~190k chars
+  maxAssistantTotal: 200000, // so with user turns (40k) and attachments (150k) the text of one request stays under ~390k chars
   maxCode: 64,
   maxFiles: 3, // documents, as text the browser extracted (PDF, DOCX, PPTX, HWPX, TXT)
   maxFileChars: 100000,
@@ -37,7 +39,7 @@ const ENV_NAMES = {
   globalMin: 'AI_LIMIT_GLOBAL_MIN',
 };
 
-export const FLIGHT_TTL_MS = 320_000; // longer than the 300 s hard stream cap
+export const FLIGHT_TTL_MS = 620_000; // longer than the 600 s hard stream cap (ai.js HARD_MS), which now includes continuations
 const WINDOW_MIN = 10;
 const WINDOW_TTL = (WINDOW_MIN + 1) * 60;
 const DAY_TTL = 2 * 86400;
@@ -106,18 +108,26 @@ export function validateMessages(messages) {
     return fail(413, 'too_long', `대화가 너무 길어졌습니다(${SIZE.maxMessages}개 초과). 새 대화로 다시 시작해 주세요.`);
   }
   let total = 0;
+  let asstTotal = 0;
   const clean = [];
   for (const m of messages) {
     if (!m || typeof m !== 'object' || (m.role !== 'user' && m.role !== 'assistant')) {
       return fail(400, 'bad_request', '허용되지 않은 메시지 형식입니다. 질문과 답만 보낼 수 있습니다.');
     }
     if (typeof m.content !== 'string') return fail(400, 'bad_request', '메시지 내용은 글자여야 합니다.');
-    if (m.content.length > SIZE.maxContent) {
-      return fail(413, 'too_long', '한 번에 보낼 수 있는 글은 12,000자까지입니다. 내용을 나눠서 보내 주세요.');
-    }
-    total += m.content.length;
-    if (total > SIZE.maxTotal) {
-      return fail(413, 'too_long', '대화 전체가 40,000자를 넘었습니다. 새 대화로 다시 시작해 주세요.');
+    if (m.role === 'assistant') {
+      asstTotal += m.content.length;
+      if (m.content.length > SIZE.maxAssistant || asstTotal > SIZE.maxAssistantTotal) {
+        return fail(413, 'too_long', '대화가 너무 길어졌습니다. 새 대화로 다시 시작해 주세요.');
+      }
+    } else {
+      if (m.content.length > SIZE.maxContent) {
+        return fail(413, 'too_long', '한 번에 보낼 수 있는 글은 12,000자까지입니다. 내용을 나눠서 보내 주세요.');
+      }
+      total += m.content.length;
+      if (total > SIZE.maxTotal) {
+        return fail(413, 'too_long', '대화 전체가 40,000자를 넘었습니다. 새 대화로 다시 시작해 주세요.');
+      }
     }
     const empty = m.content.trim().length === 0;
     if (m.role === 'user' && empty) return fail(400, 'bad_request', '빈 질문은 보낼 수 없습니다.');
@@ -498,6 +508,24 @@ export async function admit(store, { ip, codeId, now, limits }) {
     store.update(flightKey, (raw) => JSON.stringify(parseFlights(raw, Date.now()).filter((e) => e[0] !== id)), flightTtl);
   };
   return { ok: true, release };
+}
+
+// Every continuation of a cut-off answer is one more gateway call: it counts against the per-minute and per-day caps
+// like a new request (not the IP window or the in-flight slot, which the original request still holds).
+export async function admitContinuation(store, { codeId, now, limits }) {
+  const minute = minuteOf(now);
+  const day = kstDay(now);
+  const codeKey = `c:${codeId}:${day}`;
+  const globalKey = `g:${day}`;
+  const minuteKey = `m:${minute}`;
+  const shared = await readCounts(store, [codeKey, globalKey, minuteKey], now);
+  if (shared[2] >= limits.globalMin) return reject(429, 'rate', MSG_GLOBAL_MIN, (minute + 1) * 60 - now / 1000);
+  if (shared[0] >= limits.codeDay) return reject(429, 'budget', MSG_CODE_DAY, untilKstMidnight(now));
+  if (shared[1] >= limits.globalDay) return reject(429, 'budget', MSG_GLOBAL_DAY, untilKstMidnight(now));
+  bump(store, codeKey, shared[0], DAY_TTL, now);
+  bump(store, globalKey, shared[1], DAY_TTL, now);
+  bump(store, minuteKey, shared[2], 120, now);
+  return { ok: true };
 }
 
 // Test hook: clears the per-isolate counters.

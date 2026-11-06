@@ -4,7 +4,8 @@
 //           or { code, check:true }. files carry text extracted in the browser; images are data:image/...;base64 URLs.
 //           Both are resent on every turn and go into the first user message (../_lib/route.js withAttachments).
 // Success:  text/event-stream of  data:{"meta":{model,label,tier,why}}, data:{"delta":"..."}...,
-//           then data:{"done":true[,"truncated":true][,"usage":{...}]}  or  data:{"error":"..."}
+//           (data:{"cont":n} when a cut-off answer is being continued; the text then keeps flowing as deltas),
+//           then data:{"done":true[,"truncated":true][,"continued":n][,"usage":{...}]}  or  data:{"error":"..."}
 // Failure:  JSON { error:<Korean>, code:bad_code|rate|budget|disabled|too_long|bad_request|upstream[, retryAfter] }
 import { pickModel, systemPromptFor, withAttachments, labelOf, fallbackWhy, TIERS, MODEL_LABELS } from '../_lib/route.js';
 import { normalizeView, applyView } from '../_lib/views.js';
@@ -21,13 +22,14 @@ import {
   createStore,
   badCodeGate,
   admit,
+  admitContinuation,
 } from '../_lib/limits.js';
 import { isAllowedOrigin, jsonResponse, errorResponse, preflightResponse, baseHeaders } from '../_lib/cors.js';
 
 const DEFAULT_BASE = 'https://factchat-cloud.mindlogic.ai/v1/gateway';
 const FIRST_CONTENT_MS = 100_000; // until the first answer text, across fallbacks and 429 waits
 const IDLE_MS = 60_000; // between upstream chunks once the answer has started
-const HARD_MS = 300_000; // whole request
+const HARD_MS = 600_000; // whole request, including continuations of a long answer
 const RATE_RETRIES = 2; // extra tries of the same model after an upstream 429
 
 const MSG = {
@@ -46,7 +48,7 @@ const MSG = {
   internal: 'AI 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   midCut: 'AI 응답이 중간에 끊겼습니다. 받은 부분까지만 표시됩니다. 다시 시도해 주세요.',
   midIdle: 'AI 응답이 1분 넘게 멈춰서 중단했습니다. 받은 부분까지만 표시됩니다. 다시 시도해 주세요.',
-  midHard: 'AI 응답이 5분을 넘겨 중단했습니다. 받은 부분까지만 표시됩니다. 요청을 나눠서 다시 시도해 주세요.',
+  midHard: 'AI 응답이 10분을 넘겨 중단했습니다. 받은 부분까지만 표시됩니다. 요청을 나눠서 다시 시도해 주세요.',
 };
 
 export async function onRequest(context) {
@@ -137,7 +139,8 @@ async function handle(context, origin) {
     adm.release();
     return failureResponse(conn, origin);
   }
-  return streamResponse(conn, route, ctl, adm.release, origin);
+  const allowContinue = () => admitContinuation(store, { codeId, now: Date.now(), limits });
+  return streamResponse(conn, route, upstream, ctl, adm.release, origin, allowContinue);
 }
 
 function failureResponse(conn, origin) {
@@ -175,9 +178,9 @@ function createControl(request) {
     contentStarted() {
       clearTimeout(timers.first);
     },
-    armIdle() {
+    armIdle(ms = IDLE_MS) {
       clearTimeout(timers.idle);
-      timers.idle = setTimeout(() => ctl.abort('idle'), IDLE_MS);
+      timers.idle = setTimeout(() => ctl.abort('idle'), ms);
     },
     disarmIdle() {
       clearTimeout(timers.idle);
@@ -492,12 +495,49 @@ function sse(obj) {
   return encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
-function streamResponse(conn, route, ctl, release, origin) {
-  const { reader, parser } = conn;
+// A long answer that stops at the token limit is continued here, inside the same SSE stream:
+// the partial text goes back to the gateway as an assistant turn plus a "keep going" user turn,
+// and the new text is appended with no break. The browser sees one continuous answer.
+const MAX_CONTINUES = 3;
+const SEAM_WINDOW = 200; // the start of a continuation is held this long so a repeated tail can be dropped
+const SEAM_MIN = 24;
+const CONTINUE_PROMPT =
+  '직전 답변이 길이 제한으로 도중에 끊겼습니다. 끊긴 바로 그 지점의 다음 글자부터 이어서 쓰세요. ' +
+  '이미 쓴 내용을 다시 쓰거나 요약하지 말고, 인사·설명·사과를 붙이지 마세요. ' +
+  '코드 블록이나 표가 열려 있으면 새로 열지 말고 그대로 이어서 쓰고, 처음 요청한 형식을 끝까지 지켜 마무리하세요.';
+
+// Drops the part of `next` that repeats the end of `prev` (the model sometimes re-types its last line).
+export function trimSeam(prev, next) {
+  const max = Math.min(SEAM_WINDOW, prev.length, next.length);
+  for (let k = max; k >= SEAM_MIN; k--) {
+    if (prev.endsWith(next.slice(0, k))) return next.slice(k);
+  }
+  return next;
+}
+
+// messagesJson ends with "]": append the partial answer and the continue request without re-serializing attachments.
+export function continueJson(messagesJson, partial) {
+  return `${messagesJson.slice(0, -1)},${JSON.stringify({ role: 'assistant', content: partial })},${JSON.stringify({ role: 'user', content: CONTINUE_PROMPT })}]`;
+}
+
+function addUsage(a, b) {
+  if (!b) return a;
+  const o = { ...(a || {}) };
+  for (const k of Object.keys(b)) o[k] = (o[k] || 0) + b[k];
+  return o;
+}
+
+function streamResponse(conn, route, upstream, ctl, release, origin, allowContinue) {
+  let { reader, parser } = conn;
   ctl.contentStarted();
   const meta = { model: conn.model, label: labelOf(conn.model), tier: route.tier, why: fallbackWhy(route, conn.model) };
   let readerDone = conn.ended;
   let finished = false;
+  let acc = ''; // everything sent to the browser so far
+  let hold = ''; // start of a continuation, held until its seam is de-duplicated
+  let seam = false;
+  let conts = 0;
+  let usageSum = null;
 
   const cleanup = () => {
     if (finished) return;
@@ -506,45 +546,144 @@ function streamResponse(conn, route, ctl, release, origin) {
     if (!readerDone) reader.cancel().catch(() => {});
     release();
   };
+  // Queues text for the browser; true when something was queued (the stream only pulls again after a queued chunk).
+  const emit = (controller, text) => {
+    if (!text) return false;
+    if (seam) {
+      hold += text;
+      if (hold.length < SEAM_WINDOW) return false;
+      text = trimSeam(acc, hold);
+      hold = '';
+      seam = false;
+      if (!text) return false;
+    }
+    acc += text;
+    controller.enqueue(sse({ delta: text }));
+    return true;
+  };
+  const flushSeam = (controller) => {
+    if (!seam) return;
+    const t = trimSeam(acc, hold);
+    hold = '';
+    seam = false;
+    if (t) {
+      acc += t;
+      controller.enqueue(sse({ delta: t }));
+    }
+  };
   const endWith = (controller, obj) => {
+    flushSeam(controller);
     controller.enqueue(sse(obj));
     controller.close();
     cleanup();
   };
-  const doneEvent = () => {
+  const hitLimit = () => parser.state.finishReason === 'length' || parser.state.finishReason === 'max_tokens';
+  const doneEvent = (forceTruncated) => {
     const ev = { done: true };
-    const fr = parser.state.finishReason;
-    if (fr === 'length' || fr === 'max_tokens') ev.truncated = true;
-    if (parser.state.usage) ev.usage = parser.state.usage;
+    if (forceTruncated || hitLimit()) ev.truncated = true;
+    const u = addUsage(usageSum, parser.state.usage);
+    if (u) ev.usage = u;
+    if (conts) ev.continued = conts;
     return ev;
   };
-  // Ends the stream when the upstream answer is complete or broken. Returns true when ended.
+  const wantsMore = () => !parser.state.error && hitLimit() && conts < MAX_CONTINUES;
+  const switchNeeded = () => !finished && wantsMore() && (parser.state.done || readerDone);
+  // Ends the stream when the upstream answer is complete or broken. Returns true when ended;
+  // false also while a cut-off answer is waiting to be continued.
   const settle = (controller) => {
     const s = parser.state;
     if (s.error) endWith(controller, { error: MSG.midCut });
-    else if (s.done) endWith(controller, doneEvent());
-    else if (readerDone) endWith(controller, s.finishReason ? doneEvent() : { error: MSG.midCut });
+    else if (s.done || (readerDone && s.finishReason)) {
+      if (wantsMore()) return false;
+      endWith(controller, doneEvent());
+    } else if (readerDone) endWith(controller, { error: MSG.midCut });
     else return false;
     return true;
   };
 
+  async function continueAnswer(controller) {
+    const n = conts + 1;
+    flushSeam(controller); // text held back from the previous part must be part of what the model is asked to continue
+    if (!readerDone) reader.cancel().catch(() => {});
+    readerDone = true;
+    if (ctl.signal.aborted) {
+      if (ctl.reason === 'client') cleanup();
+      else endWith(controller, doneEvent(true));
+      return;
+    }
+    const adm = await allowContinue();
+    if (finished) return;
+    if (!adm.ok) {
+      console.warn('[ai] continuation not allowed:', adm.code);
+      endWith(controller, doneEvent(true)); // the per-minute / daily caps also bound continuations
+      return;
+    }
+    controller.enqueue(sse({ cont: n }));
+    let r;
+    ctl.armIdle(FIRST_CONTENT_MS);
+    try {
+      r = await connect({ ...route, model: conn.model, fallbacks: [] }, { ...upstream, messagesJson: continueJson(upstream.messagesJson, acc) }, ctl);
+    } catch {
+      r = { ok: false };
+    }
+    ctl.disarmIdle();
+    if (finished) {
+      if (r.ok) r.reader.cancel().catch(() => {});
+      return;
+    }
+    if (!r.ok) {
+      if (ctl.reason === 'client') cleanup();
+      else {
+        console.error('[ai] continuation failed:', r.kind);
+        endWith(controller, doneEvent(true)); // keep what was written; the browser shows the "cut off" note
+      }
+      return;
+    }
+    usageSum = addUsage(usageSum, parser.state.usage);
+    conts = n;
+    reader = r.reader;
+    parser = r.parser;
+    readerDone = r.ended;
+    seam = true;
+    hold = '';
+    emit(controller, r.first);
+    settle(controller);
+  }
+
+  async function tryContinue(controller) {
+    try {
+      await continueAnswer(controller);
+    } catch {
+      if (finished) return;
+      try {
+        endWith(controller, doneEvent(true));
+      } catch {
+        cleanup();
+      }
+    }
+  }
+
   const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(sse({ meta }));
-      if (conn.first) controller.enqueue(sse({ delta: conn.first }));
+      emit(controller, conn.first);
       settle(controller);
     },
     async pull(controller) {
       if (finished) return;
       try {
         for (;;) {
+          if (switchNeeded()) {
+            await tryContinue(controller);
+            return;
+          }
           ctl.armIdle();
           const { value, done } = await reader.read();
           ctl.disarmIdle();
           if (done) readerDone = true;
           const text = done ? parser.end() : parser.push(value);
-          if (text) controller.enqueue(sse({ delta: text }));
-          if (settle(controller) || text) return;
+          const sent = emit(controller, text);
+          if (settle(controller) || sent) return; // pull is called again only after something was queued
         }
       } catch {
         if (finished) return;
@@ -554,6 +693,10 @@ function streamResponse(conn, route, ctl, release, origin) {
           return;
         }
         if (parser.state.finishReason) {  // the answer was complete; only the trailing [DONE] was lost
+          if (wantsMore()) {
+            await tryContinue(controller);
+            return;
+          }
           try {
             endWith(controller, doneEvent());
           } catch {
