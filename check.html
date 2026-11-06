@@ -52,6 +52,13 @@ button.done{border-color:var(--mute);color:var(--mute)}
 .row .op{font-size:13px;color:var(--ink2);text-align:right}
 .note{margin:40px 0 0;padding-top:20px;border-top:1px solid var(--line);color:var(--ink2);font-size:14px;max-width:720px}
 .note p{margin:0 0 8px}
+.voice{margin:44px 0 0}
+.voice h3{font-size:20px;font-weight:800;margin:0 0 8px}
+.voice p{color:var(--ink2);margin:0 0 14px;max-width:720px;font-size:15px}
+.vrow{display:grid;grid-template-columns:120px 90px 1fr 110px;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.vrow .vn{font-size:13px;color:var(--ink2)}
+.vrow .vs.bad{color:var(--red);font-weight:700}
+.vrow button{padding:6px 10px;font-size:13px}
 .it{margin:44px 0 80px}
 .it h3{font-size:20px;font-weight:800;margin:0 0 8px}
 .it p{color:var(--ink2);margin:0 0 14px;max-width:720px;font-size:15px}
@@ -93,6 +100,12 @@ button.done{border-color:var(--mute);color:var(--mute)}
 
 <div id="groups"></div>
 
+<section class="voice" id="voice">
+  <h3>소리 점검 — 미션 2 발음 앱</h3>
+  <p>미션 2의 '발음 듣기' 앱은 이 컴퓨터에 깔린 목소리로 읽습니다. 언어마다 '들어 보기'를 눌러 소리가 나는지 확인해 주세요. 스피커나 이어폰이 연결되어 있어야 합니다.</p>
+  <div id="voices"></div>
+</section>
+
 <div class="note">
   <p>'열림'은 이 컴퓨터에서 그 주소의 서버까지 닿았다는 뜻입니다. 학교 보안 장비가 차단 안내 페이지를 대신 보여 주는 방식이면 '열림'으로 나올 수 있으니, 실습 사이트와 ChatGPT는 '열어 보기'로 한 번 직접 들어가 확인해 주세요.</p>
   <p>로그인이 필요한 서비스(ChatGPT, 구글)는 로그인 화면까지 보이면 정상입니다. NotebookLM은 로그인 전에는 자동 점검이 되지 않아 '직접 확인'으로 둡니다. 선택 실습입니다.</p>
@@ -120,19 +133,23 @@ const GROUPS = [
     {nm: "글꼴", dm: "fonts.googleapis.com", use: "영문 글꼴. 막혀도 실습은 됨", how: "text",
      src: "https://fonts.googleapis.com/css2?family=Montserrat:wght@800", needle: "@font-face"},
   ]],
-  ["AI 서비스 (STEP 1–3)", [
+  ["AI ONE · 참여판 (미션 1·2)", [
+    {nm: "AI ONE", dm: "kimcook-edu.pages.dev/api/ai", use: "구독 없이 AI 답 받기", how: "api", src: LAB + "api/ai", needle: "bad_request"},
+    {nm: "참여판", dm: "kimcook-edu.pages.dev/api/live", use: "점수·걱정·앱 전시판", how: "api", src: LAB + "api/live?app=checkcheck", needle: "no_app", open: LAB + "live"},
+  ]],
+  ["AI 서비스 (자료실 실습)", [
     {nm: "ChatGPT", dm: "chatgpt.com", use: "프롬프트 실습", extra: "openai.com, oaistatic.com, oaiusercontent.com", how: "reach", open: "https://chatgpt.com/"},
     {nm: "Claude", dm: "claude.ai", use: "프롬프트 실습", extra: "anthropic.com", how: "img", src: "https://claude.ai/apple-touch-icon.png", open: "https://claude.ai/"},
     {nm: "Gemini", dm: "gemini.google.com", use: "프롬프트 실습", how: "reach", open: "https://gemini.google.com/"},
     {nm: "NotebookLM", dm: "notebooklm.google.com", use: "자료 기반 정리 (선택)", extra: "notebook.google.com", how: "manual", open: "https://notebooklm.google.com/"},
   ]],
-  ["구글 (STEP 4 자동화)", [
+  ["구글 (자료실 STEP 4 자동화)", [
     {nm: "구글 로그인", dm: "accounts.google.com", use: "시트·폼 로그인", extra: "google.com, gstatic.com, googleapis.com, googleusercontent.com", how: "reach", open: "https://accounts.google.com/"},
     {nm: "구글 시트·폼", dm: "docs.google.com", use: "퀴즈 폼, 성적 시트", how: "reach", open: "https://docs.google.com/spreadsheets/"},
     {nm: "Apps Script", dm: "script.google.com", use: "자동 채점·메일 코드", how: "reach", open: "https://script.google.com/"},
     {nm: "Gmail", dm: "mail.google.com", use: "발송 결과 확인", how: "reach", open: "https://mail.google.com/"},
   ]],
-  ["디자인 참고 (STEP 3)", [
+  ["디자인 참고 (자료실 STEP 3)", [
     {nm: "Behance", dm: "www.behance.net", use: "슬라이드 레퍼런스 찾기", how: "reach", open: "https://www.behance.net/"},
     {nm: "Pinterest", dm: "www.pinterest.com", use: "슬라이드 레퍼런스 찾기", how: "reach", open: "https://www.pinterest.com/"},
   ]],
@@ -174,6 +191,12 @@ async function check(it) {
     if (!r.ok || !t.includes(it.needle)) throw new Error("wrong content");
     return;
   }
+  if (it.how === "api") {  // the function answers in JSON even for an error status: any expected answer means the server is reachable
+    const r = await withTimeout(fetch(it.src, {cache: "no-store"}));
+    const t = await r.text();
+    if (!t.includes(it.needle)) throw new Error("wrong content");
+    return;
+  }
   if (it.how === "img") return withTimeout(new Promise((res, rej) => {
     const im = new Image(); im.onload = res; im.onerror = () => rej(new Error("error")); im.src = it.src + "?t=" + Date.now();
   }));
@@ -208,6 +231,36 @@ function run() {
   });
 }
 
+const LANGS = [["한국어", "ko", "안녕하세요"], ["영어", "en", "Hello, nice to meet you."], ["일본어", "ja", "こんにちは"], ["중국어", "zh", "你好"],
+  ["스페인어", "es", "Hola, mucho gusto."], ["프랑스어", "fr", "Bonjour"], ["독일어", "de", "Guten Tag"], ["러시아어", "ru", "Здравствуйте"],
+  ["베트남어", "vi", "Xin chào"], ["아랍어", "ar", "مرحبا"], ["태국어", "th", "สวัสดี"], ["인도네시아어", "id", "Halo"],
+  ["이탈리아어", "it", "Ciao"], ["포르투갈어", "pt", "Olá"], ["터키어", "tr", "Merhaba"]];
+let voiceList = [];
+function voicesFor(code) { return voiceList.filter(v => v.lang.replace("_", "-").toLowerCase().startsWith(code)); }
+function renderVoices() {
+  const box = document.getElementById("voices");
+  if (!("speechSynthesis" in window)) { box.innerHTML = '<p class="vs bad">이 브라우저는 소리 읽기를 지원하지 않습니다. 크롬이나 엣지로 열어 주세요.</p>'; return; }
+  voiceList = speechSynthesis.getVoices();
+  box.innerHTML = LANGS.map(([nm, code], i) => {
+    const vs = voicesFor(code);
+    return '<div class="vrow"><span>' + nm + '</span><span class="vs' + (vs.length ? '' : ' bad') + '">' + (vs.length ? '있음 ' + vs.length : (voiceList.length ? '없음' : '불러오는 중')) + '</span>' +
+      '<span class="vn">' + (vs.slice(0, 2).map(v => v.name).join(", ") || "-") + '</span><span><button data-say="' + i + '">들어 보기</button></span></div>';
+  }).join("");
+}
+function voiceReport() {
+  if (!("speechSynthesis" in window)) return "소리 읽기: 지원 안 됨";
+  if (!voiceList.length) return "소리 읽기: 목소리 목록을 아직 못 읽음";
+  return "소리 읽기 목소리: " + LANGS.map(([nm, code]) => nm + (voicesFor(code).length ? " 있음" : " 없음")).join(", ");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-say]"); if (!b) return;
+  const [nm, code, text] = LANGS[Number(b.dataset.say)];
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); const v = voicesFor(code)[0];
+  u.lang = v ? v.lang : code; if (v) u.voice = v;
+  speechSynthesis.speak(u);
+});
+
 function stamp() {
   const d = new Date(), p = x => String(x).padStart(2, "0");
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -237,6 +290,7 @@ function report() {
     bad.length ? "막힘:\n" + bad.map(line).join("\n") : "막힘: 없음",
     ok.length ? "열림:\n" + ok.map(line).join("\n") : "",
     manual.length ? "직접 열어 확인할 것:\n" + manual.map(line).join("\n") : "",
+    voiceReport(),
   ].filter(Boolean).join("\n");
 }
 
@@ -279,6 +333,8 @@ async function copyText(text, btn, label) {
 
 render();
 run();
+renderVoices();
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = renderVoices;
 document.getElementById("again").onclick = run;
 document.getElementById("where").oninput = tally;
 document.getElementById("copy").onclick = e => copyText(report(), e.currentTarget, "결과 복사");
