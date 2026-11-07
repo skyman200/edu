@@ -15,7 +15,7 @@ const Q = {
 
 export const RECIPES = [
   {
-    id: 'r1', file: 'r1-board.gs', name: '실시간 교실 반응판', tag: '참석자 폰 → 큰 화면',
+    id: 'r1', web: { deploy: true, links: [{ label: '참석자용 주소 (QR로 띄우세요)', suffix: '' }, { label: '강의장 큰 화면 주소 (프로젝터에 띄우세요)', suffix: '?v=board' }], after: ['시트의 [설정] 탭에서 질문과 묶음 이름을 내 수업에 맞게 바꾸세요. 바로 반영됩니다.'] }, file: 'r1-board.gs', name: '실시간 교실 반응판', tag: '참석자 폰 → 큰 화면',
     short: '질문을 던지면 참석자가 폰으로 한 줄씩 답하고, 큰 화면에 묶음별로 말풍선이 모입니다.',
     jev: ['답이 어느 묶음에 속하는지 고르기', '광고·장난·욕설이면 화면에서 숨기기'],
     steps: [
@@ -41,7 +41,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r2', file: 'r2-assistant.gs', name: '24시간 수업 조교', tag: '학생 질문 → 자동 답변 또는 교수님께',
+    id: 'r2', web: { deploy: true, links: [{ label: '학생용 주소 (LMS나 QR로 나눠 주세요)', suffix: '' }], after: ['시트의 [자료] 탭 A열에 강의계획서, 평가 기준, 공지를 붙여 넣으세요. 이 내용에만 근거해 답합니다.'] }, file: 'r2-assistant.gs', name: '24시간 수업 조교', tag: '학생 질문 → 자동 답변 또는 교수님께',
     short: '강의계획서를 읽고 학생 질문에 답하고, 자료에 없거나 개인 사정이면 교수님께 넘깁니다. 매주 가장 헷갈린 것 TOP5를 메일로 받습니다.',
     jev: ['자료만으로 답할 수 있는지 (확률로)', '성적 이의·개인 사정처럼 교수가 직접 답할 질문인지', '질문의 종류'],
     steps: [
@@ -68,7 +68,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r3', file: 'r3-tutor.gs', name: '소크라테스 튜터와 대화록 제출', tag: '정답 대신 되묻는 AI',
+    id: 'r3', web: { deploy: true, links: [{ label: '학생용 주소 (LMS나 QR로 나눠 주세요)', suffix: '' }], after: ['시트의 [설정] 탭에서 주제, 학습 목표, 교수용 핵심 개념을 바꾸세요. 핵심 개념은 학생 화면에 나오지 않습니다.'] }, file: 'r3-tutor.gs', name: '소크라테스 튜터와 대화록 제출', tag: '정답 대신 되묻는 AI',
     short: '정답을 알려 주지 않고 되묻는 튜터입니다. 대화 전체와 이해도 흐름이 시트에 저장되어 "AI를 어떻게 썼는지"를 평가할 수 있습니다.',
     jev: ['지금 이해도 (0~3 단계)', '오개념이 있는지', '튜터의 다음 행동 고르기 (힌트·반례·이유 묻기·심화·정리)'],
     steps: [
@@ -95,7 +95,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r4', file: 'r4-future.gs', name: '미래의 나에게', tag: '학기 초 편지 → 학기말 도착',
+    id: 'r4', web: { deploy: true, links: [{ label: '학생용 주소 (학기 초 편지 쓰기)', suffix: '' }], after: ['연습할 때는 본인 메일로 편지를 쓰고, 시트 메뉴 [미래 편지] → 지금 모두 배달(시연용)을 눌러 회고 메일이 오는 것까지 확인하세요.'] }, file: 'r4-future.gs', name: '미래의 나에게', tag: '학기 초 편지 → 학기말 도착',
     short: '학기 초에 목표와 걱정을 쓰면 도착일에 메일로 돌아오고, 회고를 쓰면 처음 글과 비교한 코멘트를 받습니다.',
     jev: ['처음 글과 비교한 변화·성장 (0~3 단계)', '회고글의 정서 (뿌듯함·섞임·아쉬움·무덤덤)'],
     steps: [
@@ -121,7 +121,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r5', file: 'r5-boardphoto.gs', name: '칠판 사진이 수업 노트로', tag: '폰 사진 → 구글 문서 + 복습 퀴즈',
+    id: 'r5', web: { deploy: false, links: [], after: ['실행 후 뜨는 알림창의 첫 번째 폴더에 칠판 사진을 올리세요. 10분 안에 두 번째 폴더에 노트가 생기고 메일이 옵니다.'] }, file: 'r5-boardphoto.gs', name: '칠판 사진이 수업 노트로', tag: '폰 사진 → 구글 문서 + 복습 퀴즈',
     short: '폰으로 찍은 칠판 사진을 드라이브 폴더에 올리면 10분 안에 수업 노트와 복습 퀴즈 3문항이 구글 문서로 생깁니다.',
     jev: ['수업 내용인지, 과제·시험 공지인지, 일정 공지인지', '너무 흐려서 다시 찍어야 하는지'],
     steps: [
@@ -147,7 +147,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r6', file: 'r6-survey.gs', name: '수업 후 설문 즉석 분석', tag: '폼 제출 → 감정·키워드·건의 → 내 메일',
+    id: 'r6', web: { deploy: false, links: [], after: ['실행 후 뜨는 알림창의 설문 주소를 학생에게 보여 주세요. 응답이 오면 [분석] 탭에 쌓이고 내 메일로 요약이 옵니다.'] }, file: 'r6-survey.gs', name: '수업 후 설문 즉석 분석', tag: '폼 제출 → 감정·키워드·건의 → 내 메일',
     short: '설문 폼이 제출될 때마다 감정, 주제, 건의 여부, 긴급 여부를 판정해 시트에 쌓고, 일정 개수가 모이면 요약을 메일로 보냅니다.',
     jev: ['수업에 대한 감정 (0~4 단계)', '가장 비중 있게 말한 주제', '구체적인 건의가 있는지', '교수가 바로 알아야 할 긴급 내용인지'],
     steps: [
@@ -175,7 +175,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'blank', file: null, name: '빈 종이에서 시작', tag: '하고 싶은 일을 말로 설명',
+    id: 'blank', web: { deploy: false, links: [], after: ['만든 코드를 붙여 넣은 편집기에서 위쪽 함수 선택 칸으로 새 함수를 고르고 ▶ 실행하세요. 오류가 나면 아래 4번 칸에 붙여 넣어 고칩니다.'] }, file: null, name: '빈 종이에서 시작', tag: '하고 싶은 일을 말로 설명',
     short: '공통 도우미만 두고, 하고 싶은 자동화를 말로 설명하면 AI가 코드를 만듭니다. 막히면 오류를 붙여 넣어 바로 고칩니다.',
     jev: ['글을 읽고 예/아니오, 여럿 중 하나, 단계 점수를 확률로 판정 (jev_ 도우미)'],
     steps: [
@@ -207,7 +207,7 @@ export function buildRecipes() {
   const out = {
     common: { code: common },
     recipes: RECIPES.map((r) => ({
-      id: r.id, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
+      id: r.id, web: r.web, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
       code: r.file ? read(r.file) : '', jevPreset: r.jevPreset,
     })),
   };

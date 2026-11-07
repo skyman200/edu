@@ -1,7 +1,5 @@
 /* ===== 레시피 1. 실시간 교실 반응판 =====
-   1) 새 구글 시트 → 확장 프로그램 → Apps Script에 공통 도우미 + 이 코드를 붙여 넣고 저장합니다.
-   2) 시트를 새로고침하면 [반응판] 메뉴가 생깁니다. 처음 준비 → 수업 코드 입력을 차례로 실행합니다.
-   3) 배포 → 새 배포 → 웹 앱: 실행 사용자 "나", 액세스 "모든 사용자". 주소 보기 메뉴에서 학생용과 강의장용 주소를 봅니다.
+   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    질문과 묶음 기준은 [설정] 시트에서 바꿉니다. 답은 [응답] 시트에 쌓이고, Jev가 묶음을 고릅니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('반응판')
@@ -23,12 +21,12 @@ function setup() {
     s.setColumnWidth(1, 190); s.setColumnWidth(2, 520);
   }
   sheet_('응답', ['시간', '응답', '묶음', '확신도', '상태']);
-  SpreadsheetApp.getUi().alert('준비됐습니다. 이어서 메뉴의 수업 코드 입력을 실행하고, 배포 → 웹 앱으로 배포하세요.\n질문과 묶음은 [설정] 시트에서 바꿉니다.');
+  say_('준비 끝! 질문과 묶음은 [설정] 시트에서 바꿀 수 있습니다. 이제 웹 도구 화면의 다음 단계(배포)를 따라 하세요.');
 }
 
 function showUrls() {
   var url = ScriptApp.getService().getUrl();
-  SpreadsheetApp.getUi().alert(url ? '학생용: ' + url + '\n강의장 화면: ' + url + '?v=board' : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  say_(url ? '학생용: ' + url + '\n강의장 화면: ' + url + '?v=board' : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
 }
 
 function cfg_() {

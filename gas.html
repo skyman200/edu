@@ -45,6 +45,19 @@ details summary{cursor:pointer;color:var(--ink2);font-size:14px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.on{opacity:1}
 a{color:inherit}
+.wz{list-style:none;padding:0;margin:14px 0 0;counter-reset:wz}
+.wz>li{counter-increment:wz;position:relative;padding:4px 0 18px 54px;margin:0}
+.wz>li:before{content:counter(wz);position:absolute;left:0;top:2px;width:38px;height:38px;border-radius:50%;background:var(--ink);color:#fff;font:800 18px/38px Pretendard,sans-serif;text-align:center}
+.wz>li:after{content:"";position:absolute;left:18px;top:44px;bottom:2px;border-left:2px solid var(--line2)}
+.wz>li:last-child:after{display:none}
+.wz b.t{display:block;font-size:17px;margin-bottom:4px}
+.wz .how{color:var(--ink2);font-size:14.5px;margin:6px 0 0}
+.wz kbd{font:600 12px ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line2);border-bottom-width:2px;padding:0 5px;border-radius:3px}
+a.btn{display:inline-block;font:600 14px Pretendard,system-ui,sans-serif;border:1px solid var(--ink);background:var(--ink);color:#fff;padding:9px 16px;border-radius:2px;text-decoration:none}
+button.big,a.btn.big{font-size:16px;padding:12px 22px}
+.lnk{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;background:#fff;border:1px solid var(--line);padding:10px 12px;margin:8px 0}
+.lnk .lb{grid-column:1/-1;font-weight:700;font-size:14px}.lnk input{font-size:12.5px}
+.lnk .qr{grid-column:1/-1;width:150px}.lnk .qr svg{display:block;width:150px;height:150px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -57,19 +70,19 @@ a{color:inherit}
 
   <section id="s0">
     <div class="k">0 · 수업 코드</div>
-    <p class="sub">AI ONE으로 코드를 만들고 고치려면 강사가 알려 준 수업 코드가 필요합니다. 코드 없이도 레시피 복사, 코드 점검, 위험 스캔, 오류 사전은 모두 됩니다.</p>
+    <p class="sub">강사가 알려 준 수업 코드를 한 번만 넣으세요. 복사하는 코드에 자동으로 들어가서, 구글 시트에서 따로 입력할 필요가 없습니다.</p>
     <div class="row"><input id="code" style="max-width:260px" placeholder="수업 코드" autocomplete="off"><button id="codeSave">저장하고 확인</button><span id="codeState" class="sub" style="margin:0"></span></div>
   </section>
 
   <section id="s1">
-    <div class="k">1 · 레시피 고르기</div>
+    <div class="k">1 · 무엇을 만들까요? 하나를 누르세요</div>
     <div class="tabs" id="tabs"></div>
     <div id="info"></div>
   </section>
 
   <section id="s2">
-    <div class="k">2 · 말로 만들기</div>
-    <h2>하고 싶은 일을 적으면 코드가 바뀝니다</h2>
+    <div class="k">2 · 더 고치고 싶다면</div>
+    <h2>하고 싶은 일을 말로 적으면 코드가 바뀝니다</h2>
     <p class="sub">고른 레시피 코드를 기준으로 AI ONE이 필요한 곳만 고칩니다. 빈 종이에서 시작하면 처음부터 만듭니다. 아래 예제를 눌러 채운 뒤 내 수업에 맞게 고쳐 쓰세요.</p>
     <div id="examples"></div>
     <textarea id="req" class="small" placeholder="예) A열에 학생 이름, B열에 점수가 있어요. 60점 미만 이름 칸을 빨갛게 칠하고 그 목록을 내 메일로 보내 줘."></textarea>
@@ -78,11 +91,11 @@ a{color:inherit}
   </section>
 
   <section id="s3">
-    <div class="k">3 · 코드</div>
-    <h2>Apps Script 편집기에 붙여 넣을 코드</h2>
-    <p class="sub">공통 도우미가 맨 위에 들어 있습니다. 전체를 복사해 편집기(확장 프로그램 → Apps Script)에 붙여 넣고 저장하면 됩니다. 직접 고쳐도 됩니다.</p>
+    <div class="k">3 · 코드 (보지 않아도 됩니다)</div>
+    <h2>복사되는 코드</h2>
+    <p class="sub">1번의 복사 버튼이 이 코드를 복사합니다. 직접 고쳐도 됩니다.</p>
     <textarea id="src" class="code" spellcheck="false"></textarea>
-    <div class="row"><button id="copyAll">전체 코드 복사</button><button id="check" class="g">코드 점검</button><button id="safety" class="g">실행 전 안전 점검</button><button id="diff" class="g">처음 코드와 비교</button><button id="undo" class="g" disabled>되돌리기</button><span id="srcInfo" class="sub" style="margin:0"></span></div>
+    <div class="row"><button id="copyAll" class="g">코드 복사</button><button id="check" class="g">코드 점검</button><button id="safety" class="g">실행 전 안전 점검</button><button id="diff" class="g">처음 코드와 비교</button><button id="undo" class="g" disabled>되돌리기</button><span id="srcInfo" class="sub" style="margin:0"></span></div>
     <div id="srcOut"></div>
   </section>
 
@@ -109,6 +122,7 @@ a{color:inherit}
   </section>
 </div>
 <div class="toast" id="toast"></div>
+<script src="vendor/qrcode/qrcode.js"></script>
 <script src="gas-diag.js"></script>
 <script src="gas-recipes.js"></script>
 <script>
@@ -189,17 +203,76 @@ a{color:inherit}
     $('#src').value = text; srcInfo();
   }
   function srcInfo() { var v = $('#src').value; $('#srcInfo').textContent = v.split('\n').length + '줄 · ' + v.length.toLocaleString() + '자'; }
+
+  function qrSvg(text) {
+    if (typeof qrcode !== 'function') return null;
+    var qr = qrcode(0, 'M'); qr.addData(text); qr.make();
+    var n = qr.getModuleCount(), d = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (qr.isDark(y, x)) d += 'M' + x + ',' + y + 'h1v1h-1z';
+    var box = el('div'); box.innerHTML = '<svg viewBox="-3 -3 ' + (n + 6) + ' ' + (n + 6) + '" shape-rendering="crispEdges" role="img" aria-label="QR 코드"><rect x="-3" y="-3" width="' + (n + 6) + '" height="' + (n + 6) + '" fill="#fff"/><path d="' + d + '" fill="#000"/></svg>';
+    return box.firstChild;
+  }
+  var EXEC = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec\/?$/;
+  function codeForEditor() { return (aiCode ? 'var EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n\n' : '') + $('#src').value; }
+  function step(ol, title) { var li = el('li'); li.appendChild(el('b', 't', title)); ol.appendChild(li); return li; }
+  function renderWizard(r) {
+    var info = clear($('#info')), card = el('div', 'card');
+    card.appendChild(el('h2', '', r.name)); card.appendChild(el('p', 'sub', r.short));
+    var ol = el('ol', 'wz'), w = r.web || {}, li, row;
+    li = step(ol, '코드를 복사합니다');
+    row = el('div', 'row'); var cp = el('button', 'big', '코드 복사 (수업 코드 포함)'); cp.onclick = function () {
+      if (!needCode()) return;
+      copy(codeForEditor(), '복사했습니다. 이제 2번 버튼으로 새 시트를 여세요.');
+    }; row.appendChild(cp); li.appendChild(row);
+    li.appendChild(el('p', 'how', '아래 "말로 고치기"로 바꾼 내용도 같이 복사됩니다. 수업 코드는 내 스크립트 안에만 들어가니 이 코드를 다른 사람에게 보내지는 마세요.'));
+    li = step(ol, '새 구글 시트를 엽니다');
+    row = el('div', 'row'); var a = el('a', 'btn big', '새 구글 시트 열기'); a.href = 'https://sheets.new'; a.target = '_blank'; a.rel = 'noopener'; row.appendChild(a); li.appendChild(row);
+    var how = el('p', 'how'); how.innerHTML = '새 시트가 열리면 위쪽 메뉴에서 <b>확장 프로그램 → Apps Script</b>를 누르세요. 구글 로그인이 필요합니다.'; li.appendChild(how);
+    li = step(ol, '붙여 넣고 ▶ 실행을 한 번 누릅니다');
+    how = el('p', 'how'); how.innerHTML = '열린 편집기의 기존 글을 모두 지우고(<kbd>Ctrl</kbd>+<kbd>A</kbd> 후 <kbd>Delete</kbd>, 맥은 <kbd>⌘</kbd>) 붙여 넣은 다음(<kbd>Ctrl</kbd>+<kbd>V</kbd>), <kbd>Ctrl</kbd>+<kbd>S</kbd>로 저장하세요. 위쪽 함수 칸에 <b>start</b>가 보이면 바로 <b>▶ 실행</b>을 누릅니다. 처음 한 번 "권한 검토"가 뜨면 <b>계정 선택 → 고급 → (안전하지 않음)으로 이동 → 허용</b>을 누르세요. 아래쪽 실행 로그에 <b>준비 끝</b>이 보이면 성공입니다.';
+    li.appendChild(how);
+    if (w.deploy) {
+      li = step(ol, '웹 앱으로 배포합니다 (학생이 폰으로 열 주소가 생깁니다)');
+      how = el('p', 'how'); how.innerHTML = '편집기 오른쪽 위 파란 <b>배포 → 새 배포</b>를 누르고, 톱니바퀴 <b>유형 선택 → 웹 앱</b>을 고르세요. <b>액세스 권한이 있는 사용자</b>를 <b>모든 사용자</b>로 바꾸고 <b>배포</b>를 누르면 "웹 앱 URL"이 나옵니다. <b>복사</b>를 누르세요.';
+      li.appendChild(how);
+      li = step(ol, '복사한 웹 앱 URL을 여기에 붙여 넣습니다');
+      row = el('div', 'row'); var inp = el('input'); inp.placeholder = 'https://script.google.com/macros/s/…/exec'; inp.style.maxWidth = '520px'; inp.id = 'wzUrl';
+      var go = el('button', '', '주소와 QR 만들기'); row.appendChild(inp); row.appendChild(go); li.appendChild(row);
+      var res = el('div'); li.appendChild(res);
+      inp.value = lsGet('acl-gas-url-' + r.id, '');
+      var show = function () {
+        var u = inp.value.trim().replace(/\/+$/, ''); clear(res);
+        if (!u) return;
+        if (/\/dev$/.test(u)) { say(res, '끝이 /dev 인 주소는 나만 열 수 있는 시험용입니다. 배포 → 새 배포로 만든 /exec 주소를 붙여 넣으세요.', 'warn'); return; }
+        if (!EXEC.test(u)) { say(res, '웹 앱 URL이 아닙니다. 주소가 https://script.google.com/…/exec 로 끝나야 합니다.', 'err'); return; }
+        lsSet('acl-gas-url-' + r.id, u);
+        (w.links || [{ label: '학생용 주소', suffix: '' }]).forEach(function (L) {
+          var url = u + L.suffix, box = el('div', 'lnk'); box.appendChild(el('div', 'lb', L.label));
+          var f = el('input'); f.readOnly = true; f.value = url; f.onclick = function () { f.select(); }; box.appendChild(f);
+          var rr = el('div', 'row'); rr.style.margin = '0';
+          var c1 = el('button', 'g', '복사'); c1.onclick = function () { copy(url, '복사했습니다.'); };
+          var o1 = el('a', 'btn', '열기'); o1.href = url; o1.target = '_blank'; o1.rel = 'noopener'; rr.appendChild(c1); rr.appendChild(o1); box.appendChild(rr);
+          var q = qrSvg(url); if (q) { var qb = el('div', 'qr'); qb.appendChild(q); box.appendChild(qb); }
+          res.appendChild(box);
+        });
+        res.appendChild(el('div', 'sub', '코드를 고친 뒤에는 편집기에서 배포 → 배포 관리 → 연필 → 버전 "새 버전" → 배포를 해야 학생 화면에 반영됩니다. 주소는 그대로입니다.'));
+      };
+      go.onclick = show; inp.onkeydown = function (e) { if (e.key === 'Enter') show(); };
+      if (inp.value) show();
+    }
+    (w.after || []).forEach(function (t, i) { var l = step(ol, i === 0 ? (w.deploy ? '내 수업에 맞게 고칩니다' : '써 봅니다') : '다음 단계'); l.appendChild(el('p', 'how', t)); });
+    card.appendChild(ol);
+    var det = el('details'); det.appendChild(el('summary', '', '이 레시피가 하는 일, Jev 판정 목록'));
+    var jv = el('div'); jv.style.marginTop = '8px'; r.jev.forEach(function (t) { jv.appendChild(el('span', 'jev', t)); }); det.appendChild(jv);
+    card.appendChild(det);
+    info.appendChild(card);
+  }
   function pick(i) {
     cur = i; var r = DATA.recipes[i];
     Array.prototype.forEach.call($('#tabs').children, function (b, j) { b.classList.toggle('on', j === i); });
     original = fullCode(r); history = []; $('#undo').disabled = true; lastSig = ''; fixCount = 0;
     $('#src').value = original; srcInfo(); clear($('#srcOut')); clear($('#makeOut')); clear($('#fixOut'));
-    var info = clear($('#info'));
-    var card = el('div', 'card');
-    card.appendChild(el('h2', '', r.name)); card.appendChild(el('p', 'sub', r.short));
-    var jv = el('div'); jv.appendChild(el('span', 'sub', 'Jev가 하는 판정: ')); r.jev.forEach(function (t) { jv.appendChild(el('span', 'jev', t)); }); card.appendChild(jv);
-    card.appendChild(el('h3', '', '만드는 순서')); var ol = el('ol'); r.steps.forEach(function (s) { ol.appendChild(el('li', '', s)); }); card.appendChild(ol);
-    info.appendChild(card);
+    renderWizard(r);
     var ex = clear($('#examples'));
     r.examples.forEach(function (t) { var b = el('button', 'ex', t); b.onclick = function () { $('#req').value = t; $('#req').focus(); }; ex.appendChild(b); });
     $('#req').placeholder = r.code ? '이 레시피에서 바꾸고 싶은 점을 적어 보세요' : '하고 싶은 일을 자세히 적어 보세요';
@@ -259,7 +332,7 @@ a{color:inherit}
 
   // ---------- 코드 도구 ----------
   $('#src').oninput = srcInfo;
-  $('#copyAll').onclick = function () { copy($('#src').value, '전체 코드를 복사했습니다. Apps Script 편집기에 붙여 넣고 저장하세요.'); };
+  $('#copyAll').onclick = function () { copy(codeForEditor(), aiCode ? '코드를 복사했습니다(수업 코드 포함). 편집기에 붙여 넣고 저장하세요.' : '코드를 복사했습니다. 수업 코드는 들어 있지 않습니다.'); };
   $('#undo').onclick = function () { if (history.length) { $('#src').value = history.pop(); srcInfo(); } $('#undo').disabled = !history.length; };
   $('#check').onclick = function () {
     var res = D.staticCheck($('#src').value), box = clear($('#srcOut'));

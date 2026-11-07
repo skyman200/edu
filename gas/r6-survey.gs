@@ -1,9 +1,5 @@
 /* ===== 레시피 6. 수업 후 설문이 바로 분석됩니다 =====
-   1) 새 구글 시트 → 확장 프로그램 → Apps Script에 공통 도우미 + 이 코드를 붙여 넣고 저장합니다.
-   2) [설문 분석] 메뉴: 처음 준비(설문 폼이 만들어지고 이 시트와 연결됩니다) → 수업 코드 입력. 메뉴의 주소 보기로 학생용 폼 주소를 받습니다.
-   3) 학생이 제출할 때마다 Jev가 감정(0~4), 주제, 건의 여부, 긴급 여부를 판정해 [분석] 시트에 한 줄씩 쌓습니다.
-      긴급(심각한 불만, 안전, 차별, 괴롭힘)으로 보이면 그 즉시 내 메일로 알립니다.
-      응답이 [설정] 시트의 개수만큼 새로 쌓이면 키워드, 건의 묶음, 다음 시간에 바꿀 점을 AI가 정리해 메일로 보냅니다. 메뉴의 지금 요약 메일로 언제든 받을 수도 있습니다.
+   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    설문은 익명으로 받으세요. 이름이나 학번을 묻지 않습니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('설문 분석')
@@ -32,12 +28,12 @@ function setup() {
     p.setProperty('FORM_ID', form.getId());
     ScriptApp.newTrigger('onSurveySubmit').forForm(form).onFormSubmit().create();
   }
-  SpreadsheetApp.getUi().alert('설문 폼을 만들었습니다. 수업 코드 입력을 실행하고, 주소 보기에서 학생용 주소를 받으세요.');
+  say_('준비 끝! 학생용 설문 주소: ' + FormApp.openById(p.getProperty('FORM_ID')).getPublishedUrl());
 }
 
 function showUrls() {
   var id = PropertiesService.getScriptProperties().getProperty('FORM_ID');
-  SpreadsheetApp.getUi().alert(id ? '학생용 설문 주소: ' + FormApp.openById(id).getPublishedUrl() : '먼저 처음 준비를 실행하세요.');
+  say_(id ? '학생용 설문 주소: ' + FormApp.openById(id).getPublishedUrl() : '먼저 처음 준비를 실행하세요.');
 }
 
 function first_(arr) {
@@ -88,7 +84,7 @@ function sendDigest(quiet) {
   if (!lock.tryLock(20000)) return;
   try {
     var p = PropertiesService.getScriptProperties(), sh = sheet_('분석'), done = Number(p.getProperty('SENT') || 0), total = sh.getLastRow() - 1;
-    if (total <= done) { if (quiet !== true) SpreadsheetApp.getUi().alert('새로 쌓인 응답이 없습니다.'); return; }
+    if (total <= done) { if (quiet !== true) say_('새로 쌓인 응답이 없습니다.'); return; }
     var rows = sh.getRange(2 + done, 1, total - done, 8).getValues();
     var sats = rows.map(function (r) { return Number(r[1]); }).filter(function (x) { return x > 0; });
     var avg = sats.length ? Math.round(sats.reduce(function (a, b) { return a + b; }, 0) / sats.length * 10) / 10 : '-';

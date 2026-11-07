@@ -1,7 +1,5 @@
 /* ===== 레시피 4. 미래의 나에게 =====
-   1) 새 구글 시트 → 확장 프로그램 → Apps Script에 공통 도우미 + 이 코드를 붙여 넣고 저장합니다.
-   2) [미래 편지] 메뉴: 처음 준비 → 수업 코드 입력 → 매일 아침 배달 켜기. [설정] 시트에서 도착일(학기말)을 정합니다.
-   3) 배포 → 새 배포 → 웹 앱(실행 "나", 액세스 "모든 사용자"). 주소 보기로 학생용 주소를 받습니다.
+   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    학생이 학기 초 목표와 걱정을 쓰면 도착일에 그 글과 회고 링크가 메일로 옵니다. 회고를 쓰면 Jev가 변화의 크기와 마음의 결을 판정하고,
    AI가 처음 글과 비교한 코멘트를 씁니다. 메일 주소는 편지 배달에만 쓰이고 [편지] 시트(교수 계정)에만 남습니다.
    구글 무료 계정은 하루 메일 약 100통이 한도입니다. 연습할 때는 본인 메일 주소를 쓰세요. */
@@ -27,12 +25,13 @@ function setup() {
     s.setColumnWidth(1, 240); s.setColumnWidth(2, 420);
   }
   sheet_('편지', ['시간', '번호', '별칭', '이메일', '지금의 목표', '지금의 걱정', '도착일', '상태', '회고', '변화(0~3)', '코멘트']);
-  SpreadsheetApp.getUi().alert('준비됐습니다. 수업 코드 입력 → 웹 앱 배포 → 매일 아침 배달 켜기 순서로 진행하세요.');
+  dailyOn_();
+  say_('준비 끝! 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매일 아침 편지 배달도 켜졌습니다.');
 }
 
 function showUrls() {
   var url = ScriptApp.getService().getUrl();
-  SpreadsheetApp.getUi().alert(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  say_(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
 }
 
 function cfg_() {
@@ -121,13 +120,17 @@ function deliverLetters() {
 
 function demoDeliverAll() {
   var n = deliverFrom_(true);
-  SpreadsheetApp.getUi().alert(n + '통을 배달했습니다. 메일함에서 회고 링크를 눌러 보세요.');
+  say_(n + '통을 배달했습니다. 메일함에서 회고 링크를 눌러 보세요.');
+}
+
+function dailyOn_() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'deliverLetters') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('deliverLetters').timeBased().everyDays(1).atHour(8).create();
 }
 
 function dailyOn() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'deliverLetters') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('deliverLetters').timeBased().everyDays(1).atHour(8).create();
-  SpreadsheetApp.getUi().alert('매일 아침 8시쯤 도착일이 된 편지를 배달합니다.');
+  dailyOn_();
+  say_('매일 아침 8시쯤 도착일이 된 편지를 배달합니다.');
 }
 
 function getLetter(id) {

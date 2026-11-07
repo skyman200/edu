@@ -1,7 +1,5 @@
 /* ===== 레시피 5. 칠판 사진이 수업 노트로 =====
-   1) 새 구글 시트 → 확장 프로그램 → Apps Script에 공통 도우미 + 이 코드를 붙여 넣고 저장합니다.
-   2) [칠판 노트] 메뉴: 처음 준비(드라이브에 폴더 두 개가 생깁니다) → 수업 코드 입력 → 자동 처리 켜기.
-   3) 폰으로 찍은 칠판 사진을 "여기에 사진 올리기" 폴더에 올리면, 10분 안에 구글 문서 수업 노트와 복습 퀴즈 3문항이 "결과" 폴더에 생기고 메일로 알려 줍니다.
+   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    AI가 사진을 읽고, Jev가 수업 내용인지 과제·일정 공지인지, 너무 흐려서 다시 찍어야 하는지를 판정합니다.
    칠판에 학생 얼굴이나 이름이 찍히지 않게 하세요. 사진은 읽는 동안만 AI 서버로 가고 서버에 저장되지 않습니다. */
 function onOpen() {
@@ -16,19 +14,24 @@ function setup() {
   if (!p.getProperty('INBOX')) p.setProperty('INBOX', DriveApp.createFolder('AI 칠판 노트 - 여기에 사진 올리기').getId());
   if (!p.getProperty('NOTES')) p.setProperty('NOTES', DriveApp.createFolder('AI 칠판 노트 - 결과').getId());
   sheet_('기록', ['시간', '사진', '종류', '확신도', '상태', '노트 문서']);
-  SpreadsheetApp.getUi().alert('드라이브에 폴더 두 개를 만들었습니다. 메뉴의 폴더 주소 보기로 확인하고, 수업 코드 입력 → 자동 처리 켜기를 실행하세요.');
+  autoOn_();
+  say_('준비 끝! 사진 올리기 폴더: ' + DriveApp.getFolderById(p.getProperty('INBOX')).getUrl() + '\n결과 폴더: ' + DriveApp.getFolderById(p.getProperty('NOTES')).getUrl() + '\n폰으로 찍은 칠판 사진을 첫 번째 폴더에 올리면 10분 안에 노트가 만들어집니다.');
 }
 
 function showUrls() {
   var p = PropertiesService.getScriptProperties();
   var i = p.getProperty('INBOX'), n = p.getProperty('NOTES');
-  SpreadsheetApp.getUi().alert(i ? '사진 올리기: ' + DriveApp.getFolderById(i).getUrl() + '\n결과 노트: ' + DriveApp.getFolderById(n).getUrl() : '먼저 처음 준비를 실행하세요.');
+  say_(i ? '사진 올리기: ' + DriveApp.getFolderById(i).getUrl() + '\n결과 노트: ' + DriveApp.getFolderById(n).getUrl() : '먼저 처음 준비를 실행하세요.');
+}
+
+function autoOn_() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'processPhotos') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('processPhotos').timeBased().everyMinutes(10).create();
 }
 
 function autoOn() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'processPhotos') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('processPhotos').timeBased().everyMinutes(10).create();
-  SpreadsheetApp.getUi().alert('10분마다 새 사진을 확인합니다. 수업이 끝나면 꺼도 됩니다(Apps Script의 트리거 메뉴).');
+  autoOn_();
+  say_('10분마다 새 사진을 확인합니다. 수업이 끝나면 꺼도 됩니다(Apps Script의 트리거 메뉴).');
 }
 
 var KIND_LABEL = { lecture: '수업 내용', assignment: '과제·시험 공지', schedule: '일정·장소 공지', other: '기타' };

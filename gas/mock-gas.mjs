@@ -64,7 +64,7 @@ class Spreadsheet {
 const items = () => { const it = {}; for (const m of ['setTitle', 'setBounds', 'setLabels', 'setRequired']) it[m] = () => it; return it; };
 
 export function createEnv({ jev, ai, fetchExtra } = {}) {
-  const log = { alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
+  const log = { logged: [], alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
   const active = new Spreadsheet('SS1');
   const props = new Map([['CLASS_CODE', 'TESTCODE']]);
   const cache = new Map();
@@ -112,6 +112,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     return f;
   };
   const ctx = {
+    Logger: { log: (m) => { log.logged.push(String(m)); } },
     console, Date, Math, JSON, Object, Array, String, Number, Buffer, URLSearchParams,
     SpreadsheetApp: { getActive: () => active, getActiveSpreadsheet: () => active, openById: (id) => { if (id !== active.id) throw new Error('no such spreadsheet'); return active; }, getUi: () => ui },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => { props.set(k, String(v)); } }) },

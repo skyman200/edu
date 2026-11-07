@@ -1,7 +1,5 @@
 /* ===== 레시피 2. 24시간 수업 조교 =====
-   1) 새 구글 시트 → 확장 프로그램 → Apps Script에 공통 도우미 + 이 코드를 붙여 넣고 저장합니다.
-   2) [24시간 조교] 메뉴: 처음 준비 → 수업 코드 입력. [자료] 시트 A열에 강의계획서와 공지를 붙여 넣습니다.
-   3) 배포 → 새 배포 → 웹 앱(실행 "나", 액세스 "모든 사용자"). 주소 보기로 학생용 주소를 받습니다.
+   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    Jev가 "자료만으로 답할 수 있나, 교수가 직접 답할 질문인가"를 확률로 판정합니다. 확신이 높으면 AI가 자료를 인용해 답하고,
    아니면 [질문기록] 시트에 쌓여 교수에게 갑니다. 교수가 G열에 답을 적으면 학생이 질문 번호로 확인합니다. */
 function onOpen() {
@@ -27,12 +25,13 @@ function setup() {
   var m = ss.getSheetByName('자료');
   if (!m) { m = ss.insertSheet('자료'); m.getRange('A1').setValue('여기 A열에 강의계획서, 평가 기준, 공지 내용을 한 줄씩 붙여 넣으세요.'); m.setColumnWidth(1, 700); }
   sheet_('질문기록', ['시간', '번호', '질문', '분류', '답변가능도', '처리', '답변(교수가 직접 쓰면 학생에게 보임)']);
-  SpreadsheetApp.getUi().alert('준비됐습니다. [자료] 시트에 수업 자료를 붙여 넣고, 수업 코드 입력 → 웹 앱 배포 순서로 진행하세요.');
+  weeklyOn_();
+  say_('준비 끝! [자료] 시트 A열에 강의계획서와 공지를 붙여 넣고, 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매주 월요일 질문 리포트도 켜졌습니다.');
 }
 
 function showUrls() {
   var url = ScriptApp.getService().getUrl();
-  SpreadsheetApp.getUi().alert(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  say_(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
 }
 
 function cfg_() {
@@ -100,10 +99,14 @@ function checkAnswer(id) {
   return { found: false };
 }
 
-function weeklyOn() {
+function weeklyOn_() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'weeklyReport') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('weeklyReport').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8).create();
-  SpreadsheetApp.getUi().alert('매주 월요일 아침 8시쯤 지난주 질문 리포트가 내 메일로 옵니다.');
+}
+
+function weeklyOn() {
+  weeklyOn_();
+  say_('매주 월요일 아침 8시쯤 지난주 질문 리포트가 내 메일로 옵니다.');
 }
 
 function weeklyReport() {

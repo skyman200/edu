@@ -116,7 +116,8 @@ test('recipes: bundle up to date, Jev presets pass the real validator, sources r
   for (const r of RECIPES) {
     const v = validateJev({ state: r.jevPreset.state, questions: r.jevPreset.questions });
     assert.equal(v.ok, true, `${r.id}: ${v.message}`);
-    assert.ok(r.examples.length >= 3 && r.steps.length >= 4, r.id);
+    assert.ok(r.examples.length >= 3 && r.steps.length >= 4 && r.web && typeof r.web.deploy === 'boolean' && Array.isArray(r.web.links), r.id);
+    if (r.web.deploy) assert.ok(r.web.links.length >= 1, r.id);
     if (!r.file) continue;
     const src = fs.readFileSync(path.join(here, r.file), 'utf8');
     for (const q of Object.keys(r.jevPreset.questions)) assert.ok(new RegExp('\\b' + q + ':\\s*\\{\\s*type:').test(src), `${r.id}: ${q}`);
@@ -127,7 +128,7 @@ test('recipes: bundle up to date, Jev presets pass the real validator, sources r
 test('gas.html: inline script parses, every $("#id") exists, scripts load in order', () => {
   const html = fs.readFileSync(path.join(here, '..', 'gas.html'), 'utf8');
   const scripts = [...html.matchAll(/<script(?: src="([^"]+)")?>([\s\S]*?)<\/script>/g)];
-  assert.deepEqual(scripts.filter((s) => s[1]).map((s) => s[1]), ['gas-diag.js', 'gas-recipes.js']);
+  assert.deepEqual(scripts.filter((s) => s[1]).map((s) => s[1]), ['vendor/qrcode/qrcode.js', 'gas-diag.js', 'gas-recipes.js']);
   const inline = scripts.find((s) => !s[1])[2];
   new vm.Script(inline, { filename: 'gas.html' });
   const ids = new Set([...html.matchAll(/\bid="([\w-]+)"/g)].map((m) => m[1]));

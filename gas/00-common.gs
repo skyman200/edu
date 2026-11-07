@@ -3,6 +3,19 @@
    ai_    : 글을 쓰는 AI(Claude)에게 부탁합니다.
    jev_   : 판정 모델 Jev에게 예/아니오, 여럿 중 하나, 단계 점수를 확률로 묻습니다. 글은 쓰지 않고 고르기만 합니다.
    ss_ sheet_ throttle_ page_ : 시트 찾기, 시트 만들기, 연타 막기, 웹 화면 만들기 */
+// 편집기의 ▶ 실행이 맨 처음 함수를 고르므로 start 를 가장 위에 둡니다: 시트 탭, 메뉴, 자동 실행을 한 번에 준비합니다.
+function start() {
+  if (typeof setup !== 'function') { say_('이 코드에는 start 단계가 없습니다. 만들어진 함수를 직접 실행하세요.'); return; }
+  setup();
+  if (typeof onOpen === 'function') onOpen();
+}
+
+// 편집기 실행 로그와 시트 알림창에 같이 알립니다(자동 실행 중에는 알림창이 없어서 로그만 남습니다).
+function say_(msg) {
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+}
+
 var SERVER = 'https://kimcook-edu.pages.dev';
 
 function setClassCode() {
@@ -21,8 +34,8 @@ function setClassCode() {
 }
 
 function post_(path, body) {
-  var code = PropertiesService.getScriptProperties().getProperty('CLASS_CODE');
-  if (!code) throw new Error('수업 코드가 아직 없습니다. 시트 메뉴에서 "수업 코드 입력"을 먼저 실행하세요.');
+  var code = PropertiesService.getScriptProperties().getProperty('CLASS_CODE') || (typeof EMBEDDED_CODE === 'string' ? EMBEDDED_CODE : '');
+  if (!code) throw new Error('수업 코드가 아직 없습니다. 웹 도구에서 수업 코드를 넣고 코드를 다시 복사하거나, 시트 메뉴의 "수업 코드 입력"을 실행하세요.');
   body.code = code;
   var last;
   for (var i = 0; i < 3; i++) {

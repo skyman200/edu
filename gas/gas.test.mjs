@@ -320,6 +320,30 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   assert.deepEqual([rows.at(-2)[1], rows.at(-2)[2], rows.at(-1)[3]], [3, '', '판정 실패']);
 });
 
+test('one-step start: pasting the code and running start() prepares everything, with the class code embedded', () => {
+  const expectTriggers = { 'r1-board.gs': [], 'r2-assistant.gs': ['weeklyReport'], 'r3-tutor.gs': [], 'r4-future.gs': ['deliverLetters'], 'r5-boardphoto.gs': ['processPhotos'], 'r6-survey.gs': ['onSurveySubmit'] };
+  for (const [f, trig] of Object.entries(expectTriggers)) {
+    const env = createEnv();
+    env.props.delete('CLASS_CODE');
+    env.run("var EMBEDDED_CODE = 'TESTCODE';\n" + COMMON + '\n' + readGs(f), f);
+    assert.match(env.run('start.toString()').slice(0, 20), /function start/);
+    env.ctx.start();
+    assert.ok(env.log.alerts.at(-1).startsWith('준비 끝'), f + ': ' + env.log.alerts.at(-1));
+    assert.ok(env.log.logged.at(-1).startsWith('준비 끝'), 'the message also reaches the execution log');
+    assert.equal(env.log.menus.length, 1, f + ': the menu is installed without reopening the sheet');
+    assert.deepEqual(env.log.triggers.map((t) => t.fn), trig, f);
+    assert.ok(env.active.sheets.size >= 1, f);
+    // no CLASS_CODE property: the embedded code is used
+    assert.deepEqual(JSON.parse(JSON.stringify(env.ctx.jev_('x', { a: { type: 'noul', instructions: 'q' } }))).a.type, 'noul');
+    assert.ok(!/수업 코드 입력/.test(env.log.alerts.at(-1)), 'no leftover step about typing the code');
+  }
+  const blank = createEnv();
+  blank.run(COMMON, 'blank');
+  blank.ctx.start();
+  assert.ok(blank.log.alerts.at(-1).includes('start 단계가 없습니다'));
+  assert.ok(/^function start\(/m.exec(COMMON) && COMMON.indexOf('function start') < COMMON.search(/function (?!start)\w+\(/), 'start is the first function, so the editor selects it by default');
+});
+
 test('every recipe: menu items exist, the shared helpers are not redefined, pages carry no template literals', () => {
   for (const f of ['r1-board', 'r2-assistant', 'r3-tutor', 'r4-future', 'r5-boardphoto', 'r6-survey']) {
     const src = readGs(f + '.gs');
