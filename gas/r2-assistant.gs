@@ -132,8 +132,9 @@ var ASK_HTML = '<div class="kick">24H · <span class="ko">수업 조교</span></
   'google.script.run.withSuccessHandler(function(r){$("#nm").textContent=r.name;if(!r.open){$("#b").disabled=true;say($("#m"),"지금은 질문을 받지 않습니다.")}}).getInfo();' +
   'var waiting=false,STEPS=["자료를 훑어 읽는 중","근거 문장을 찾는 중","답을 쓰는 중"];function cycle(n){if(!waiting)return;say($("#m"),STEPS[n%3]+"…");setTimeout(function(){cycle(n+1)},1500)}' +
   'function meter(r){var l=document.createElement("div");l.className="gl";l.textContent="JEV 판정 · "+r.kind+" · 자료로 답할 수 있을 확률 "+r.p+"%";var g=document.createElement("div");g.className="gauge"+(r.auto?"":" hot");var f=document.createElement("i");g.appendChild(f);$("#m").appendChild(l);$("#m").appendChild(g);setTimeout(function(){f.style.width=r.p+"%"},80)}' +
-  '$("#b").onclick=function(){var t=$("#t").value;if(t.trim().length<4)return;$("#b").disabled=true;waiting=true;cycle(0);' +
-  'google.script.run.withSuccessHandler(function(r){waiting=false;$("#b").disabled=false;if(!r.ok){say($("#m"),r.msg,"msg err");return}$("#t").value="";' +
-  'if(r.auto){say($("#m"),"","msg");typeOut($("#m").children[0],r.answer)}else say($("#m"),"수업 자료만으로는 답하기 어려워 교수님께 전달했습니다. 질문 번호 "+r.id+" 를 적어 두고 나중에 아래에서 확인하세요.");meter(r)})' +
-  '.withFailureHandler(function(e){waiting=false;$("#b").disabled=false;say($("#m"),"질문을 보내지 못했습니다: "+e.message,"msg err")}).ask(t,sid)};' +
-  '$("#k").onclick=function(){google.script.run.withSuccessHandler(function(r){say($("#r"),r.found?(r.answer||"아직 답변이 없습니다. 조금 뒤에 다시 확인하세요."):"해당하는 질문이 없습니다.")}).checkAnswer($("#i").value)};</script>';
+  '$("#b").onclick=function(){var t=$("#t").value;if(t.trim().length<4){fail("질문하기를 못했어요. 네 글자 이상 적어 주세요.");return}$("#b").disabled=true;waiting=true;cycle(0);' +
+  'google.script.run.withSuccessHandler(function(r){waiting=false;$("#b").disabled=false;if(!r.ok){$("#m").textContent="";fail("질문하기를 못했어요. "+r.msg);return}$("#t").value="";' +
+  'if(r.auto){say($("#m"),"","msg");typeOut($("#m").children[0],r.answer);toast("답을 받았어요.")}else{say($("#m"),"수업 자료만으로는 답하기 어려워 교수님께 전달했습니다. 질문 번호 "+r.id+" 를 적어 두고 나중에 아래에서 확인하세요.");toast("교수님께 전달했어요. 질문 번호 "+r.id)}meter(r)})' +
+  '.withFailureHandler(function(e){waiting=false;$("#b").disabled=false;$("#m").textContent="";fail("질문하기를 못했어요. "+e.message)}).ask(t,sid)};' +
+  '$("#k").onclick=function(){google.script.run.withSuccessHandler(function(r){if(!r.found){$("#r").textContent="";fail("답변 확인을 못했어요. 해당하는 질문 번호가 없습니다.");return}say($("#r"),r.answer||"아직 답변이 없습니다. 조금 뒤에 다시 확인하세요.");toast(r.answer?"교수님 답변을 찾았어요.":"질문을 찾았어요. 아직 답변은 없습니다.")})' +
+  '.withFailureHandler(function(e){fail("답변 확인을 못했어요. "+e.message)}).checkAnswer($("#i").value)};</script>';

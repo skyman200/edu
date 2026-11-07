@@ -196,6 +196,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
 // Runs the browser script of a served page against a stub DOM. google.script.run calls are executed synchronously on the
 // server functions of `env`, so the page logic is exercised end to end (a call to a function that does not exist throws).
 export function runPage(env, html, { values = {} } = {}) {
+  html = (env.ctx.TOAST_JS || '') + html; // page_ puts the shared toast in front of every page
   // every inline <script> block, in order (src-only scripts are skipped, as they load third-party code)
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join(';\n');
   const els = new Map(), calls = [], timers = [], store = new Map();

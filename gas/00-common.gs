@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.07-e';
+var CODE_VERSION = 'v2026.11.07-f';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    post_  : 수업 서버(kimcook-edu.pages.dev)로 보내는 공통 통로. 수업 코드는 스크립트 속성에만 저장됩니다.
@@ -161,12 +161,46 @@ function typeOut_(el, text) {
 }
 var TYPE_JS = typeOut_.toString().replace('function typeOut_', 'function typeOut');
 
+// 버튼 결과 알림(모든 웹 화면 공통): 화면 아래 가운데에 뜹니다.
+// toast('…했어요') 는 먹색으로 3초 동안 보였다가 저절로 사라집니다(아래 빨간 선이 줄어듭니다).
+// fail('…을 못했어요. 이유') 는 빨간 바탕으로, 닫기 버튼을 누를 때까지 남습니다. 글은 textContent로만 넣습니다.
+var TOAST_CSS = [
+  '.toast{position:fixed;left:50%;bottom:clamp(20px,4vh,40px);z-index:90;display:flex;align-items:flex-start;gap:12px;width:max-content;max-width:min(600px,calc(100vw - 32px));padding:12px 16px 14px;overflow:hidden;background:#141414;color:#fff;border-radius:2px;font:500 clamp(14px,1.1vw,18px)/1.5 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;word-break:keep-all;transform:translate(-50%,14px);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .25s}',
+  '.toast.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}',
+  '.toast b{flex:none;padding-right:12px;border-right:1px solid rgba(255,255,255,.35);font-size:.8em;font-weight:800;letter-spacing:.12em;line-height:1.9}',
+  '.toast span{white-space:pre-wrap;overflow-wrap:anywhere}',
+  '.toast i{position:absolute;left:0;right:0;bottom:0;height:3px;background:#e54536;transform-origin:0 50%;transform:scaleX(0)}',
+  '.toast.run i{animation:tbar 3s linear forwards}@keyframes tbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}',
+  '.toast.bad{background:#e54536}',
+  '.toast button{flex:none;margin:-3px -6px -3px 4px;padding:3px 11px;border:1px solid #fff;border-radius:2px;background:transparent;color:#fff;font:600 .9em Pretendard,sans-serif;cursor:pointer}',
+  '.toast button:hover{background:#fff;color:#e54536}',
+  '@media (prefers-reduced-motion:reduce){.toast{transition:none}.toast.run i{animation:none}}'
+].join('');
+
+function toastKit_() {
+  var box = null, tt = 0;
+  function mk(tag, text) { var e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
+  return function (msg, bad) {
+    box = box || document.querySelector('#toast');
+    if (!box) return;
+    clearTimeout(tt); box.textContent = '';
+    box.className = 'toast'; void box.offsetWidth;
+    if (box.setAttribute) box.setAttribute('role', bad ? 'alert' : 'status');
+    box.appendChild(mk('b', bad ? '실패' : '완료')); box.appendChild(mk('span', String(msg)));
+    if (bad) { var x = mk('button', '닫기'); x.type = 'button'; x.onclick = function () { box.className = 'toast bad'; }; box.appendChild(x); }
+    else { box.appendChild(mk('i')); tt = setTimeout(function () { box.className = 'toast'; }, 3000); }
+    box.className = 'toast on ' + (bad ? 'bad' : 'run');
+  };
+}
+// page_ 가 모든 화면의 맨 앞에 붙입니다. 화면 스크립트는 toast(글) 와 fail(글) 을 부르면 됩니다.
+var TOAST_JS = '<div class="toast" id="toast" aria-live="polite"></div><script>var toast_ = (' + toastKit_.toString() + ')();function toast(m) { toast_(m, false); }function fail(m) { toast_(m, true); }</script>';
+
 // 웹 화면 하나를 만듭니다. body에는 <script>까지 넣습니다. opts.raw 이면 기본 틀 없이 opts.css 만 씁니다(강의장 큰 화면용).
 // ALLOWALL: 파워포인트의 웹 뷰어 같은 다른 페이지 안에 이 화면을 넣을 수 있게 합니다.
 function page_(title, body, opts) {
   opts = opts || {};
-  var css = opts.raw ? (opts.css || '') : PAGE_CSS + (opts.css || '');
-  var inner = opts.raw ? body : '<main>' + body + '</main>';
+  var css = (opts.raw ? (opts.css || '') : PAGE_CSS + (opts.css || '')) + TOAST_CSS;
+  var inner = TOAST_JS + (opts.raw ? body : '<main>' + body + '</main>');
   return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' + title + '</title>' + FONT_LINK + '<style>' + css + '</style></head><body>' + inner + '<div style="position:fixed;right:10px;bottom:6px;font:600 10px/1 Montserrat,sans-serif;letter-spacing:.12em;color:#8e8e8e;opacity:.7;pointer-events:none">' + CODE_VERSION + '</div></body></html>')
     .setTitle(title).addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -214,22 +248,21 @@ var STAGE_CSS = [
   '.kit button{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--fg);border-radius:2px;background:var(--bg);color:var(--fg);font:600 13px/1 Pretendard,sans-serif;cursor:pointer}',
   '.kit button:hover{background:var(--fg);color:var(--bg)}',
   '.kit kbd{font:700 10px/1 Montserrat,sans-serif;letter-spacing:.08em;opacity:.55}',
-  '.stoast{position:fixed;left:50%;bottom:clamp(60px,9vh,110px);z-index:31;max-width:min(640px,86vw);padding:12px 16px;border:1px solid var(--fg);background:var(--bg);color:var(--fg);font:500 14px/1.45 Pretendard,sans-serif;transform:translate(-50%,12px);opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}',
-  '.stoast.on{opacity:1;transform:translate(-50%,0)}',
   '@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}'
 ].join('');
 
 function stageKit_() {
   if (typeof document === 'undefined' || !document.body || !document.addEventListener) return;
-  var bar = document.createElement('div'), keys = {}, idle = 0, lock = null, tt = 0;
+  var bar = document.createElement('div'), keys = {}, idle = 0, lock = null;
   bar.className = 'kit'; document.body.appendChild(bar);
-  var note = document.createElement('div'); note.className = 'stoast'; document.body.appendChild(note);
-  function toast(t) { note.textContent = t; note.className = 'stoast on'; clearTimeout(tt); tt = setTimeout(function () { note.className = 'stoast'; }, 4200); }
+  // 알림은 공통 토스트(TOAST_JS)를 씁니다.
+  function toast(t) { if (typeof window.toast === 'function') window.toast(t); }
+  function oops(t) { if (typeof window.fail === 'function') window.fail(t); }
   function wake() { document.body.classList.remove('idle'); clearTimeout(idle); idle = setTimeout(function () { document.body.classList.add('idle'); }, 2600); }
   ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(function (e) { document.addEventListener(e, wake, { passive: true }); });
   wake();
   function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-  function hint() { toast('이 창에서는 전체화면 버튼이 막혀 있습니다. 키보드로 하세요: 윈도우 F11, 맥 Control + Command + F'); }
+  function hint() { oops('전체화면을 못했어요. 이 창에서는 버튼이 막혀 있습니다. 키보드로 하세요: 윈도우 F11, 맥 Control + Command + F'); }
   function fs() {
     if (isFs()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
     var d = document.documentElement, req = d.requestFullscreen || d.webkitRequestFullscreen;
@@ -254,7 +287,7 @@ function stageKit_() {
     var f = keys[String(e.key || '').toLowerCase()];
     if (f) { e.preventDefault(); f(); }
   });
-  window.stage = { add: add, toast: toast };
+  window.stage = { add: add, toast: toast, fail: oops };
 }
 var STAGE_JS = '<script>(' + stageKit_.toString() + ')();</script>';
 

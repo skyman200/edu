@@ -374,7 +374,7 @@ test('r3 class screen: PIN-gated, shows aliases and levels, never conversation t
   assert.equal(pg.el('#grid').children.length, 2);
   assert.equal(pg.el('#gate').hidden, true);
   pg.click('#go');
-  assert.equal(pg.timers.length, 1, 'one polling loop, however often the button is pressed');
+  assert.equal(pg.timers.filter((t) => t[1] === 5000).length, 1, 'one polling loop, however often the button is pressed');
 });
 
 test('r6 report screen: totals and rankings for the big screen, never urgent rows or complaints', () => {
@@ -519,7 +519,7 @@ test('r1 safety: student text never runs as a formula, archives never collide, a
 test('design guard: pages and mails stay flat and in the lab style (no gradients, glow, blur, big radii, emoji); mail text is escaped', () => {
   const env = boot('r1-board.gs');
   env.setup();
-  const pages = [env.ctx.PAGE_CSS, env.ctx.BOARD_CSS, env.ctx.ASK_CSS, env.ctx.STAGE_CSS];
+  const pages = [env.ctx.PAGE_CSS, env.ctx.BOARD_CSS, env.ctx.ASK_CSS, env.ctx.STAGE_CSS, env.ctx.TOAST_CSS];
   for (const f of ['r2-assistant', 'r3-tutor', 'r4-future']) pages.push(readGs(f + '.gs'));
   for (const css of pages) {
     assert.ok(!/gradient|box-shadow|backdrop|blur\(|filter:|color-mix/i.test(css), 'no decorative effects');
@@ -555,14 +555,23 @@ test('web pages: each browser script runs against the real server functions', ()
   const ask = runPage(r1, r1.ctx.ASK_HTML);
   assert.deepEqual(ask.calls, ['getQuestion']);
   assert.equal(ask.el('#q').textContent, 'AI를 수업에 쓰는 것에서 가장 걱정되는 점은?');
+  const toastOf = (pg) => pg.texts('#toast').join(' ');
   ask.click('#b');
   assert.deepEqual(ask.calls, ['getQuestion'], 'an empty answer is not sent');
+  assert.ok(toastOf(ask).startsWith('실패 생각 보내기를 못했어요.') && ask.el('#toast').className.includes('bad'), 'a failed button shows the red toast');
+  assert.equal(ask.el('#toast').children.at(-1).textContent, '닫기', 'the failure toast has a close button');
+  ask.el('#toast').children.at(-1).onclick();
+  assert.ok(!ask.el('#toast').className.includes('on'), 'closing hides it');
   ask.set('#t', '시험 때 몰래 쓸까 봐 걱정입니다');
   ask.click('#b');
   assert.deepEqual(ask.calls, ['getQuestion', 'submitAnswer']);
-  assert.ok(ask.texts('#m')[0].includes('보냈습니다') && ask.texts('#m')[0].includes('부정행위'));
+  assert.equal(toastOf(ask), '완료 생각을 보냈어요 · No.001 · 「부정행위」 쪽으로 모였어요.', 'the student sees the number the big screen shows');
+  assert.equal(ask.el('#toast').className, 'toast on run');
+  const hide = ask.timers.find((t) => t[1] === 3000);
+  assert.ok(hide, 'a success toast hides itself after three seconds');
+  hide[0]();
+  assert.equal(ask.el('#toast').className, 'toast');
   assert.equal(ask.el('#t').value, '');
-  assert.ok(ask.texts('#m')[0].includes('No.001'), 'the student sees the number the big screen shows');
   assert.equal(ask.el('#mine').hidden, false);
   assert.equal(ask.el('#ml').children.length, 1);
   assert.match(ask.el('#ml').children[0].textContent, /^001시험 때 몰래 쓸까 봐 걱정입니다→ 부정행위 · \d\d:\d\d$/, 'my sent thought stays as a numbered slip with its group');
@@ -608,7 +617,7 @@ test('web pages: each browser script runs against the real server functions', ()
   assert.equal(p2.el('#m').children[0].textContent, '바로 답하면 이렇게 됩니다');
   p2.set('#i', 'ZZZZZZ');
   p2.click('#k');
-  assert.ok(p2.el('#r').children[0].textContent.includes('해당하는 질문이 없습니다'));
+  assert.ok(p2.texts('#toast').join(' ').includes('답변 확인을 못했어요. 해당하는 질문 번호가 없습니다') && p2.el('#toast').className.includes('bad'));
   // recipe 3
   const r3 = boot('r3-tutor.gs', { jev: (s, q) => ({ ...defaultAnswers(q), move: choice('wrap') }), ai: () => '잘했어요. 이제 한 문단으로 정리해 보세요.' });
   r3.setup();

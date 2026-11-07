@@ -176,12 +176,12 @@ var TUTOR_HTML = '<div class="kick">SOCRATIC · <span class="ko">되묻는 튜�
   'var $=function(s){return document.querySelector(s)},max=8,busy=false;function add(cls,text){var d=document.createElement("div");d.className="bubble "+cls;d.style.whiteSpace="pre-wrap";d.textContent=text;$("#log").appendChild(d);d.scrollIntoView()}' +
   'function note(text,cls){var m=$("#m");m.textContent="";if(!text)return;var p=document.createElement("p");p.className=cls||"msg";p.textContent=text;m.appendChild(p)}' +
   'google.script.run.withSuccessHandler(function(r){$("#tp").textContent=r.topic;$("#gl").textContent="학습 목표: "+r.goals;max=r.max;if(!r.open){$("#go").disabled=true;note("지금은 대화를 받지 않습니다.")}}).getInfo();' +
-  '$("#go").onclick=function(){$("#st").hidden=true;$("#chat").hidden=false;add("","안녕하세요. 이 주제에서 이미 알고 있다고 생각하는 것을 편하게 적어 주세요. 틀려도 괜찮습니다.")};' +
-  '$("#b").onclick=function(){if(busy)return;var t=$("#t").value.trim();if(!t)return;busy=true;$("#b").disabled=true;add("me",t);$("#t").value="";note("튜터가 생각하는 중…");' +
-  'google.script.run.withSuccessHandler(function(r){busy=false;$("#b").disabled=false;if(!r.ok){note(r.msg,"msg err");return}note("");add("",r.reply);$("#n").textContent=r.turn+" / "+max;if(r.done){$("#fin").hidden=false;$("#b").disabled=true}})' +
-  '.withFailureHandler(function(e){busy=false;$("#b").disabled=false;note("보내지 못했습니다: "+e.message,"msg err")}).tutorTurn(sid,$("#al").value,t)};' +
-  '$("#sub").onclick=function(){$("#sub").disabled=true;google.script.run.withSuccessHandler(function(r){if(r.ok){$("#fin").hidden=true;$("#chat").hidden=true;note("제출했습니다. 수고했어요.")}else{$("#sub").disabled=false;note(r.msg,"msg err")}})' +
-  '.withFailureHandler(function(e){$("#sub").disabled=false;note("제출하지 못했습니다: "+e.message,"msg err")}).submitTranscript(sid,$("#al").value,$("#ft").value)};</script>';
+  '$("#go").onclick=function(){$("#st").hidden=true;$("#chat").hidden=false;add("","안녕하세요. 이 주제에서 이미 알고 있다고 생각하는 것을 편하게 적어 주세요. 틀려도 괜찮습니다.");toast("대화를 시작했어요.")};' +
+  '$("#b").onclick=function(){if(busy)return;var t=$("#t").value.trim();if(!t){fail("보내기를 못했어요. 내 생각을 먼저 적어 주세요.");return}busy=true;$("#b").disabled=true;add("me",t);$("#t").value="";note("튜터가 생각하는 중…");' +
+  'google.script.run.withSuccessHandler(function(r){busy=false;$("#b").disabled=false;if(!r.ok){note("");fail("보내기를 못했어요. "+r.msg);return}note("");add("",r.reply);toast(r.done?"보냈어요. 이제 내 말로 정리해 제출하세요.":"보냈어요. 튜터의 질문을 읽어 보세요.");$("#n").textContent=r.turn+" / "+max;if(r.done){$("#fin").hidden=false;$("#b").disabled=true}})' +
+  '.withFailureHandler(function(e){busy=false;$("#b").disabled=false;note("");fail("보내기를 못했어요. "+e.message)}).tutorTurn(sid,$("#al").value,t)};' +
+  '$("#sub").onclick=function(){$("#sub").disabled=true;google.script.run.withSuccessHandler(function(r){if(r.ok){$("#fin").hidden=true;$("#chat").hidden=true;note("제출했습니다. 수고했어요.");toast("제출했어요. 수고했어요.")}else{$("#sub").disabled=false;fail("제출을 못했어요. "+r.msg)}})' +
+  '.withFailureHandler(function(e){$("#sub").disabled=false;fail("제출을 못했어요. "+e.message)}).submitTranscript(sid,$("#al").value,$("#ft").value)};</script>';
 
 // 교수 화면: 학생이 튜터와 대화하는 동안 교실 전체의 이해도가 실시간으로 올라가는 모습입니다. PIN을 아는 사람만 봅니다.
 var CLASS_CSS = [
@@ -269,9 +269,11 @@ function classClient_() {
       busy = false;
       if (!d.ok) {
         pin = ''; try { sessionStorage.removeItem('class-tok'); } catch (e) {}
+        if (typeof fail === 'function') fail('교수 화면 열기를 못했어요. ' + d.msg);
         $('#err').textContent = d.msg; $('#gate').hidden = false; $('#stage').hidden = true; return;
       }
       if (d.token) { pin = d.token; try { sessionStorage.setItem('class-tok', d.token); } catch (e) {} }
+      if (!$('#gate').hidden && typeof toast === 'function') toast('교수 화면을 열었어요.');
       $('#gate').hidden = true; $('#stage').hidden = false; draw(d); next(5000);
     }).withFailureHandler(function () { busy = false; next(8000); }).getClass(pin);
   }
@@ -279,7 +281,7 @@ function classClient_() {
   if (pin) tick();
   $('#go').onclick = function () {
     var v = $('#pin').value.trim();
-    if (!/^\d{4}$/.test(v)) { $('#err').textContent = 'PIN은 숫자 4자리입니다.'; return; }
+    if (!/^\d{4}$/.test(v)) { $('#err').textContent = 'PIN은 숫자 4자리입니다.'; if (typeof fail === 'function') fail('교수 화면 열기를 못했어요. PIN은 숫자 4자리입니다.'); return; }
     pin = v; $('#err').textContent = ''; tick();
   };
   $('#pin').onkeydown = function (e) { if (e.key === 'Enter') $('#go').onclick(); };

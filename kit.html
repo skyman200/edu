@@ -58,6 +58,15 @@ li{margin:0 0 3pt}
 .rb li{white-space:pre-wrap;overflow-wrap:anywhere}
 pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;font:6.6pt/1.45 Menlo,Consolas,"D2Coding",monospace;white-space:pre-wrap;word-break:break-all}
 @page{size:A4;margin:14mm 16mm 18mm}
+/* 버튼 결과 알림: 화면 아래 가운데. 인쇄물에는 나오지 않습니다. */
+.toast{position:fixed;left:50%;bottom:28px;z-index:90;display:flex;align-items:flex-start;gap:12px;width:max-content;max-width:min(560px,calc(100vw - 32px));padding:12px 16px 14px;overflow:hidden;background:#1a1a1a;color:#fff;border-radius:2px;font:500 14px/1.5 Pretendard,sans-serif;word-break:keep-all;transform:translate(-50%,14px);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .25s}
+.toast.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.toast b{flex:none;padding-right:12px;border-right:1px solid rgba(255,255,255,.35);font-size:12px;font-weight:800;letter-spacing:.12em;line-height:21px}
+.toast i{position:absolute;left:0;right:0;bottom:0;height:3px;background:#e54536;transform-origin:0 50%;transform:scaleX(0)}
+.toast.run i{animation:tbar 3s linear forwards}@keyframes tbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.toast.bad{background:#e54536}
+.toast button{flex:none;margin:-3px -6px -3px 4px;padding:3px 11px;border:1px solid #fff;border-radius:2px;background:transparent;color:#fff;font:600 13px Pretendard,sans-serif;cursor:pointer}
+@media print{.toast{display:none}}
 @media print{
   html{background:#fff}
   .bar{display:none}
@@ -257,7 +266,21 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
     }
   }
   nm.oninput = org.oninput = render; withCode.onchange = render;
-  $('#save').onclick = function () { render(); setTimeout(function () { window.print(); }, 150); };
+  var tt;
+  function note(m, bad) {
+    var t = $('#toast'); clearTimeout(tt); t.textContent = ''; t.className = 'toast'; void t.offsetWidth;
+    var b = document.createElement('b'); b.textContent = bad ? '실패' : '완료'; t.appendChild(b);
+    var sp = document.createElement('span'); sp.textContent = m; t.appendChild(sp);
+    if (bad) { var x = document.createElement('button'); x.type = 'button'; x.textContent = '닫기'; x.onclick = function () { t.className = 'toast bad'; }; t.appendChild(x); }
+    else { t.appendChild(document.createElement('i')); tt = setTimeout(function () { t.className = 'toast'; }, 3000); }
+    t.className = 'toast on ' + (bad ? 'bad' : 'run');
+  }
+  $('#save').onclick = function () {
+    try { render(); } catch (e) { note('PDF 만들기를 못했어요. ' + e.message, true); return; }
+    setTimeout(function () {
+      try { window.print(); note('인쇄 창을 열었어요. 대상을 "PDF로 저장"으로 두세요.'); } catch (e) { note('인쇄 창 열기를 못했어요. 브라우저 메뉴의 인쇄(Ctrl+P, 맥 ⌘+P)를 쓰세요.', true); }
+    }, 150);
+  };
   render();
   if (Q.get('auto') === '1') {
     var go = function () { setTimeout(function () { window.print(); }, 500); };
@@ -265,5 +288,6 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
   }
 })();
 </script>
+<div class="toast" id="toast" aria-live="polite"></div>
 </body>
 </html>

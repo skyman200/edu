@@ -41,8 +41,16 @@ function first_(arr) {
   return arr && arr.length ? String(arr[0]).trim() : '';
 }
 
+// 폼에 건 제출 트리거의 이벤트에는 e.response 만 있고, 시트에 건 트리거에만 e.namedValues 가 있습니다. 둘 다 받습니다.
+function answers_(e) {
+  if (e && e.namedValues) return e.namedValues;
+  var out = {};
+  if (e && e.response) e.response.getItemResponses().forEach(function (r) { out[r.getItem().getTitle()] = [String(r.getResponse())]; });
+  return out;
+}
+
 function onSurveySubmit(e) {
-  var v = e.namedValues || {}, sat = Number(first_(v[Q_SAT])) || '', good = first_(v[Q_GOOD]), want = first_(v[Q_WANT]);
+  var v = answers_(e), sat = Number(first_(v[Q_SAT])) || '', good = first_(v[Q_GOOD]), want = first_(v[Q_WANT]);
   var mood = '', topic = '', suggest = '', urgent = '';
   if (good || want) {
     try {

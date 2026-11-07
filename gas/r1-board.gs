@@ -221,12 +221,8 @@ function askClient_() {
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function pad(n) { return n < 1000 ? ('00' + n).slice(-3) : String(n); }
   function cls(e, c, on) { if (e.classList) e.classList.toggle(c, on); else e.className = on ? c : ''; }
-  function note(t, bad, tag) {
-    var m = $('#m'), p = mk('p', 'msg rise' + (bad ? ' err' : ''));
-    m.textContent = ''; p.appendChild(document.createTextNode(t));
-    if (tag) { p.appendChild(document.createTextNode(' 「')); p.appendChild(mk('b', '', tag)); p.appendChild(document.createTextNode('」 쪽으로 모였어요. 큰 화면을 보세요.')); }
-    m.appendChild(p);
-  }
+  // 질문이 바뀌었거나 마감 같은 상태 안내만 여기에 적습니다. 버튼 결과는 공통 토스트(toast, fail)로 알립니다.
+  function note(t, bad) { var m = $('#m'), p = mk('p', 'msg rise' + (bad ? ' err' : ''), t); m.textContent = ''; m.appendChild(p); }
   function words(e, text) {
     if (!live) { e.textContent = text; return; }
     e.textContent = ''; cls(e, 'on', false);
@@ -277,14 +273,16 @@ function askClient_() {
   $('#t').oninput = count;
   $('#b').onclick = function () {
     var t = $('#t').value;
-    if (t.trim().length < 2 || sending) return;
+    if (sending) return;
+    if (t.trim().length < 2) { fail('생각 보내기를 못했어요. 두 글자 이상 적어 주세요.'); return; }
     sending = true; $('#b').disabled = true;
     google.script.run.withSuccessHandler(function (r) {
       sending = false; $('#b').disabled = !open;
-      if (!r.ok) { note(r.msg, 1); if (r.stale) load(); return; }
+      if (!r.ok) { fail('생각 보내기를 못했어요. ' + r.msg); if (r.stale) load(); return; }
       var now = new Date(), h = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
       mine.list.push({ t: t.replace(/\s+/g, ' ').trim().slice(0, 140), c: r.cat || '', no: r.no || 0, h: h }); mine.list = mine.list.slice(-20); save();
-      note('보냈습니다' + (r.no ? ' · No.' + pad(r.no) : '') + '.' + (r.cat ? '' : ' 큰 화면을 보세요.'), 0, r.cat || '');
+      $('#m').textContent = '';
+      toast('생각을 보냈어요' + (r.no ? ' · No.' + pad(r.no) : '') + (r.cat ? ' · 「' + r.cat + '」 쪽으로 모였어요.' : '. 큰 화면을 보세요.'));
       var card = $('#card');
       function reset() { $('#t').value = ''; count(); drawMine(true); }
       if (!live) { reset(); return; }
@@ -293,7 +291,7 @@ function askClient_() {
         reset(); cls(card, 'go', false); cls(card, 'come', true);
         requestAnimationFrame(function () { requestAnimationFrame(function () { cls(card, 'come', false); }); });
       }, 520);
-    }).withFailureHandler(function (e) { sending = false; $('#b').disabled = !open; note('보내지 못했습니다: ' + e.message, 1); }).submitAnswer(t, sid, round);
+    }).withFailureHandler(function (e) { sending = false; $('#b').disabled = !open; fail('생각 보내기를 못했어요. ' + e.message); }).submitAnswer(t, sid, round);
   };
   count(); drawMine(false); load();
 }
@@ -349,7 +347,7 @@ var BOARD_CSS = [
   '.lab{padding-top:clamp(8px,1.2vh,16px);transition:opacity .7s,transform .7s var(--e)}',
   '.intro .lab{opacity:0;transform:translateY(10px)}',
   '.lab b{font-size:var(--fl,22px);font-weight:700;letter-spacing:-.02em;line-height:1.2;word-break:keep-all;min-width:0}',
-  '#c{display:inline-flex;vertical-align:bottom}',
+  '#c{display:inline-flex;vertical-align:top;margin-top:.25em;line-height:1}',
   '.dg{display:inline-block;height:1em;overflow:hidden}.st{display:flex;flex-direction:column;transition:transform .8s var(--e)}.st span{display:block;height:1em;line-height:1}',
   '.head{position:relative}.band{position:absolute;left:0;right:0;top:0;z-index:4;min-height:100%;background:var(--bg);transition:background-color .5s}',
   '.band[hidden]{display:none}.band.fly{background-color:transparent}',
@@ -583,17 +581,17 @@ function boardClient_() {
     $('#ex').onclick = close;
     $('#es').onclick = function () {
       var b = $('#es'), m = $('#em'), pin = $('#ep').value.trim(), cred = pin || tok();
-      if (!cred) { m.textContent = '교수 PIN 4자리를 넣어 주세요. 시트 메뉴 반응판 → 주소와 교수 PIN 보기에 있습니다.'; m.className = 'msg err'; return; }
-      if (pin && !/^\d{4}$/.test(pin)) { m.textContent = 'PIN은 숫자 4자리입니다.'; m.className = 'msg err'; return; }
+      if (!cred) { m.textContent = '교수 PIN은 시트 메뉴 반응판 → 주소와 교수 PIN 보기에 있습니다.'; m.className = 'msg err'; fail('질문 바꾸기를 못했어요. 교수 PIN 4자리를 넣어 주세요.'); return; }
+      if (pin && !/^\d{4}$/.test(pin)) { m.textContent = ''; fail('질문 바꾸기를 못했어요. PIN은 숫자 4자리입니다.'); return; }
       b.disabled = true; m.textContent = '바꾸는 중…'; m.className = 'msg';
       google.script.run.withSuccessHandler(function (r) {
         b.disabled = false;
         if (r.expired) { keep(''); $('#epl').hidden = false; }
         if (r.token) keep(r.token);
-        if (!r.ok) { m.textContent = r.msg; m.className = 'msg err'; return; }
+        if (!r.ok) { m.textContent = r.msg; m.className = 'msg err'; fail('질문 바꾸기를 못했어요. ' + r.msg); return; }
         close(); update(r.board);
-        if (window.stage) window.stage.toast(r.archived ? '바꿨습니다. 지난 응답은 시트에 보관했습니다.' : '바꿨습니다.');
-      }).withFailureHandler(function (e) { b.disabled = false; m.textContent = '바꾸지 못했습니다: ' + e.message; m.className = 'msg err'; })
+        toast(r.archived ? '질문을 바꿨어요. 지난 응답은 시트에 보관했습니다.' : '질문을 바꿨어요.');
+      }).withFailureHandler(function (e) { b.disabled = false; m.textContent = e.message; m.className = 'msg err'; fail('질문 바꾸기를 못했어요. ' + e.message); })
         .setBoard(cred, $('#eq').value, $('#ec').value, $('#eo').checked, $('#ef').checked);
     };
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
@@ -605,7 +603,7 @@ function boardClient_() {
     if (window.stage) {
       window.stage.add('질문 바꾸기', 'E', toggle);
       var th = window.stage.add(document.body.classList.contains('dark') ? '밝게' : '어둡게', 'T', function () {
-        var dk = document.body.classList.toggle('dark'); th.label(dk ? '밝게' : '어둡게');
+        var dk = document.body.classList.toggle('dark'); th.label(dk ? '밝게' : '어둡게'); toast(dk ? '어두운 화면으로 바꿨어요.' : '밝은 화면으로 바꿨어요.');
         try { localStorage.setItem('board-theme', dk ? 'dark' : 'light'); } catch (e) {}
       });
     }

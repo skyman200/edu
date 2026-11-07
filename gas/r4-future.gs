@@ -173,8 +173,8 @@ var WRITE_HTML = '<div class="kick">LETTER · <span class="ko">미래의 나에�
   '<input id="dt" placeholder="도착일 YYYY-MM-DD"><button id="b">편지 보내기</button><div id="m"></div>' +
   '<script>var $=function(s){return document.querySelector(s)};function note(t,c){var m=$("#m");m.textContent="";var p=document.createElement("p");p.className=c||"msg";p.textContent=t;m.appendChild(p)}' +
   'google.script.run.withSuccessHandler(function(r){$("#tt").textContent=r.title;$("#dt").value=r.date;if(!r.open){$("#b").disabled=true;note("지금은 편지를 받지 않습니다.")}}).getInfo();' +
-  '$("#b").onclick=function(){$("#b").disabled=true;google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){note(r.date+"에 도착합니다. 확인 메일도 보냈어요.");$("#go").value="";$("#wo").value=""}else note(r.msg,"msg err")})' +
-  '.withFailureHandler(function(e){$("#b").disabled=false;note("보내지 못했습니다: "+e.message,"msg err")}).saveLetter({alias:$("#al").value,email:$("#em").value,goals:$("#go").value,worry:$("#wo").value,date:$("#dt").value})};</script>';
+  '$("#b").onclick=function(){$("#b").disabled=true;google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){note(r.date+"에 도착합니다. 확인 메일도 보냈어요.");toast("편지를 보냈어요. "+r.date+"에 도착합니다.");$("#go").value="";$("#wo").value=""}else fail("편지 보내기를 못했어요. "+r.msg)})' +
+  '.withFailureHandler(function(e){$("#b").disabled=false;fail("편지 보내기를 못했어요. "+e.message)}).saveLetter({alias:$("#al").value,email:$("#em").value,goals:$("#go").value,worry:$("#wo").value,date:$("#dt").value})};</script>';
 
 // 편지 도착 화면: 봉투가 열리고, 학기 초에 쓴 글이 한 글자씩 나타납니다. 회고를 내면 변화 지수가 차오릅니다.
 var LETTER_CSS = [
@@ -195,5 +195,5 @@ var REFLECT_HTML = '<div class="kick">LETTER · <span class="ko">도착</span></
   'function show(c,g){var p=note(c);typeOut(p,c);growth(g)}' +
   'google.script.run.withSuccessHandler(function(r){if(!r.found){note("편지를 찾지 못했습니다. 메일의 링크를 다시 눌러 주세요.","msg err");return}setTimeout(function(){$("#env").className="env open"},500);' +
   'line("그때의 목표",r.goals,1300);line("그때의 걱정",r.worry,1300+Math.min(2800,500+r.goals.length*26)+400);if(r.done)show(r.comment,r.growth);else $("#ref").hidden=false}).getLetter(id);' +
-  '$("#b").onclick=function(){$("#b").disabled=true;note("코멘트를 쓰는 중…");google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){$("#ref").hidden=true;show(r.comment,r.growth)}else note(r.msg,"msg err")})' +
-  '.withFailureHandler(function(e){$("#b").disabled=false;note("보내지 못했습니다: "+e.message,"msg err")}).submitReflection(id,$("#t").value)};</script>';
+  '$("#b").onclick=function(){$("#b").disabled=true;note("코멘트를 쓰는 중…");google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){$("#ref").hidden=true;show(r.comment,r.growth);toast("코멘트를 받았어요.")}else{$("#m").textContent="";fail("코멘트 받기를 못했어요. "+r.msg)}})' +
+  '.withFailureHandler(function(e){$("#b").disabled=false;$("#m").textContent="";fail("코멘트 받기를 못했어요. "+e.message)}).submitReflection(id,$("#t").value)};</script>';
