@@ -1,0 +1,415 @@
+// Runs every recipe under node against an in-memory Apps Script (mock-gas.mjs): `node gas/gas.test.mjs`
+// The fake server uses the real /api/jev and /api/ai validators, so a request the classroom server would reject fails here.
+import assert from 'node:assert/strict';
+import { createEnv, readGs, choice, noul, score, defaultAnswers, runPage } from './mock-gas.mjs';
+
+const tests = [];
+const test = (name, fn) => tests.push([name, fn]);
+const COMMON = readGs('00-common.gs');
+
+function boot(recipe, opts) {
+  const env = createEnv(opts);
+  env.run(COMMON + '\n' + readGs(recipe), recipe);
+  // results made inside the vm context have another Object prototype: clone plain data so strict deepEqual works
+  env.call = (fn, ...args) => {
+    const r = env.ctx[fn](...args);
+    return r && typeof r === 'object' && !('html' in r) ? JSON.parse(JSON.stringify(r)) : r;
+  };
+  env.sheet = (n) => env.active.getSheetByName(n);
+  env.rows = (n) => env.sheet(n).getRange(1, 1, Math.max(1, env.sheet(n).getLastRow()), 12).getValues().slice(1).map((r) => r.slice(0));
+  env.setup = () => { env.call('onOpen'); env.call('setup'); };
+  return env;
+}
+
+test('common: setClassCode checks the connection; post_ retries 503 then fails with the server message', () => {
+  const env = boot('r1-board.gs');
+  env.ctx.PropertiesService.getScriptProperties().setProperty('CLASS_CODE', 'old');
+  env.call('setClassCode');
+  assert.equal(env.ctx.PropertiesService.getScriptProperties().getProperty('CLASS_CODE'), 'TESTCODE', 'the code is trimmed');
+  assert.ok(env.log.alerts.at(-1).includes('연결도 확인'));
+  const bad = boot('r1-board.gs');
+  bad.ctx.PropertiesService.getScriptProperties().setProperty('CLASS_CODE', 'WRONG');
+  assert.throws(() => bad.call('jev_', 'x', { a: { type: 'noul', instructions: 'q' } }), /401.*수업 코드가 맞지 않습니다/);
+  const none = boot('r1-board.gs');
+  none.ctx.PropertiesService.getScriptProperties().setProperty('CLASS_CODE', '');
+  assert.throws(() => none.call('ai_', 'x'), /수업 코드가 아직 없습니다/);
+});
+
+test('common: ai_ joins the stream, sends files/images, surfaces stream errors', () => {
+  const env = boot('r1-board.gs', { ai: ({ files, images }) => `답:${files.length}:${images.length}` });
+  assert.equal(env.call('ai_', 'hi', { files: [{ name: 'f', text: 't' }] }), '답:1:0');
+  assert.equal(env.call('ai_', [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }]), '답:0:0');
+  assert.equal(env.call('ai_', 'pic', { images: [{ name: 'p', url: 'data:image/jpeg;base64,/9j/AAAA' }] }), '답:0:1');
+  const err = boot('r1-board.gs');
+  err.ctx.UrlFetchApp.fetch = () => ({ getResponseCode: () => 200, getContentText: () => 'data: {"delta":"앞"}\n\ndata: {"error":"끊겼습니다"}\n\n' });
+  assert.throws(() => err.call('ai_', 'x'), /끊겼습니다/);
+});
+
+test('common: throttle_ allows max then blocks', () => {
+  const env = boot('r1-board.gs');
+  assert.deepEqual([1, 2, 3, 4].map(() => env.call('throttle_', 'k', 3, 60)), [true, true, true, false]);
+});
+
+// ---------- recipe 1 ----------
+test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage', () => {
+  const env = boot('r1-board.gs');
+  env.setup();
+  assert.equal(env.log.menus[0].name, '반응판');
+  for (const [, fn] of env.log.menus[0].items) assert.equal(typeof env.ctx[fn], 'function', fn);
+  assert.ok(env.sheet('설정') && env.sheet('응답'));
+  assert.ok(env.call('doGet', { parameter: {} }).html.includes('submitAnswer'));
+  assert.ok(env.call('doGet', { parameter: { v: 'board' } }).html.includes('getBoard'));
+  assert.deepEqual(env.call('getQuestion'), { q: 'AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', open: true });
+  const r = env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다', 'sid1');
+  assert.deepEqual([r.ok, r.cat], [true, '부정행위']);
+  const jevReq = env.log.requests.filter((x) => x.url.endsWith('/api/jev') && !x.body.check).at(-1).body;
+  assert.deepEqual(Object.keys(jevReq.questions.cat.criteria), ['c0', 'c1', 'c2', 'c3', 'other']);
+  assert.equal(env.rows('응답')[0][4], '표시');
+  // low confidence falls back to 기타, a flagged answer is stored but hidden from the board
+  const low = boot('r1-board.gs', { jev: (s, q) => ({ ...defaultAnswers(q), cat: choice('c1', 0.3) }) });
+  low.setup();
+  assert.equal(low.call('submitAnswer', '잘 모르겠어요 그냥', 's').cat, '기타');
+  const spam = boot('r1-board.gs', { jev: (s, q) => ({ ...defaultAnswers(q), bad: noul(0.95) }) });
+  spam.setup();
+  spam.call('submitAnswer', '광고 광고 광고', 's');
+  assert.equal(spam.rows('응답')[0][4], '숨김');
+  assert.equal(spam.call('getBoard').items.length, 0);
+  assert.equal(env.call('getBoard').items.length, 1);
+  // too short, closed, throttled
+  assert.equal(env.call('submitAnswer', '가', 's2').ok, false);
+  env.sheet('설정').getRange('B3').setValue('X');
+  assert.equal(env.call('submitAnswer', '닫힌 뒤에 보냄', 's3').ok, false);
+  env.sheet('설정').getRange('B3').setValue('O');
+  const results = Array.from({ length: 8 }, (_, i) => env.call('submitAnswer', '연타 ' + i + ' 번째', 'spammer').ok);
+  assert.deepEqual(results, [true, true, true, true, true, true, false, false], 'six per ten minutes per student');
+  // Jev down: the answer is still kept
+  const down = boot('r1-board.gs');
+  down.setup();
+  down.log.jevFail = 503;
+  const d = down.call('submitAnswer', '판정이 안 될 때도 저장', 's9');
+  assert.deepEqual([d.ok, d.cat], [true, '']);
+  assert.equal(down.rows('응답').length, 1);
+  assert.ok(down.log.sleeps >= 2, 'retried before giving up');
+});
+
+// ---------- recipe 2 ----------
+test('r2: Jev routes to auto answer or to the professor; answers come back by number; weekly report', () => {
+  let answerable = 0.95, personal = 0.1, aiText = '출석은 4회 결석까지입니다. 「결석 4회 초과 시 F」';
+  const seen = [];
+  const env = boot('r2-assistant.gs', {
+    jev: (s, q) => ({ ...defaultAnswers(q), answerable: noul(answerable), personal: noul(personal), kind: choice('schedule') }),
+    ai: (req) => { seen.push(req); return aiText; },
+  });
+  env.setup();
+  env.sheet('자료').appendRow(['출석: 4회 초과 결석 시 F']);
+  const a = env.call('ask', '결석 몇 번까지 되나요?', 's1');
+  assert.deepEqual([a.ok, a.auto], [true, true]);
+  assert.ok(a.answer.includes('결석'));
+  assert.equal(seen[0].files[0].text.includes('4회 초과'), true, 'the material travels as an attachment, not in the message');
+  assert.equal(env.rows('질문기록')[0][5], '자동답변');
+  answerable = 0.3;
+  const b = env.call('ask', '제 성적이 이상한 것 같아요', 's1');
+  assert.deepEqual([b.ok, b.auto, b.id.length], [true, false, 6]);
+  assert.equal(env.call('checkAnswer', b.id).answer, '');
+  env.sheet('질문기록').getRange(3, 7).setValue('확인해 보니 입력 오류였습니다.');
+  assert.deepEqual(env.call('checkAnswer', b.id.toLowerCase()), { found: true, answer: '확인해 보니 입력 오류였습니다.' });
+  assert.equal(env.call('checkAnswer', 'ZZZZZZ').found, false);
+  answerable = 0.95;
+  aiText = '자료에 없습니다';
+  assert.equal(env.call('ask', '자료에 없는 질문입니다', 's1').auto, false, 'an AI answer of "no data" goes to the professor');
+  personal = 0.9;
+  aiText = '답';
+  assert.equal(env.call('ask', '개인 사정 상담 질문입니다', 's2').auto, false);
+  assert.equal(env.call('ask', '짧', 's3').ok, false);
+  env.call('weeklyOn');
+  assert.equal(env.log.triggers[0].fn, 'weeklyReport');
+  env.call('weeklyReport');
+  assert.equal(env.log.mails.at(-1).to, 'prof@example.com');
+  assert.ok(env.log.mails.at(-1).body.includes('교수 확인 필요'));
+  const empty = boot('r2-assistant.gs');
+  empty.setup();
+  assert.equal(empty.call('ask', '자료가 없을 때 질문', 's').ok, false);
+});
+
+// ---------- recipe 3 ----------
+test('r3: Jev picks the move, the tutor follows it, history survives, wrap invites submission', () => {
+  const asked = [];
+  let move = 'hint', level = 1;
+  const env = boot('r3-tutor.gs', {
+    jev: (s, q) => ({ ...defaultAnswers(q), understanding: score(level, ['0', '1', '2', '3']), move: choice(move), off: noul(0.1), misconception: noul(0.2) }),
+    ai: (req) => { asked.push(req.messages); return '그렇다면 빛은 재료일까요, 에너지일까요?'; },
+  });
+  env.setup();
+  const sid = 'abcdef123456';
+  const t1 = env.call('tutorTurn', sid, '파랑고래', '식물은 햇빛을 먹고 산다고 생각해요.');
+  assert.deepEqual([t1.ok, t1.done, t1.turn], [true, false, 1]);
+  assert.equal(asked[0].length, 1);
+  assert.ok(asked[0][0].content.includes('소크라테스식 튜터') && asked[0][0].content.includes('[이번 턴에 할 일] 작은 힌트'));
+  move = 'counter'; level = 2;
+  env.call('tutorTurn', sid, '파랑고래', '그럼 빛이 재료인가요?');
+  assert.deepEqual(asked[1].map((m) => m.role), ['user', 'assistant', 'user']);
+  assert.ok(asked[1][2].content.includes('반례나 모순'));
+  assert.ok(!asked[1][1].content.includes('이번 턴에 할 일'), 'only the last turn carries the move');
+  const log = env.rows('대화록');
+  assert.deepEqual(log.map((r) => [r[4], r[3]]), [['학생', 1], ['튜터', 1], ['학생', 2], ['튜터', 2]]);
+  assert.deepEqual([log[0][6], log[2][6], log[2][7]], [1, 2, 'counter']);
+  // cache lost: history is rebuilt from the sheet
+  env.cache.clear();
+  move = 'wrap'; level = 3;
+  const t3 = env.call('tutorTurn', sid, '파랑고래', '빛은 에너지이고 물과 이산화탄소가 재료예요.');
+  assert.equal(asked[2].length, 5);
+  assert.equal(t3.done, true);
+  // submit
+  assert.equal(env.call('submitTranscript', sid, '파랑고래', '짧음').ok, false);
+  const s = env.call('submitTranscript', sid, '파랑고래', '식물은 물과 이산화탄소를 빛에너지로 포도당과 산소로 바꾼다.');
+  assert.equal(s.ok, true);
+  const sub = env.rows('제출')[0];
+  assert.deepEqual([sub[2], sub[3], sub[4], sub[5]], ['파랑고래', 3, 3, '1 → 2 → 3']);
+  assert.equal(typeof sub[8], 'string');
+  // max turns force a wrap; invalid ids and closed rooms are refused
+  const cap = boot('r3-tutor.gs', { jev: (s2, q) => ({ ...defaultAnswers(q), move: choice('probe') }), ai: () => '질문' });
+  cap.setup();
+  cap.sheet('설정').getRange('B4').setValue(4);
+  const outs = [1, 2, 3, 4, 5].map((i) => cap.call('tutorTurn', 'sid' + 'x'.repeat(9), '별', '생각 ' + i));
+  assert.deepEqual(outs.map((o) => o.done), [false, false, false, true, true]);
+  assert.equal(cap.call('tutorTurn', 'x', '별', '짧은 세션').ok, false);
+  cap.sheet('설정').getRange('B5').setValue('X');
+  assert.equal(cap.call('tutorTurn', 'sidxxxxxxxxxx', '별', '닫힘').ok, false);
+  assert.ok(!env.call('doGet').html.includes('이해도'), 'students never see the score');
+});
+
+// ---------- recipe 4 ----------
+test('r4: letter saved, delivered on its date, reflection compared by Jev + AI', () => {
+  const seen = [];
+  const env = boot('r4-future.gs', {
+    jev: (s, q) => ({ ...defaultAnswers(q), growth: score(2, ['없음', '조금', '뚜렷', '크게']), tone: choice('mixed') }),
+    ai: (req) => { seen.push(req.messages[0].content); return '처음엔 걱정이 컸는데 지금은 달라졌네요.'; },
+  });
+  env.setup();
+  const info = env.call('getInfo');
+  assert.match(info.date, /^\d{4}-\d{2}-\d{2}$/, 'the default date stays text even though sheets turn dates into dates');
+  const tomorrow = env.ctx.Utilities.formatDate(new Date(Date.now() + 86400000), 'x', 'yyyy-MM-dd');
+  const today = env.ctx.Utilities.formatDate(new Date(), 'x', 'yyyy-MM-dd');
+  const draft = { alias: '파랑고래', email: 'Student@Example.com', goals: '발표를 두려워하지 않기, 매주 복습하기', worry: '시간 관리', date: tomorrow };
+  assert.equal(env.call('saveLetter', { ...draft, email: 'nope' }).ok, false);
+  assert.equal(env.call('saveLetter', { ...draft, goals: '짧음' }).ok, false);
+  assert.equal(env.call('saveLetter', { ...draft, date: '2020-01-01' }).ok, false);
+  assert.equal(env.call('saveLetter', { ...draft, date: '내일' }).ok, false);
+  assert.deepEqual(env.call('saveLetter', draft), { ok: true, date: tomorrow });
+  assert.equal(env.rows('편지')[0][3], 'student@example.com');
+  assert.equal(env.rows('편지')[0][7], '예약');
+  assert.equal(env.log.mails[0].to, 'student@example.com');
+  env.call('saveLetter', { ...draft, alias: '둘째', email: 'two@example.com', date: today });
+  env.call('deliverLetters');
+  const delivered = env.log.mails.filter((m) => m.subject.includes('편지를 보낸') || m.subject.includes('나에게] 학기 초'));
+  assert.equal(delivered.length, 1, 'only the letter due today is delivered');
+  assert.equal(delivered[0].to, 'two@example.com');
+  assert.ok(delivered[0].body.includes('?r='), 'the mail carries the reflection link');
+  const dueId = env.rows('편지')[1][1], futureId = env.rows('편지')[0][1];
+  assert.equal(env.call('getLetter', futureId).found, false, 'not delivered yet');
+  assert.equal(env.call('getLetter', dueId).found, true);
+  assert.ok(env.call('doGet', { parameter: { r: dueId } }).html.includes('id="' + dueId + '"'));
+  assert.ok(!env.call('doGet', { parameter: { r: dueId + '"><script>' } }).html.includes('<script>alert'), 'the id is sanitized');
+  assert.equal(env.call('submitReflection', futureId, '아직 도착 전에 쓰는 회고입니다.').ok, false);
+  const r = env.call('submitReflection', dueId, '발표는 아직 떨리지만 매주 복습은 지켰어요.');
+  assert.equal(r.ok, true);
+  assert.ok(seen[0].includes('변화 뚜렷') && seen[0].includes('발표를 두려워하지'));
+  const row = env.rows('편지')[1];
+  assert.deepEqual([row[7], row[9]], ['회고완료', 2]);
+  const n = env.log.requests.length;
+  assert.equal(env.call('submitReflection', dueId, '다시 쓰는 회고라도 같은 코멘트').comment, r.comment);
+  assert.equal(env.log.requests.length, n, 'a finished letter does not call AI again');
+  env.call('demoDeliverAll');
+  assert.ok(env.log.alerts.at(-1).startsWith('1통'));
+  env.call('dailyOn');
+  assert.deepEqual(env.log.triggers.map((t) => t.fn), ['deliverLetters']);
+});
+
+// ---------- recipe 5 ----------
+const file = (id, name, mime, size) => ({ getId: () => id, getName: () => name, getMimeType: () => mime, getBlob: () => ({ getContentType: () => mime, getBytes: () => Buffer.alloc(size, 7) }) });
+
+test('r5: photo -> notes doc; unreadable asks for a retake; big or HEIC photos go through a resized thumbnail', () => {
+  const NOTES = '# 광합성 정리\n## 재료\n- 물\n- 이산화탄소 [?]\n## 복습 퀴즈\n1. 산소는 어디서? 정답: 물';
+  let unreadable = 0.1, kind = 'lecture';
+  const fetched = [];
+  const env = boot('r5-boardphoto.gs', {
+    ai: () => NOTES,
+    jev: (s, q) => ({ ...defaultAnswers(q), kind: choice(kind), unreadable: noul(unreadable) }),
+    fetchExtra: (url, opts) => { fetched.push([url, opts.headers.Authorization]); return { getResponseCode: () => 200, getContentText: () => '', getBlob: () => ({ getContentType: () => 'image/jpeg', getBytes: () => Buffer.alloc(300000, 1) }) }; },
+  });
+  env.setup();
+  const inbox = env.folders.get(env.props.get('INBOX'));
+  inbox.files.push(file('p1', '칠판1.jpg', 'image/jpeg', 200000), file('x1', '메모.txt', 'text/plain', 10));
+  env.call('processPhotos');
+  const row = env.rows('기록')[0];
+  assert.deepEqual([row[1], row[2], row[4]], ['칠판1.jpg', '수업 내용', '완료']);
+  const doc = [...env.docs.values()][0];
+  assert.deepEqual(doc.lines.map((l) => l.kind), ['H1', 'H2', 'LI', 'LI', 'H2', 'P']);
+  assert.equal(doc.lines[0].t, '광합성 정리');
+  assert.equal(env.folders.get(env.props.get('NOTES')).files.length, 1, 'the doc was moved into the result folder');
+  assert.ok(env.log.mails.at(-1).body.includes(doc.getUrl()));
+  env.call('processPhotos');
+  assert.equal(env.rows('기록').length, 1, 'a photo is processed once');
+  // unreadable -> retake mail, no doc
+  unreadable = 0.9;
+  inbox.files.push(file('p2', '흐림.jpg', 'image/jpeg', 100000));
+  env.call('processPhotos');
+  assert.equal(env.rows('기록')[1][4], '다시 찍기 필요');
+  assert.equal(env.docs.size, 1);
+  assert.ok(env.log.mails.at(-1).subject.includes('다시 찍어'));
+  // assignment notices are flagged
+  unreadable = 0.1; kind = 'assignment';
+  inbox.files.push(file('p3', '공지.jpg', 'image/jpeg', 100000));
+  env.call('processPhotos');
+  assert.ok(env.log.mails.at(-1).body.includes('과제·시험 공지로 보입니다'));
+  // big jpeg and HEIC use the thumbnail with the OAuth token, and the result passes the server's image caps
+  kind = 'lecture';
+  inbox.files.push(file('p4', '큰사진.jpg', 'image/jpeg', 4000000), file('p5', '아이폰.heic', 'image/heic', 900000));
+  env.call('processPhotos');
+  assert.equal(fetched.length, 2);
+  assert.ok(fetched[0][0].includes('sz=w1600') && fetched[0][1] === 'Bearer tok');
+  assert.deepEqual(env.rows('기록').slice(3).map((r) => r[4]), ['완료', '완료']);
+  // a file the server cannot take is recorded as a failure, not retried forever
+  const fail = boot('r5-boardphoto.gs', { ai: () => NOTES, fetchExtra: () => ({ getResponseCode: () => 404, getContentText: () => '' }) });
+  fail.setup();
+  fail.folders.get(fail.props.get('INBOX')).files.push(file('p9', '거대.jpg', 'image/jpeg', 5000000));
+  fail.call('processPhotos');
+  assert.ok(fail.rows('기록')[0][4].startsWith('실패'));
+  fail.call('processPhotos');
+  assert.equal(fail.rows('기록').length, 1);
+  env.call('autoOn');
+  assert.deepEqual(env.log.triggers.map((t) => [t.fn, t.spec[0][0]]), [['processPhotos', 'timeBased']]);
+});
+
+// ---------- recipe 6 ----------
+test('r6: form + trigger, every response analysed, urgent mails at once, digest every N', () => {
+  const env = boot('r6-survey.gs', {
+    jev: (s, q) => ({ ...defaultAnswers(q), mood: score(3), topic: choice('pace'), suggest: noul(s.includes('더 천천히') ? 0.9 : 0.1), urgent: noul(s.includes('괴롭') ? 0.95 : 0.05) }),
+    ai: () => '키워드: 속도, 실습\n칭찬 한 줄: 좋았어요',
+  });
+  env.setup();
+  assert.deepEqual(env.log.triggers.map((t) => [t.fn, t.spec.map((s) => s[0]).join('>')]), [['onSurveySubmit', 'forForm>onFormSubmit']]);
+  env.call('setup');
+  assert.equal(env.log.triggers.length, 1, 'running setup twice does not duplicate the form or trigger');
+  env.call('showUrls');
+  assert.ok(env.log.alerts.at(-1).includes('forms.gle'));
+  const sub = (sat, good, want) => env.call('onSurveySubmit', { namedValues: { '오늘 수업 만족도': [String(sat)], '좋았던 점': [good], '아쉬웠던 점이나 바라는 점': [want] } });
+  env.sheet('설정').getRange('B1').setValue(3);
+  sub(5, '예시가 좋았어요', '더 천천히 해 주세요');
+  sub(4, '실습이 좋았어요', '');
+  let rows = env.rows('분석');
+  assert.deepEqual([rows[0][1], rows[0][2], rows[0][3], rows[0][4], rows[0][5]], [5, 3, '속도', 'O', '']);
+  assert.equal(env.log.mails.length, 0, 'no digest before three responses');
+  sub(2, '', '이 수업에서 괴롭힘을 당했어요');
+  assert.ok(env.log.mails[0].subject.includes('긴급'));
+  const digest = env.log.mails.at(-1);
+  assert.ok(digest.subject.includes('새 응답 3개 요약'));
+  assert.ok(digest.body.includes('평균 만족도: 3.7') && digest.body.includes('키워드: 속도'), digest.body);
+  assert.equal(env.props.get('SENT'), '3');
+  sub(5, '좋음', '좋음');
+  assert.equal(env.log.mails.length, 2, 'the next digest waits for three more');
+  env.call('sendDigest');
+  assert.ok(env.log.mails.at(-1).subject.includes('새 응답 1개'));
+  env.call('sendDigest');
+  assert.ok(env.log.alerts.at(-1).includes('새로 쌓인 응답이 없습니다'));
+  // rating only, and a Jev outage, still produce a row
+  sub(3, '', '');
+  env.log.jevFail = 503;
+  sub(1, '판정 실패', '판정 실패');
+  rows = env.rows('분석');
+  assert.deepEqual([rows.at(-2)[1], rows.at(-2)[2], rows.at(-1)[3]], [3, '', '판정 실패']);
+});
+
+test('every recipe: menu items exist, the shared helpers are not redefined, pages carry no template literals', () => {
+  for (const f of ['r1-board', 'r2-assistant', 'r3-tutor', 'r4-future', 'r5-boardphoto', 'r6-survey']) {
+    const src = readGs(f + '.gs');
+    const env = boot(f + '.gs');
+    env.call('onOpen');
+    assert.equal(env.log.menus.length, 1, f);
+    for (const [label, fn] of env.log.menus[0].items) assert.equal(typeof env.ctx[fn], 'function', `${f}: ${label} -> ${fn}`);
+    for (const shared of ['post_', 'ai_', 'jev_', 'ss_', 'sheet_', 'throttle_', 'page_', 'setClassCode']) {
+      assert.ok(!new RegExp('function ' + shared + '\\b').test(src), `${f} redefines ${shared}`);
+    }
+    assert.ok(!/api[_-]?key|sk-[A-Za-z0-9]{10}/i.test(src), `${f} must not contain keys`);
+    assert.ok(/수업 코드 입력|setClassCode/.test(src), f);
+  }
+});
+
+test('web pages: each browser script runs against the real server functions', () => {
+  // recipe 1: student page sends an answer, board page draws columns
+  const r1 = boot('r1-board.gs');
+  r1.setup();
+  const ask = runPage(r1, r1.ctx.ASK_HTML);
+  assert.deepEqual(ask.calls, ['getQuestion']);
+  assert.equal(ask.el('#q').textContent, 'AI를 수업에 쓰는 것에서 가장 걱정되는 점은?');
+  ask.click('#b');
+  assert.deepEqual(ask.calls, ['getQuestion'], 'an empty answer is not sent');
+  ask.set('#t', '시험 때 몰래 쓸까 봐 걱정입니다');
+  ask.click('#b');
+  assert.deepEqual(ask.calls, ['getQuestion', 'submitAnswer']);
+  assert.ok(ask.texts('#m')[0].includes('보냈습니다') && ask.texts('#m')[0].includes('부정행위'));
+  assert.equal(ask.el('#t').value, '');
+  r1.cache.clear();
+  const board = runPage(r1, r1.ctx.BOARD_HTML);
+  assert.deepEqual(board.calls, ['getBoard']);
+  assert.ok(board.el('#c').textContent.includes('1개'));
+  assert.equal(board.el('#g').children.length, 5, 'four groups plus the catch-all');
+  assert.equal(board.timers.length, 1, 'the board polls again');
+  // recipe 2
+  const r2 = boot('r2-assistant.gs', { jev: (s, q) => ({ ...defaultAnswers(q), answerable: noul(0.95) }), ai: () => '바로 답하면 이렇게 됩니다' });
+  r2.setup();
+  r2.sheet('자료').appendRow(['과제는 매주 금요일까지']);
+  const p2 = runPage(r2, r2.ctx.ASK_HTML);
+  p2.set('#t', '과제 마감이 언제예요?');
+  p2.click('#b');
+  assert.equal(p2.el('#m').children[0].textContent, '바로 답하면 이렇게 됩니다');
+  p2.set('#i', 'ZZZZZZ');
+  p2.click('#k');
+  assert.ok(p2.el('#r').children[0].textContent.includes('해당하는 질문이 없습니다'));
+  // recipe 3
+  const r3 = boot('r3-tutor.gs', { jev: (s, q) => ({ ...defaultAnswers(q), move: choice('wrap') }), ai: () => '잘했어요. 이제 한 문단으로 정리해 보세요.' });
+  r3.setup();
+  const p3 = runPage(r3, r3.ctx.TUTOR_HTML);
+  assert.equal(p3.el('#tp').textContent, '광합성: 식물은 빛으로 무엇을 만들까');
+  p3.click('#go');
+  p3.set('#al', '파랑고래');
+  p3.set('#t', '빛을 먹는다고 생각해요');
+  p3.click('#b');
+  assert.equal(p3.el('#fin').hidden, false, 'a wrap move opens the summary box');
+  p3.set('#ft', '식물은 물과 이산화탄소를 빛으로 포도당과 산소로 바꾼다.');
+  p3.click('#sub');
+  assert.equal(r3.rows('제출').length, 1);
+  assert.ok(p3.texts('#m').some((t) => t.includes('제출했습니다')));
+  // recipe 4
+  const r4 = boot('r4-future.gs', { jev: (s, q) => ({ ...defaultAnswers(q), growth: score(1, ['a', 'b', 'c', 'd']) }), ai: () => '변화가 보입니다' });
+  r4.setup();
+  const p4 = runPage(r4, r4.ctx.WRITE_HTML);
+  assert.match(p4.el('#dt').value, /^\d{4}-\d{2}-\d{2}$/);
+  const tomorrow = r4.ctx.Utilities.formatDate(new Date(Date.now() + 86400000), 'x', 'yyyy-MM-dd');
+  for (const [k, v] of [['#al', '파랑고래'], ['#em', 'a@b.co'], ['#go', '발표를 두려워하지 않기'], ['#wo', ''], ['#dt', tomorrow]]) p4.set(k, v);
+  p4.click('#b');
+  assert.ok(p4.el('#m').children[0].textContent.includes('도착합니다'));
+  r4.call('demoDeliverAll');
+  const id = r4.rows('편지')[0][1];
+  const p4r = runPage(r4, r4.call('doGet', { parameter: { r: id } }).html);
+  assert.deepEqual(p4r.calls, ['getLetter']);
+  assert.equal(p4r.el('#ref').hidden, false);
+  p4r.set('#t', '학기를 돌아보니 발표가 조금 편해졌습니다.');
+  p4r.click('#b');
+  assert.ok(p4r.texts('#m').some((t) => t.includes('변화가 보입니다')));
+  // a page that calls a missing server function must fail loudly
+  assert.throws(() => runPage(r1, '<script>google.script.run.nope()</script>'), /does not exist/);
+});
+
+let failed = 0;
+for (const [name, fn] of tests) {
+  try {
+    await fn();
+    console.log(`ok   ${name}`);
+  } catch (e) {
+    failed++;
+    console.log(`FAIL ${name}\n     ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e}`);
+  }
+}
+console.log(failed ? `${failed} of ${tests.length} failed` : `all ${tests.length} passed`);
+process.exitCode = failed ? 1 : 0;

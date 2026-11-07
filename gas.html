@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>prof.kimcook · GAS 작업실</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{--paper:#F2F2F2;--sheet:#F8F8F8;--ink:#1A1A1A;--ink2:#4A4A4A;--mute:#8E8E8E;--line:#D2D2D2;--line2:#BCBCBC;--red:#E54536;--ok:#1d6b3a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 Pretendard,system-ui,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 22px 80px}
+h1{font-size:30px;line-height:1.25;margin:6px 0 8px}
+h2{font-size:20px;margin:0 0 6px}
+h3{font-size:14px;margin:18px 0 6px;color:var(--ink2)}
+.k{font-size:12px;letter-spacing:.22em;color:var(--mute);font-weight:700}
+.lede{color:var(--ink2);max-width:680px;margin:0 0 18px}
+section{border-top:1px solid var(--ink);padding:26px 0 8px}
+.sub{color:var(--ink2);margin:0 0 14px;font-size:15px}
+textarea,input,select{width:100%;font:14px/1.55 Pretendard,system-ui,sans-serif;color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:2px;padding:9px 11px}
+textarea.code{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;min-height:300px;white-space:pre;tab-size:2}
+textarea.small{min-height:110px}
+button{font:600 14px Pretendard,system-ui,sans-serif;border:1px solid var(--ink);background:var(--ink);color:#fff;padding:9px 16px;border-radius:2px;cursor:pointer}
+button.g{background:transparent;color:var(--ink)}
+button:disabled{opacity:.4;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.tabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.tab{text-align:left;background:var(--sheet);color:var(--ink);border:1px solid var(--line2);padding:12px 14px;line-height:1.4}
+.tab.on{border-color:var(--ink);background:#fff;box-shadow:inset 3px 0 0 var(--red)}
+.tab small{display:block;font-weight:400;color:var(--mute);margin-top:3px}
+.card{background:var(--sheet);border:1px solid var(--line);padding:16px 18px;margin:12px 0}
+ol,ul{margin:6px 0;padding-left:22px}
+li{margin:3px 0}
+.ex{display:block;width:100%;text-align:left;background:#fff;color:var(--ink);border:1px solid var(--line2);margin:6px 0;font-weight:400;font-size:14px;line-height:1.5}
+.ex:hover{border-color:var(--ink)}
+.msg{padding:9px 12px;margin:10px 0;background:#ECECEC;font-size:14px;white-space:pre-wrap}
+.msg.err{background:#FBE3DF;color:#8a1f12}.msg.ok{background:#E3F2E8;color:var(--ok)}.msg.warn{background:#FFF1D6;color:#7a4b00}
+.jev{display:inline-block;font-size:12px;border:1px solid var(--red);color:var(--red);padding:1px 8px;margin:2px 4px 2px 0;border-radius:99px}
+pre.ex-code{background:#fff;border:1px solid var(--line);padding:8px 10px;font:12.5px/1.5 ui-monospace,Menlo,monospace;overflow:auto;margin:6px 0}
+.ln{display:block;white-space:pre}.ln.hit{background:#FBE3DF;color:#8a1f12}.ln b{color:var(--mute);font-weight:400;margin-right:10px}
+.add{background:#E3F2E8;display:block;white-space:pre}.del{background:#FBE3DF;display:block;white-space:pre}
+.bar{display:flex;align-items:center;gap:8px;font-size:13px;margin:2px 0}.bar i{display:block;height:10px;background:var(--ink)}.bar span.t{width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details summary{cursor:pointer;color:var(--ink2);font-size:14px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+a{color:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="k">PROF.KIMCOOK · GAS LAB</div>
+  <h1>GAS 작업실: 말로 시키면 코드가 되고, 오류가 나면 여기서 고칩니다</h1>
+  <p class="lede">구글 시트에 붙일 Apps Script를 레시피에서 고르거나 말로 설명해 만듭니다. 실행하다 오류가 나면 오류 문구를 붙여 넣어 원인을 읽고 바로 고칩니다. 판정 모델 <b>Jev</b>를 코드 안에서 부르는 도우미(<code>jev_</code>)가 들어 있습니다. <a href="./">실습실로 돌아가기</a></p>
+
+  <section id="s0">
+    <div class="k">0 · 수업 코드</div>
+    <p class="sub">AI ONE으로 코드를 만들고 고치려면 강사가 알려 준 수업 코드가 필요합니다. 코드 없이도 레시피 복사, 코드 점검, 위험 스캔, 오류 사전은 모두 됩니다.</p>
+    <div class="row"><input id="code" style="max-width:260px" placeholder="수업 코드" autocomplete="off"><button id="codeSave">저장하고 확인</button><span id="codeState" class="sub" style="margin:0"></span></div>
+  </section>
+
+  <section id="s1">
+    <div class="k">1 · 레시피 고르기</div>
+    <div class="tabs" id="tabs"></div>
+    <div id="info"></div>
+  </section>
+
+  <section id="s2">
+    <div class="k">2 · 말로 만들기</div>
+    <h2>하고 싶은 일을 적으면 코드가 바뀝니다</h2>
+    <p class="sub">고른 레시피 코드를 기준으로 AI ONE이 필요한 곳만 고칩니다. 빈 종이에서 시작하면 처음부터 만듭니다. 아래 예제를 눌러 채운 뒤 내 수업에 맞게 고쳐 쓰세요.</p>
+    <div id="examples"></div>
+    <textarea id="req" class="small" placeholder="예) A열에 학생 이름, B열에 점수가 있어요. 60점 미만 이름 칸을 빨갛게 칠하고 그 목록을 내 메일로 보내 줘."></textarea>
+    <div class="row"><button id="make">AI ONE으로 코드 만들기</button><button id="stop" class="g" hidden>멈추기</button><button id="extCopy" class="g">ChatGPT·Gemini에 붙일 프롬프트 복사</button><span id="makeState" class="sub" style="margin:0"></span></div>
+    <div id="makeOut"></div>
+  </section>
+
+  <section id="s3">
+    <div class="k">3 · 코드</div>
+    <h2>Apps Script 편집기에 붙여 넣을 코드</h2>
+    <p class="sub">공통 도우미가 맨 위에 들어 있습니다. 전체를 복사해 편집기(확장 프로그램 → Apps Script)에 붙여 넣고 저장하면 됩니다. 직접 고쳐도 됩니다.</p>
+    <textarea id="src" class="code" spellcheck="false"></textarea>
+    <div class="row"><button id="copyAll">전체 코드 복사</button><button id="check" class="g">코드 점검</button><button id="safety" class="g">실행 전 안전 점검</button><button id="diff" class="g">처음 코드와 비교</button><button id="undo" class="g" disabled>되돌리기</button><span id="srcInfo" class="sub" style="margin:0"></span></div>
+    <div id="srcOut"></div>
+  </section>
+
+  <section id="s4">
+    <div class="k">4 · 실행하다 오류가 났다면</div>
+    <h2>오류 문구를 그대로 붙여 넣으세요</h2>
+    <p class="sub">Apps Script 편집기 아래 "실행 로그"나 팝업의 빨간 글을 복사해 붙여 넣습니다. 자주 나는 오류는 AI 없이 바로 원인과 처방을 보여 주고, 나머지는 AI ONE이 코드를 고쳐 위 편집기에 반영합니다. 같은 오류가 또 나면 더 강한 모델로 다시 따져 봅니다.</p>
+    <textarea id="err" class="small" placeholder="예) TypeError: Cannot read properties of null (reading 'getRange') (줄 12, 파일 &quot;코드&quot;)"></textarea>
+    <div class="row"><button id="read" class="g">원인 읽기</button><button id="fix">AI ONE으로 고치기</button><button id="fixStop" class="g" hidden>멈추기</button><span id="fixState" class="sub" style="margin:0"></span></div>
+    <div id="fixOut"></div>
+  </section>
+
+  <section id="s5">
+    <div class="k">5 · JEV 시험대</div>
+    <h2>코드에 넣기 전에 판정 질문을 먼저 시험합니다</h2>
+    <p class="sub">Jev는 글을 쓰지 않고 <b>예/아니오(noul)</b>, <b>여럿 중 하나(choice)</b>, <b>순서 있는 단계(score)</b>를 확률로 고릅니다. 학생 글을 분류하고 채점 참고값을 얻는 데 알맞습니다. 질문 모양을 여기서 확인한 뒤 레시피의 <code>jev_(글, 질문)</code>에 같은 모양으로 쓰세요. 한 번에 질문 10개, 글 20,000자까지입니다.</p>
+    <div class="row"><select id="jpre" style="max-width:420px"></select></div>
+    <h3>판정할 글(state)</h3>
+    <textarea id="jstate" class="small"></textarea>
+    <h3>질문(questions, JSON)</h3>
+    <textarea id="jq" class="code" style="min-height:220px" spellcheck="false"></textarea>
+    <div class="row"><button id="jrun">Jev에게 묻기</button><span id="jstateTxt" class="sub" style="margin:0"></span></div>
+    <div id="jout"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script src="gas-diag.js"></script>
+<script src="gas-recipes.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var D = window.GasDiag, DATA = window.GAS_RECIPES;
+  var OWN = /(^|\.)kimcook-edu\.pages\.dev$|^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  var API = OWN ? '' : 'https://kimcook-edu.pages.dev';
+  var AI_URL = API + '/api/ai', JEV_URL = API + '/api/jev';
+  var NET = 'AI ONE 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고, 교내망에서 막혔다면 휴대폰 데이터로 시도해 보세요.';
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  var aiCode = lsGet('acl-aicode', '');
+  var cur = 0, original = '', history = [], lastSig = '', fixCount = 0, ctl = null;
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); return n; }
+  function say(box, text, cls) { clear(box); if (text) box.appendChild(el('div', 'msg' + (cls ? ' ' + cls : ''), text)); }
+  var tt;
+  function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove('on'); }, 2200); }
+  function copy(text, msg) {
+    var done = function () { toast(msg || '복사했습니다.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+    function fallback() { var ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('복사하지 못했습니다. 직접 선택해 복사하세요.'); } ta.remove(); }
+  }
+
+  // ---------- 수업 코드 ----------
+  function codeUi() { $('#code').value = aiCode; $('#codeState').textContent = aiCode ? '저장됨' : 'AI ONE을 쓰려면 입력하세요'; }
+  async function post(url, body, signal) {
+    var r;
+    try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: signal }); }
+    catch (e) { if (e && e.name === 'AbortError') throw e; throw new Error(NET); }
+    return r;
+  }
+  async function failOf(r) {
+    var j = {}; try { j = await r.json(); } catch (e) {}
+    var err = new Error(j.error || 'AI ONE 요청에 실패했습니다. 잠시 후 다시 눌러 주세요.'); err.code = j.code; err.detail = j.detail;
+    if (j.code === 'bad_code') { aiCode = ''; lsSet('acl-aicode', ''); codeUi(); }
+    return err;
+  }
+  $('#codeSave').onclick = async function () {
+    var c = $('#code').value.trim(); if (!c) { toast('수업 코드를 입력하세요.'); return; }
+    try { var r = await post(AI_URL, { code: c, check: true }); if (!r.ok) throw await failOf(r); aiCode = c; lsSet('acl-aicode', c); codeUi(); toast('확인했습니다.'); }
+    catch (e) { $('#codeState').textContent = e.message; }
+  };
+  var qc = new URLSearchParams(location.search).get('c');
+  if (qc) { aiCode = qc; lsSet('acl-aicode', qc); history_replace(); }
+  function history_replace() { try { window.history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+  function needCode() { if (aiCode) return true; toast('먼저 위에서 수업 코드를 저장하세요.'); $('#s0').scrollIntoView({ behavior: 'smooth' }); return false; }
+
+  // ---------- AI ONE 호출(스트림) ----------
+  async function aiCall(ex, content, files, onText, signal) {
+    var r = await post(AI_URL, { code: aiCode, ex: ex, messages: [{ role: 'user', content: content }], files: files }, signal);
+    if (!r.ok) throw await failOf(r);
+    var rd = r.body.getReader(), dec = new TextDecoder(), buf = '', acc = '', meta = null, truncated = false;
+    for (;;) {
+      var chunk = await rd.read(); if (chunk.done) break;
+      buf += dec.decode(chunk.value, { stream: true });
+      var i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        var line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (line.indexOf('data:') !== 0) continue;
+        var ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
+        if (ev.error) throw new Error(ev.error);
+        if (ev.meta) meta = ev.meta;
+        if (ev.delta) { acc += ev.delta; onText(acc); }
+        if (ev.done && ev.truncated) truncated = true;
+      }
+    }
+    return { text: acc, meta: meta, truncated: truncated };
+  }
+
+  // ---------- 레시피 ----------
+  function fullCode(r) { return r.code ? DATA.common.code + '\n' + r.code : DATA.common.code; }
+  function setSrc(text, remember) {
+    if (remember) { history.push($('#src').value); $('#undo').disabled = false; }
+    $('#src').value = text; srcInfo();
+  }
+  function srcInfo() { var v = $('#src').value; $('#srcInfo').textContent = v.split('\n').length + '줄 · ' + v.length.toLocaleString() + '자'; }
+  function pick(i) {
+    cur = i; var r = DATA.recipes[i];
+    Array.prototype.forEach.call($('#tabs').children, function (b, j) { b.classList.toggle('on', j === i); });
+    original = fullCode(r); history = []; $('#undo').disabled = true; lastSig = ''; fixCount = 0;
+    $('#src').value = original; srcInfo(); clear($('#srcOut')); clear($('#makeOut')); clear($('#fixOut'));
+    var info = clear($('#info'));
+    var card = el('div', 'card');
+    card.appendChild(el('h2', '', r.name)); card.appendChild(el('p', 'sub', r.short));
+    var jv = el('div'); jv.appendChild(el('span', 'sub', 'Jev가 하는 판정: ')); r.jev.forEach(function (t) { jv.appendChild(el('span', 'jev', t)); }); card.appendChild(jv);
+    card.appendChild(el('h3', '', '만드는 순서')); var ol = el('ol'); r.steps.forEach(function (s) { ol.appendChild(el('li', '', s)); }); card.appendChild(ol);
+    info.appendChild(card);
+    var ex = clear($('#examples'));
+    r.examples.forEach(function (t) { var b = el('button', 'ex', t); b.onclick = function () { $('#req').value = t; $('#req').focus(); }; ex.appendChild(b); });
+    $('#req').placeholder = r.code ? '이 레시피에서 바꾸고 싶은 점을 적어 보세요' : '하고 싶은 일을 자세히 적어 보세요';
+    var sel = $('#jpre'); Array.prototype.forEach.call(sel.options, function (o, j) { if (j === i) sel.selectedIndex = j; }); jevPreset(i);
+  }
+  DATA.recipes.forEach(function (r, i) {
+    var b = el('button', 'tab', r.name); b.appendChild(el('small', '', r.tag)); b.onclick = function () { pick(i); };
+    $('#tabs').appendChild(b);
+    var o = el('option', '', 'Jev 예: ' + r.jevPreset.label); o.value = i; $('#jpre').appendChild(o);
+  });
+
+  // ---------- 코드 만들기 ----------
+  function busy(on, startBtn, stopBtn) { startBtn.disabled = on; stopBtn.hidden = !on; }
+  $('#stop').onclick = function () { if (ctl) ctl.abort(); };
+  $('#fixStop').onclick = function () { if (ctl) ctl.abort(); };
+  $('#make').onclick = async function () {
+    var req = $('#req').value.trim(); if (req.length < 8) { toast('하고 싶은 일을 조금 더 자세히 적어 주세요.'); return; }
+    if (!needCode()) return;
+    var code = $('#src').value, r = DATA.recipes[cur];
+    if (code.length > 100000) { say($('#makeOut'), '코드가 너무 깁니다(10만 자 초과). 필요한 부분만 남기고 다시 시도하세요.', 'err'); return; }
+    ctl = new AbortController(); busy(true, $('#make'), $('#stop')); $('#makeState').textContent = '만드는 중…'; say($('#makeOut'), '');
+    try {
+      var res = await aiCall('gas-make', D.buildMakePrompt({ request: req, title: r.name, hasBase: !!r.code }), [{ name: '기준 코드', text: code }], function (t) { $('#makeState').textContent = '만드는 중… ' + t.length.toLocaleString() + '자'; }, ctl.signal);
+      applyAi(res, $('#makeOut'), code);
+    } catch (e) { say($('#makeOut'), e.name === 'AbortError' ? '멈췄습니다.' : e.message, 'err'); }
+    finally { busy(false, $('#make'), $('#stop')); $('#makeState').textContent = ''; ctl = null; }
+  };
+  function applyAi(res, box, before) {
+    var x = D.extractCode(res.text);
+    clear(box);
+    if (res.meta) box.appendChild(el('div', 'sub', res.meta.label + ' · ' + res.meta.why.replace(/를 골랐습니다.*$/, '를 골랐습니다')));
+    if (!x.code) { box.appendChild(el('div', 'msg err', 'AI 답에서 코드를 찾지 못했습니다. 아래 답을 확인하고 요청을 바꿔 다시 눌러 보세요.')); box.appendChild(rawAnswer(res.text)); return false; }
+    if (x.truncated || res.truncated) { box.appendChild(el('div', 'msg warn', '답이 길이 제한으로 중간에 끊겼습니다. 코드는 바꾸지 않았습니다. 요청을 줄이거나 한 번 더 눌러 주세요.')); box.appendChild(rawAnswer(res.text)); return false; }
+    setSrc(x.code, true);
+    var d = D.lineDiff(before, x.code), issues = D.staticCheck(x.code).filter(function (i) { return i.level === 'error'; });
+    box.appendChild(el('div', 'msg ' + (issues.length ? 'warn' : 'ok'), '편집기에 반영했습니다. 바뀐 곳: +' + d.added + '줄 / -' + d.removed + '줄' + (issues.length ? '\n점검에서 문제 ' + issues.length + '개가 보입니다. 아래 코드 점검을 눌러 확인하세요.' : '')));
+    var note = x.code === res.text ? '' : res.text.replace(/```[\s\S]*?(```|$)/g, '').trim();
+    if (note) box.appendChild(el('div', 'sub', note.slice(0, 600)));
+    box.appendChild(diffView(d));
+    return true;
+  }
+  function rawAnswer(t) { var d = el('details'); d.appendChild(el('summary', '', 'AI 답 전체 보기')); d.appendChild(el('pre', 'ex-code', t)); return d; }
+  function diffView(d) {
+    var det = el('details'); det.appendChild(el('summary', '', '바뀐 줄 보기 (' + d.hunks.length + '곳)'));
+    var pre = el('pre', 'ex-code');
+    d.hunks.slice(0, 30).forEach(function (h) {
+      pre.appendChild(el('span', 'ln', '@@ ' + h.aStart + '줄 근처'));
+      h.removed.slice(0, 20).forEach(function (l) { pre.appendChild(el('span', 'del', '- ' + l)); });
+      h.added.slice(0, 20).forEach(function (l) { pre.appendChild(el('span', 'add', '+ ' + l)); });
+    });
+    det.appendChild(pre); return det;
+  }
+  $('#extCopy').onclick = function () {
+    var req = $('#req').value.trim(); if (req.length < 8) { toast('하고 싶은 일을 먼저 적어 주세요.'); return; }
+    copy(D.buildExternalPrompt({ request: req, title: DATA.recipes[cur].name, code: $('#src').value }), '프롬프트를 복사했습니다. ChatGPT, Gemini, Claude에 붙여 넣으세요.');
+  };
+
+  // ---------- 코드 도구 ----------
+  $('#src').oninput = srcInfo;
+  $('#copyAll').onclick = function () { copy($('#src').value, '전체 코드를 복사했습니다. Apps Script 편집기에 붙여 넣고 저장하세요.'); };
+  $('#undo').onclick = function () { if (history.length) { $('#src').value = history.pop(); srcInfo(); } $('#undo').disabled = !history.length; };
+  $('#check').onclick = function () {
+    var res = D.staticCheck($('#src').value), box = clear($('#srcOut'));
+    if (!res.length) { say(box, '문제를 찾지 못했습니다. 괄호 짝, 문법, 공통 도우미, 키 노출을 확인했습니다.', 'ok'); return; }
+    res.forEach(function (i) { box.appendChild(el('div', 'msg ' + (i.level === 'error' ? 'err' : 'warn'), (i.line ? i.line + '줄: ' : '') + i.msg)); });
+  };
+  $('#safety').onclick = function () {
+    var r = D.riskScan($('#src').value), box = clear($('#srcOut'));
+    var card = el('div', 'card'); card.appendChild(el('h2', '', '이 코드가 하는 일'));
+    if (!r.risks.length) card.appendChild(el('p', 'sub', '메일, 삭제, 공유, 외부 전송을 하는 코드를 찾지 못했습니다.'));
+    r.risks.forEach(function (x) { card.appendChild(el('div', 'msg ' + (x.level === 'danger' ? 'err' : x.level === 'warn' ? 'warn' : ''), x.label + ' (' + x.count + '곳)')); });
+    card.appendChild(el('p', 'sub', '필요한 권한: ' + (r.scopes.length ? r.scopes.join(', ') : '없음') + (r.hosts.length ? '\n직접 적힌 인터넷 주소: ' + r.hosts.join(', ') : '')));
+    card.appendChild(el('p', 'sub', '학생 이름이나 성적이 시트에 있다면, 메일이나 외부 전송이 있는 코드는 먼저 본인 한 줄로 시험해 보세요. 이 점검은 글자 패턴 검색이라 놓치는 것이 있을 수 있습니다.'));
+    box.appendChild(card);
+  };
+  $('#diff').onclick = function () {
+    var d = D.lineDiff(original, $('#src').value), box = clear($('#srcOut'));
+    say(box, d.hunks.length ? '처음 코드와 비교: +' + d.added + '줄 / -' + d.removed + '줄' : '처음 코드와 같습니다.', d.hunks.length ? '' : 'ok');
+    if (d.hunks.length) box.appendChild(diffView(d));
+  };
+
+  // ---------- 오류 고치기 ----------
+  function showReading(errText) {
+    var p = D.parseError(errText), notes = D.diagnose(errText), box = clear($('#fixOut'));
+    if (!errText.trim()) { toast('오류 문구를 붙여 넣으세요.'); return null; }
+    if (p.lines.length) {
+      var ex = D.excerpt($('#src').value, p.lines, 2), pre = el('pre', 'ex-code');
+      ex.forEach(function (l) { var s = el('span', 'ln' + (l.hit ? ' hit' : '')); if (l.gap) s.textContent = '…'; else { s.appendChild(el('b', '', String(l.n))); s.appendChild(document.createTextNode(l.text)); } pre.appendChild(s); });
+      var c = el('div'); c.appendChild(el('h3', '', '오류가 난 줄 (' + p.lines.join(', ') + '줄)')); c.appendChild(pre); box.appendChild(c);
+    }
+    if (!notes.length) box.appendChild(el('div', 'msg', '자주 나는 오류 목록에는 없는 문구입니다. AI ONE이 코드와 함께 읽고 고칩니다.'));
+    notes.forEach(function (n) { var c = el('div', 'card'); c.appendChild(el('h2', '', n.title)); c.appendChild(el('p', 'sub', '원인: ' + n.cause)); c.appendChild(el('p', '', '처방: ' + n.fix)); box.appendChild(c); });
+    return { p: p, notes: notes };
+  }
+  $('#read').onclick = function () { showReading($('#err').value); };
+  $('#fix').onclick = async function () {
+    var errText = $('#err').value, rd = showReading(errText); if (!rd) return;
+    if (!needCode()) return;
+    var skipAi = rd.notes.length && rd.notes.every(function (n) { return !n.ai; });
+    if (skipAi) { $('#fixOut').appendChild(el('div', 'msg ok', '코드를 고칠 문제가 아니라 위 처방대로 하면 풀립니다. 그래도 코드가 틀렸다고 생각하면 오류 문구에 설명을 덧붙여 다시 눌러 주세요.')); return; }
+    var code = $('#src').value; if (code.length > 100000) { $('#fixOut').appendChild(el('div', 'msg err', '코드가 너무 깁니다(10만 자 초과).')); return; }
+    var sig = D.signature(errText), again = sig && sig === lastSig, ex = again ? 'gas-fix2' : 'gas-fix';
+    ctl = new AbortController(); busy(true, $('#fix'), $('#fixStop')); $('#fixState').textContent = again ? '같은 오류라 더 강한 모델로 처음부터 따져 보는 중…' : '고치는 중…';
+    var out = el('div'); $('#fixOut').appendChild(out);
+    try {
+      var res = await aiCall(ex, D.buildFixPrompt({ error: errText, notes: rd.notes, lines: rd.p.lines, attempt: again ? fixCount : 0 }), [{ name: '현재 코드', text: code }], function (t) { $('#fixState').textContent = '고치는 중… ' + t.length.toLocaleString() + '자'; }, ctl.signal);
+      if (applyAi(res, out, code)) { lastSig = sig; fixCount = again ? fixCount + 1 : 1; out.appendChild(el('div', 'sub', '코드를 복사해 Apps Script 편집기에 다시 붙여 넣고 실행해 보세요. 같은 오류가 또 나면 새 오류 문구를 붙여 넣고 다시 누르세요. 웹 앱이라면 배포 관리에서 새 버전으로 다시 배포해야 반영됩니다.')); }
+    } catch (e) { out.appendChild(el('div', 'msg err', e.name === 'AbortError' ? '멈췄습니다.' : e.message)); }
+    finally { busy(false, $('#fix'), $('#fixStop')); $('#fixState').textContent = ''; ctl = null; }
+  };
+
+  // ---------- Jev 시험대 ----------
+  function jevPreset(i) {
+    var p = DATA.recipes[i].jevPreset;
+    $('#jstate').value = typeof p.state === 'string' ? p.state : JSON.stringify(p.state, null, 2);
+    $('#jq').value = JSON.stringify(p.questions, null, 2); clear($('#jout'));
+  }
+  $('#jpre').onchange = function () { jevPreset(Number(this.value)); };
+  function bars(probs, labels) {
+    var wrap = el('div'); var keys = Object.keys(probs || {});
+    keys.sort(function (a, b) { return probs[b] - probs[a]; });
+    keys.forEach(function (k) { var row = el('div', 'bar'), t = el('span', 't', (labels && labels[k]) || k), i = el('i'); i.style.width = Math.max(1, Math.round((probs[k] || 0) * 220)) + 'px'; row.appendChild(t); row.appendChild(i); row.appendChild(el('span', '', Math.round((probs[k] || 0) * 100) + '%')); wrap.appendChild(row); });
+    return wrap;
+  }
+  $('#jrun').onclick = async function () {
+    if (!needCode()) return;
+    var qs; try { qs = JSON.parse($('#jq').value); } catch (e) { say($('#jout'), '질문(JSON) 모양이 틀렸습니다: ' + e.message, 'err'); return; }
+    var st = $('#jstate').value; if (/^\s*[\[{]/.test(st)) { try { st = JSON.parse(st); } catch (e) {} }
+    $('#jrun').disabled = true; $('#jstateTxt').textContent = '묻는 중…';
+    var box = clear($('#jout'));
+    try {
+      var r = await post(JEV_URL, { code: aiCode, state: st, questions: qs }); if (!r.ok) throw await failOf(r);
+      var j = await r.json(), meta = {};
+      try { Object.keys(qs).forEach(function (k) { meta[k] = qs[k]; }); } catch (e) {}
+      Object.keys(j.answers).forEach(function (name) {
+        var a = j.answers[name], c = el('div', 'card'); c.appendChild(el('h2', '', name + ' · ' + a.type));
+        if (a.type === 'noul') { c.appendChild(el('p', '', '"예"일 확률 ' + Math.round(a.p * 100) + '%')); c.appendChild(bars({ 예: a.p, 아니오: 1 - a.p })); }
+        else if (a.type === 'choice') { c.appendChild(el('p', '', '고른 것: ' + a.choice + ' (확신도 ' + Math.round((a.confidence || 0) * 100) + '%)')); c.appendChild(bars(a.probs)); }
+        else { var lab = meta[name] && meta[name].criteria || []; var map = {}; lab.forEach(function (t, n) { map[n] = n + ' ' + t; }); c.appendChild(el('p', '', '가장 가능성 높은 단계: ' + (a.label || a.level) + ' (기댓값 ' + (a.score == null ? '-' : a.score.toFixed(2)) + ', 확신도 ' + Math.round((a.confidence || 0) * 100) + '%)')); c.appendChild(bars(a.probs, map)); }
+        box.appendChild(c);
+      });
+      box.appendChild(el('div', 'sub', '모델 ' + j.model + (j.usage ? ' · 입력 ' + j.usage.input_tokens + '토큰(출력은 무료)' : '') + '. 확신도가 낮으면 자동으로 처리하지 말고 사람이 확인하게 만드세요.'));
+    } catch (e) { say(box, e.message + (e.detail ? '\n(' + e.detail + ')' : ''), 'err'); }
+    finally { $('#jrun').disabled = false; $('#jstateTxt').textContent = ''; }
+  };
+
+  codeUi(); pick(0);
+  var h = decodeURIComponent(location.hash.slice(1)); var m = /^r([1-6])$/.exec(h); if (m) pick(Number(m[1]) - 1);
+})();
+</script>
+</body>
+</html>
