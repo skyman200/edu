@@ -1,3 +1,6 @@
+// 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
+var CODE_VERSION = 'v2026.11.07-c';
+
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    post_  : 수업 서버(kimcook-edu.pages.dev)로 보내는 공통 통로. 수업 코드는 스크립트 속성에만 저장됩니다.
    ai_    : 글을 쓰는 AI(Claude)에게 부탁합니다.
@@ -160,7 +163,7 @@ function page_(title, body, opts) {
   opts = opts || {};
   var css = opts.raw ? (opts.css || '') : PAGE_CSS + (opts.css || '');
   var inner = opts.raw ? body : '<main>' + body + '</main>';
-  return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' + title + '</title>' + FONT_LINK + '<style>' + css + '</style></head><body>' + inner + '</body></html>')
+  return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' + title + '</title>' + FONT_LINK + '<style>' + css + '</style></head><body>' + inner + '<div style="position:fixed;right:10px;bottom:6px;font:600 10px/1 Montserrat,sans-serif;letter-spacing:.12em;color:#8e8e8e;opacity:.7;pointer-events:none">' + CODE_VERSION + '</div></body></html>')
     .setTitle(title).addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

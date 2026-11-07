@@ -275,6 +275,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
       if (!needCode()) return;
       copy(codeForEditor(), '복사했습니다. 이제 2번 버튼으로 새 시트를 여세요.');
     }; row.appendChild(cp); li.appendChild(row);
+    li.appendChild(el('p', 'how', '코드 버전 ' + (DATA.common.version || '') + ' · 이미 만든 시트라면 코드를 덮어쓴 뒤 배포 → 배포 관리 → 연필 → 새 버전 → 배포까지 해야 반영됩니다. 반응판 화면 오른쪽 아래 번호가 이 버전과 같으면 새 코드입니다.'));
     li.appendChild(el('p', 'how', '아래 "말로 고치기"로 바꾼 내용도 같이 복사됩니다. 수업 코드는 내 스크립트 안에만 들어가니 이 코드를 다른 사람에게 보내지는 마세요.'));
     li = step(ol, '새 구글 시트를 엽니다');
     row = el('div', 'row'); var a = el('a', 'btn big', '새 구글 시트 열기'); a.href = 'https://sheets.new'; a.target = '_blank'; a.rel = 'noopener'; row.appendChild(a); li.appendChild(row);

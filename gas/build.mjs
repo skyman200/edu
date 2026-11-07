@@ -206,7 +206,7 @@ export const RECIPES = [
 export function buildRecipes() {
   const common = read('00-common.gs');
   const out = {
-    common: { code: common }, promptRule: PROMPT_RULE, trouble: TROUBLE,
+    common: { code: common, version: (common.match(/CODE_VERSION = '([^']+)'/) || [])[1] }, promptRule: PROMPT_RULE, trouble: TROUBLE,
     recipes: RECIPES.map((r) => ({
       id: r.id, web: r.web, wow: EXTRA[r.id].wow, story: EXTRA[r.id].story, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
       code: r.file ? read(r.file) : '', jevPreset: r.jevPreset,
