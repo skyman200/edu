@@ -1098,8 +1098,9 @@ function onOpen() {
 
 function makeQuizForm() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('퀴즈');
+  const sheet = sheetFor_('퀴즈', '문항');
   const rows = sheet.getDataRange().getValues().slice(1).filter(r => r[0] !== '');
+  if (rows.length === 0) throw new Error("'퀴즈' 시트에 문항이 없습니다. 2번째 줄부터 문항을 붙여 넣으세요.");
 
   const form = FormApp.create(ss.getName() + ' 확인 퀴즈');
   form.setIsQuiz(true);
@@ -1117,6 +1118,17 @@ function makeQuizForm() {
   sheet.getRange('I1').setValue('응답 주소');
   sheet.getRange('I2').setValue(form.getPublishedUrl());
   SpreadsheetApp.getUi().alert(rows.length + '문항 퀴즈를 만들었습니다.\n\n학생용 주소는 I2 칸에 적어 두었습니다.\n편집 주소: ' + form.getEditUrl());
+}
+
+/* '퀴즈' 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 '문항'인 시트를 찾아 이름을 '퀴즈'(으)로 바꿔 줍니다. */
+function sheetFor_(name, header) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (sheet) return sheet;
+  sheet = ss.getSheets().find(s => String(s.getRange('A1').getValue()).trim() === header);
+  if (!sheet) throw new Error("'" + name + "' 시트를 찾지 못했습니다. 아래쪽 시트 이름을 '" + name + "'(으)로 바꾸고, A1 칸부터 예시 데이터를 붙여 넣은 뒤 다시 실행하세요.");
+  sheet.setName(name);
+  return sheet;
 }</script>
 
 <script type="text/plain" id="code-3-2">/* 성적 시트의 학생마다 맞춤 메일을 한 번에 보냅니다.
@@ -1130,7 +1142,7 @@ function onOpen() {
 
 function sendScoreMails() {
   const ui = SpreadsheetApp.getUi();
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('성적');
+  const sheet = sheetFor_('성적', '이름');
   const rows = sheet.getDataRange().getValues();
 
   const todo = [];
@@ -1153,12 +1165,23 @@ function sendScoreMails() {
     sheet.getRange(i + 1, 5).setValue('발송 완료');
   });
   ui.alert(todo.length + '통을 보냈습니다. 다시 눌러도 이미 보낸 사람에게는 가지 않습니다.');
+}
+
+/* '성적' 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 '이름'인 시트를 찾아 이름을 '성적'(으)로 바꿔 줍니다. */
+function sheetFor_(name, header) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (sheet) return sheet;
+  sheet = ss.getSheets().find(s => String(s.getRange('A1').getValue()).trim() === header);
+  if (!sheet) throw new Error("'" + name + "' 시트를 찾지 못했습니다. 아래쪽 시트 이름을 '" + name + "'(으)로 바꾸고, A1 칸부터 예시 데이터를 붙여 넣은 뒤 다시 실행하세요.");
+  sheet.setName(name);
+  return sheet;
 }</script>
 
 <script type="text/plain" id="code-3-3">/* 제출현황 시트에서 아직 안 낸 학생만 골라 내 메일로 명단을 보냅니다.
    시트 이름: 제출현황 / 첫 줄: 번호 | 이름 | 제출 (낸 학생은 O) */
 function mailMissingList() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('제출현황');
+  const sheet = sheetFor_('제출현황', '번호');
   const rows = sheet.getDataRange().getValues().slice(1);
   const missing = rows.filter(r => r[1] !== '' && r[2] !== 'O').map(r => r[0] + '번 ' + r[1]);
   if (missing.length === 0) return;
@@ -1176,6 +1199,17 @@ function setDailyAlarm() {
 /* 실습이 끝나면 꼭 실행해서 예약을 지웁니다. */
 function removeAlarms() {
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+}
+
+/* '제출현황' 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 '번호'인 시트를 찾아 이름을 '제출현황'(으)로 바꿔 줍니다. */
+function sheetFor_(name, header) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (sheet) return sheet;
+  sheet = ss.getSheets().find(s => String(s.getRange('A1').getValue()).trim() === header);
+  if (!sheet) throw new Error("'" + name + "' 시트를 찾지 못했습니다. 아래쪽 시트 이름을 '" + name + "'(으)로 바꾸고, A1 칸부터 예시 데이터를 붙여 넣은 뒤 다시 실행하세요.");
+  sheet.setName(name);
+  return sheet;
 }</script>
 
 <script>
@@ -1487,7 +1521,7 @@ function removeAlarms() {
       next: ['이 원칙을 학생 동의 체크리스트 5문항으로 바꿔 줘.', '과제 제출 양식 맨 아래에 붙일 "AI 사용 기록" 칸을 만들어 줘.'] },
 
     { id: 's4-1', step: 4, title: '퀴즈 표를 구글 폼 퀴즈로', sub: 'Apps Script 붙여넣기 한 번으로 자동 채점 퀴즈 완성', min: 10,
-      steps: ['sheets.new 로 새 구글 시트를 엽니다. 아래쪽 시트 이름을 "퀴즈"로 바꿉니다.', 'STEP 1-4에서 받은 표(또는 아래 예시 데이터)를 A1부터 붙여 넣습니다. 첫 줄은 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 입니다.', '메뉴 확장 프로그램 → Apps Script를 열고, 원래 있던 코드를 지운 뒤 아래 코드를 붙여 넣고 저장합니다.', '위쪽 함수 목록에서 makeQuizForm을 고르고 실행합니다. "확인되지 않은 앱" 화면이 나오면 고급 → 이동 → 허용을 누릅니다. 내가 만든 코드라서 나오는 안내입니다.', '시트로 돌아가면 완성 안내가 뜹니다. I2 칸의 주소로 들어가 직접 풀어 봅니다.'],
+      steps: ['sheets.new 로 새 구글 시트를 엽니다. 아래쪽 시트 이름을 "퀴즈"로 바꿉니다. (깜빡해도 A1 칸이 "문항"이면 코드가 알아서 찾아 이름을 바꿉니다)', 'STEP 1-4에서 받은 표(또는 아래 예시 데이터)를 A1부터 붙여 넣습니다. 첫 줄은 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 입니다.', '메뉴 확장 프로그램 → Apps Script를 열고, 원래 있던 코드를 지운 뒤 아래 코드를 붙여 넣고 저장합니다.', '위쪽 함수 목록에서 makeQuizForm을 고르고 실행합니다. "확인되지 않은 앱" 화면이 나오면 고급 → 이동 → 허용을 누릅니다. 내가 만든 코드라서 나오는 안내입니다.', '시트로 돌아가면 완성 안내가 뜹니다. I2 칸의 주소로 들어가 직접 풀어 봅니다.'],
       code: 'code-3-1',
       data: '문항\t보기1\t보기2\t보기3\t보기4\t정답\t해설\n업무 이메일 제목으로 가장 알맞은 것은?\tHello\tMeeting\tRequest to move Friday\'s meeting to Monday\tImportant!!!\t3\t제목만 보고도 용건과 날짜를 알 수 있어야 합니다.\n처음 연락하는 상대에게 알맞은 인사는?\tHey there,\tDear Ms. Park,\tYo,\tHi guys,\t2\t이름을 알면 Dear + 호칭 + 성을 씁니다.\n"I am writing to ___ the order status." 빈칸에 알맞은 말은?\task\tinquire about\tasking\tinquiry\t2\t공식 이메일에서 문의할 때는 inquire about을 씁니다.\n정중하게 요청하는 표현은?\tSend it now.\tYou must send it.\tCould you send it by Friday?\tSend it, OK?\t3\tCould you ~?는 정중한 요청입니다.\n업무 이메일을 맺는 말로 알맞은 것은?\tBye bye\tBest regards,\tSee ya\tOver.\t2\tBest regards는 무난한 맺음말입니다.',
       helpPrompt: () => ['구글 시트에서 Apps Script로 퀴즈 폼을 만드는 코드를 실행했는데 아래 오류가 났어.', '코딩을 모르는 사람도 따라 할 수 있게, 무엇이 문제인지와 고친 전체 코드를 알려 줘.', '', '[오류 메시지]', '(여기에 오류를 붙여 넣으세요)', '', '[내 코드]', $('#code-3-1').textContent].join('\n'),
