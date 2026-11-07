@@ -163,7 +163,7 @@ function boardClient_() {
       if (k < 1) requestAnimationFrame(step);
     })();
   }
-  // 새 답이 화면 가운데에 크게 뜨고, 분류가 끝나면 해당 묶음으로 날아갑니다.
+  // 새 답이 화면 아래쪽 가운데에 크게 뜨고, 분류가 끝나면 해당 묶음으로 날아갑니다.
   function arrive(text, label, colEl) {
     var a = $('#arr');
     if (!a || !a.querySelector || typeof setTimeout !== 'function') return;
