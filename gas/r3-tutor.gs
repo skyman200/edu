@@ -141,7 +141,7 @@ function submitTranscript(sid, alias, finalText) {
   return { ok: true };
 }
 
-var TUTOR_HTML = '<h1 id="tp">…</h1><p class="muted" id="gl"></p><div id="st"><input id="al" maxlength="20" placeholder="별칭 (실명 말고, 예: 파랑고래)"><button id="go">대화 시작</button></div>' +
+var TUTOR_HTML = '<div class="kick">SOCRATIC · <span class="ko">되묻는 튜터</span></div><h1 id="tp">…</h1><p class="muted" id="gl"></p><div id="st"><input id="al" maxlength="20" placeholder="별칭 (실명 말고, 예: 파랑고래)"><button id="go">대화 시작</button></div>' +
   '<div id="chat" hidden><div id="log"></div><textarea id="t" maxlength="600" placeholder="내 생각을 적어 보세요"></textarea><div class="row"><button id="b">보내기</button><span class="muted" id="n"></span></div></div>' +
   '<div id="fin" hidden><h2>내 말로 정리하기</h2><textarea id="ft" maxlength="1200" placeholder="오늘 대화로 알게 된 것을 한 문단으로 정리해 보세요"></textarea><button id="sub">제출하기</button></div><div id="m"></div>' +
   '<script>var sid;try{sid=localStorage.getItem("tsid");if(!sid){sid=Math.random().toString(36).slice(2,14);localStorage.setItem("tsid",sid)}}catch(e){sid=Math.random().toString(36).slice(2,14)}' +

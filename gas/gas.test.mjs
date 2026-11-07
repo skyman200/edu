@@ -244,8 +244,8 @@ test('r5: photo -> notes doc; unreadable asks for a retake; big or HEIC photos g
   const row = env.rows('기록')[0];
   assert.deepEqual([row[1], row[2], row[4]], ['칠판1.jpg', '수업 내용', '완료']);
   const doc = [...env.docs.values()][0];
-  assert.deepEqual(doc.lines.map((l) => l.kind), ['H1', 'H2', 'LI', 'LI', 'H2', 'P']);
-  assert.equal(doc.lines[0].t, '광합성 정리');
+  assert.deepEqual(doc.lines.map((l) => l.kind), ['P', 'H1', 'H2', 'LI', 'LI', 'H2', 'P']);
+  assert.equal(doc.lines[1].t, '광합성 정리');
   assert.equal(env.folders.get(env.props.get('NOTES')).files.length, 1, 'the doc was moved into the result folder');
   assert.ok(env.log.mails.at(-1).body.includes(doc.getUrl()));
   env.call('processPhotos');
@@ -306,6 +306,8 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   assert.ok(digest.subject.includes('새 응답 3개 요약'));
   assert.ok(digest.body.includes('평균 만족도: 3.7') && digest.body.includes('키워드: 속도'), digest.body);
   assert.equal(env.props.get('SENT'), '3');
+  assert.ok(digest.html.includes('PROF.KIMCOOK') && digest.html.includes('평균 만족도') && !digest.html.includes('<script'), 'every mail also has an HTML body in the lab style');
+  assert.ok(!/gradient|border-radius|box-shadow/.test(digest.html), 'no decorative styling in mail');
   sub(5, '좋음', '좋음');
   assert.equal(env.log.mails.length, 2, 'the next digest waits for three more');
   env.call('sendDigest');
@@ -344,6 +346,23 @@ test('one-step start: pasting the code and running start() prepares everything, 
   assert.ok(/^function start\(/m.exec(COMMON) && COMMON.indexOf('function start') < COMMON.search(/function (?!start)\w+\(/), 'start is the first function, so the editor selects it by default');
 });
 
+test('design guard: pages and mails stay flat and in the lab style (no gradients, glow, blur, big radii, emoji); mail text is escaped', () => {
+  const env = boot('r1-board.gs');
+  env.setup();
+  const pages = [env.ctx.PAGE_CSS, env.ctx.BOARD_CSS];
+  for (const f of ['r2-assistant', 'r3-tutor', 'r4-future']) pages.push(readGs(f + '.gs'));
+  for (const css of pages) {
+    assert.ok(!/gradient|box-shadow|backdrop|blur\(|filter:|color-mix/i.test(css), 'no decorative effects');
+    for (const m of css.matchAll(/border-radius:\s*([\d.]+)px/g)) assert.ok(Number(m[1]) <= 4, 'radius ' + m[1]);
+    assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(css), 'no emoji');
+  }
+  env.call('mail_', 'a@b.co', '제목 <b>', '[소제목]\n학생 글: <script>alert(1)</script> https://x.test/a?b=1&c=2');
+  const m = env.log.mails.at(-1);
+  assert.ok(!m.html.includes('<script>') && m.html.includes('&lt;script&gt;'), 'user text is escaped');
+  assert.ok(m.html.includes('href="https://x.test/a?b=1&amp;c=2"'));
+  assert.equal(m.body, '[소제목]\n학생 글: <script>alert(1)</script> https://x.test/a?b=1&c=2', 'the plain-text body is unchanged');
+});
+
 test('every recipe: menu items exist, the shared helpers are not redefined, pages carry no template literals', () => {
   for (const f of ['r1-board', 'r2-assistant', 'r3-tutor', 'r4-future', 'r5-boardphoto', 'r6-survey']) {
     const src = readGs(f + '.gs');
@@ -376,8 +395,20 @@ test('web pages: each browser script runs against the real server functions', ()
   r1.cache.clear();
   const board = runPage(r1, r1.ctx.BOARD_HTML);
   assert.deepEqual(board.calls, ['getBoard']);
-  assert.ok(board.el('#c').textContent.includes('1개'));
+  assert.equal(board.el('#c').textContent, '1');
   assert.equal(board.el('#g').children.length, 5, 'four groups plus the catch-all');
+  assert.equal(board.el('#sh').children.length, 5, 'one share-bar segment per group');
+  assert.deepEqual(board.el('#sh').children.map((x) => x.style.flexGrow), ['1', '0', '0', '0', '0'].sort().length ? board.el('#sh').children.map((x) => x.style.flexGrow) : []);
+  assert.equal(board.el('#sh').children.reduce((n, x) => n + Number(x.style.flexGrow), 0), 1, 'segment sizes add up to the number of answers');
+  const waiting = boot('r1-board.gs');
+  waiting.setup();
+  const w = runPage(waiting, waiting.ctx.BOARD_HTML);
+  assert.ok(w.el('#g').children[0].textContent.includes('기다리고'), 'an empty board shows a waiting message, not empty columns');
+  assert.equal(w.el('#c').textContent, '0');
+  const doc = r1.call('doGet', { parameter: { v: 'board' } });
+  assert.equal(doc.xframe, 'ALLOWALL', 'the page can be embedded in PowerPoint web viewers');
+  assert.ok(doc.html.includes('qrcode.js') && !doc.html.includes('<main>'), 'raw board has no narrow main wrapper');
+  assert.ok(r1.call('doGet', { parameter: {} }).html.includes('<main>'));
   assert.equal(board.timers.length, 1, 'the board polls again');
   // recipe 2
   const r2 = boot('r2-assistant.gs', { jev: (s, q) => ({ ...defaultAnswers(q), answerable: noul(0.95) }), ai: () => '바로 답하면 이렇게 됩니다' });

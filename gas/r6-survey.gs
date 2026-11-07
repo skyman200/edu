@@ -62,7 +62,7 @@ function onSurveySubmit(e) {
   try {
     sheet_('분석').appendRow([new Date(), sat, mood, topic, suggest, urgent, good, want]);
   } finally { lock.releaseLock(); }
-  if (urgent) MailApp.sendEmail(mailTo_(), '[수업 설문] 긴급으로 보이는 응답', '좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want + '\n\n※ Jev가 긴급으로 판정했습니다. 직접 읽고 판단하세요.');
+  if (urgent) mail_(mailTo_(), '[수업 설문] 긴급으로 보이는 응답', '좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want + '\n\n※ Jev가 긴급으로 판정했습니다. 직접 읽고 판단하세요.');
   var every = Math.max(3, Number(ss_().getSheetByName('설정').getRange('B1').getValue()) || 10);
   var p = PropertiesService.getScriptProperties();
   if (sheet_('분석').getLastRow() - 1 - Number(p.getProperty('SENT') || 0) >= every) sendDigest(true);
@@ -97,7 +97,7 @@ function sendDigest(quiet) {
     } catch (err) { ai = '(AI 요약을 만들지 못했습니다: ' + err.message + ')'; }
     var body = '새 응답 ' + rows.length + '개 (누적 ' + total + '개)\n평균 만족도: ' + avg + ' / 5\n감정: ' + tally_(moods.map(function (m) { return [m]; }), 0) + '\n주제: ' + tally_(rows, 3) +
       '\n건의가 있는 응답: ' + rows.filter(function (r) { return r[4] === 'O'; }).length + '개, 긴급 표시: ' + rows.filter(function (r) { return r[5] === '긴급'; }).length + '개\n\n' + ai;
-    MailApp.sendEmail(mailTo_(), '[수업 설문] 새 응답 ' + rows.length + '개 요약', body);
+    mail_(mailTo_(), '[수업 설문] 새 응답 ' + rows.length + '개 요약', body);
     p.setProperty('SENT', String(total));
   } finally { lock.releaseLock(); }
 }

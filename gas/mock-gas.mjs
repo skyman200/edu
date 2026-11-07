@@ -104,7 +104,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     return [404, { error: 'no route' }];
   };
 
-  const mailApp = { sendEmail: (to, subject, body) => log.mails.push({ to, subject, body }), getRemainingDailyQuota: () => 100 };
+  const mailApp = { sendEmail: (to, subject, body, opts) => log.mails.push({ to, subject, body, html: opts && opts.htmlBody }), getRemainingDailyQuota: () => 100 };
   const fakeFolder = (name) => {
     const id = 'F' + ++seq;
     const f = { id, name, files: [], getId: () => id, getUrl: () => 'https://drive.google.com/drive/folders/' + id, getFiles: () => { let i = 0; return { hasNext: () => i < f.files.length, next: () => f.files[i++] }; } };
@@ -135,7 +135,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
         return response(status, typeof payload === 'string' ? payload : JSON.stringify(payload));
       },
     },
-    HtmlService: { createHtmlOutput: (html) => { const o = { html, title: '', setTitle(t) { o.title = t; return o; }, addMetaTag() { return o; }, getContent: () => html }; return o; } },
+    HtmlService: { XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' }, createHtmlOutput: (html) => { const o = { html, title: '', xframe: '', setTitle(t) { o.title = t; return o; }, addMetaTag() { return o; }, setXFrameOptionsMode(m) { o.xframe = m; return o; }, getContent: () => html }; return o; } },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
       getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/X/exec' }),
@@ -156,10 +156,10 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
       getFileById: (id) => ({ moveTo: (folder) => { folder.files.push({ docId: id }); } }),
     },
     DocumentApp: {
-      ParagraphHeading: { HEADING1: 'H1', HEADING2: 'H2' },
+      ParagraphHeading: { HEADING1: 'H1', HEADING2: 'H2', NORMAL: 'P' },
       create: (name) => {
         const id = 'D' + ++seq, lines = [];
-        const para = (t, kind) => { const l = { t, kind }; lines.push(l); return { setHeading: (h) => { l.kind = h; return l; } }; };
+        const para = (t, kind) => { const l = { t, kind }; lines.push(l); const api = new Proxy({}, { get: (_, k) => (k === 'setHeading' ? (h) => { l.kind = h; return api; } : () => api) }); return api; };
         const doc = { id, name, lines, getId: () => id, getUrl: () => 'https://docs.google.com/document/d/' + id, saveAndClose() {},
           getBody: () => ({ clear: () => { lines.length = 0; }, appendParagraph: (t) => para(t, 'P'), appendListItem: (t) => para(t, 'LI'), getText: () => lines.map((l) => l.t).join('\n') }) };
         docs.set(id, doc);

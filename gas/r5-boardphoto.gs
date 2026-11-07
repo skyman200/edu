@@ -50,15 +50,25 @@ function photoUrl_(file) {
   throw new Error('사진을 AI가 읽을 수 있는 크기로 줄이지 못했습니다. 사진 앱에서 크기를 줄여 다시 올려 주세요.');
 }
 
-// 간단한 마크다운(#, ##, -)을 구글 문서로 옮깁니다.
+// 간단한 마크다운(#, ##, -)을 구글 문서로 옮기고, 실습실과 같은 말씨(잉크색 글씨, 굵은 제목, 넉넉한 줄 간격)로 꾸밉니다.
+var DOC_FONT = 'Noto Sans KR';
+
 function writeDoc_(doc, text) {
   var body = doc.getBody();
   body.clear();
+  var ink = '#1a1a1a', mute = '#8e8e8e';
+  var put = function (p, size, bold, color, before, after) {
+    p.setFontFamily(DOC_FONT).setFontSize(size).setBold(bold).setForegroundColor(color).setLineSpacing(1.5).setSpacingBefore(before).setSpacingAfter(after);
+    return p;
+  };
+  put(body.appendParagraph('PROF.KIMCOOK · 칠판 노트 ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy.MM.dd')).setHeading(DocumentApp.ParagraphHeading.NORMAL), 9, true, mute, 0, 12);
   text.split('\n').forEach(function (line) {
-    if (/^##\s+/.test(line)) body.appendParagraph(line.replace(/^##\s+/, '')).setHeading(DocumentApp.ParagraphHeading.HEADING2);
-    else if (/^#\s+/.test(line)) body.appendParagraph(line.replace(/^#\s+/, '')).setHeading(DocumentApp.ParagraphHeading.HEADING1);
-    else if (/^\s*[-*]\s+/.test(line)) body.appendListItem(line.replace(/^\s*[-*]\s+/, ''));
-    else if (line.trim()) body.appendParagraph(line.replace(/\*\*/g, ''));
+    var t;
+    if (/^##\s+/.test(line)) t = put(body.appendParagraph(line.replace(/^##\s+/, '')).setHeading(DocumentApp.ParagraphHeading.HEADING2), 13, true, ink, 18, 4);
+    else if (/^#\s+/.test(line)) t = put(body.appendParagraph(line.replace(/^#\s+/, '')).setHeading(DocumentApp.ParagraphHeading.HEADING1), 22, true, ink, 6, 8);
+    else if (/^\s*[-*]\s+/.test(line)) t = put(body.appendListItem(line.replace(/^\s*[-*]\s+/, '')), 11, false, ink, 0, 2);
+    else if (line.trim()) t = put(body.appendParagraph(line.replace(/\*\*/g, '')).setHeading(DocumentApp.ParagraphHeading.NORMAL), 11, false, ink, 0, 4);
+    return t;
   });
   doc.saveAndClose();
 }
@@ -92,7 +102,7 @@ function handlePhoto_(f) {
   var kind = KIND_LABEL[a.kind.choice] || '기타', conf = Math.round((a.kind.confidence || 0) * 100) / 100, owner = Session.getEffectiveUser().getEmail();
   if (a.unreadable.p > 0.6 || a.kind.choice === 'other') {
     sheet_('기록').appendRow([new Date(), name, kind, conf, '다시 찍기 필요', '']);
-    MailApp.sendEmail(owner, '[칠판 노트] ' + name + ': 다시 찍어 주세요', '사진이 흐리거나 칠판이 잘려 노트를 만들 수 없었습니다. 글씨가 한 줄에 크게 보이도록 가까이서 다시 찍어 올려 주세요.');
+    mail_(owner, '[칠판 노트] ' + name + ': 다시 찍어 주세요', '사진이 흐리거나 칠판이 잘려 노트를 만들 수 없었습니다. 글씨가 한 줄에 크게 보이도록 가까이서 다시 찍어 올려 주세요.');
     return;
   }
   var title = (notes.match(/^#\s+(.+)$/m) || [0, '칠판 노트'])[1].slice(0, 60);
@@ -101,5 +111,5 @@ function handlePhoto_(f) {
   DriveApp.getFileById(doc.getId()).moveTo(DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('NOTES')));
   sheet_('기록').appendRow([new Date(), name, kind, conf, '완료', doc.getUrl()]);
   var extra = a.kind.choice === 'assignment' || a.kind.choice === 'schedule' ? '\n\n※ ' + kind + '로 보입니다. 날짜와 내용을 직접 확인한 뒤 학생에게 알려 주세요.' : '';
-  MailApp.sendEmail(owner, '[칠판 노트] ' + title, '칠판 사진 ' + name + '으로 노트를 만들었습니다.\n' + doc.getUrl() + extra);
+  mail_(owner, '[칠판 노트] ' + title, '칠판 사진 ' + name + '으로 노트를 만들었습니다.\n' + doc.getUrl() + extra);
 }

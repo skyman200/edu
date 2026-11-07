@@ -36,7 +36,7 @@ function cfg_() {
 }
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.v === 'board') return page_('반응판', BOARD_HTML);
+  if (e && e.parameter && e.parameter.v === 'board') return page_('반응판', BOARD_HTML, { raw: true, css: BOARD_CSS });
   return page_('내 생각 보내기', ASK_HTML);
 }
 
@@ -81,12 +81,12 @@ function getBoard() {
   var c = cfg_(), sh = sheet_('응답'), n = sh.getLastRow() - 1;
   var rows = n > 0 ? sh.getRange(2, 1, n, 5).getValues() : [], items = [];
   rows.forEach(function (r) { if (r[4] !== '숨김') items.push({ t: String(r[1]), c: String(r[2] || '') }); });
-  var out = { q: c.q, cats: c.cats.concat(c.cats.length ? ['기타'] : []), open: c.open, refresh: c.refresh, items: items.slice(-200) };
+  var out = { q: c.q, cats: c.cats.concat(c.cats.length ? ['기타'] : []), open: c.open, refresh: c.refresh, total: items.length, join: ScriptApp.getService().getUrl() || '', items: items.slice(-200) };
   cache.put('board', JSON.stringify(out), 3);
   return out;
 }
 
-var ASK_HTML = '<h1 id="q">…</h1><textarea id="t" maxlength="140" placeholder="한두 문장으로 적어 주세요 (이름 없이)"></textarea>' +
+var ASK_HTML = '<div class="kick">LIVE · <span class="ko">교실 반응판</span></div><h1 id="q">…</h1><textarea id="t" maxlength="140" placeholder="한두 문장으로 적어 주세요 (이름 없이)"></textarea>' +
   '<div class="row"><button id="b">보내기</button><span class="muted" id="n">0 / 140</span></div><div id="m"></div>' +
   '<script>var sid;try{sid=localStorage.getItem("sid");if(!sid){sid=Math.random().toString(36).slice(2,12);localStorage.setItem("sid",sid)}}catch(e){sid=Math.random().toString(36).slice(2,12)}' +
   'var $=function(s){return document.querySelector(s)};' +
@@ -97,9 +97,94 @@ var ASK_HTML = '<h1 id="q">…</h1><textarea id="t" maxlength="140" placeholder=
   'p.textContent=r.ok?"보냈습니다."+(r.cat?" 「"+r.cat+"」 쪽으로 모였어요.":""):r.msg;m.appendChild(p);if(r.ok){$("#t").value="";$("#n").textContent="0 / 140"}})' +
   '.withFailureHandler(function(e){$("#b").disabled=false;$("#m").textContent="보내지 못했습니다: "+e.message}).submitAnswer(t,sid)};</script>';
 
-var BOARD_HTML = '<h1 id="q" style="font-size:2rem">…</h1><p class="muted" id="c"></p><div id="g" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;align-items:start"></div>' +
-  '<script>var $=function(s){return document.querySelector(s)};' +
-  'function draw(d){$("#q").textContent=d.q;$("#c").textContent="모인 생각 "+d.items.length+"개"+(d.open?"":" · 받기를 멈췄습니다");var cols=d.cats.length?d.cats:["모두"],g=$("#g");g.textContent="";' +
-  'cols.forEach(function(name){var col=document.createElement("section"),h=document.createElement("h2"),k=d.items.filter(function(x){return d.cats.length?x.c===name||(name==="기타"&&!x.c):true});' +
-  'h.textContent=name+" · "+k.length;col.appendChild(h);k.slice(-12).reverse().forEach(function(x){var b=document.createElement("div");b.className="bubble";b.textContent=x.t;col.appendChild(b)});g.appendChild(col)})}' +
-  'function tick(){google.script.run.withSuccessHandler(function(d){draw(d);setTimeout(tick,d.refresh*1000)}).withFailureHandler(function(){setTimeout(tick,8000)}).getBoard()}tick();</script>';
+// 강의장 큰 화면: 어두운 종이색, 큰 글씨, 1px 선과 각진 칸. 색은 빨강 하나만 쓰고, 가장 많이 모인 묶음에만 붙입니다.
+// 작은 칸(파워포인트에 넣을 때)에서도 글자와 간격이 칸 크기를 따라 줄어듭니다.
+var BOARD_CSS = [
+  ':root{--bg:#161616;--fg:#f2f2f2;--mut:#8e8e8e;--line:rgba(242,242,242,.16);--red:#e54536}',
+  '*{box-sizing:border-box}html,body{height:100%}',
+  'body{margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font:16px/1.5 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}',
+  '.stage{height:100vh;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:clamp(12px,2.4vh,26px);padding:clamp(14px,2.8vw,48px)}',
+  '.top{display:flex;justify-content:space-between;align-items:flex-end;gap:clamp(14px,3vw,48px)}',
+  '.live{display:flex;align-items:center;gap:.9em;font:700 clamp(10px,1vw,14px)/1 Montserrat,Pretendard,sans-serif;letter-spacing:.3em;color:var(--mut)}',
+  '.live:before{content:"";width:.8em;height:.8em;background:var(--red)}',
+  'h1{word-break:keep-all;max-width:19em;margin:.6em 0 0;font-size:clamp(22px,4vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1.15;text-wrap:balance}',
+  '.side{display:flex;align-items:flex-end;gap:clamp(14px,2.4vw,40px);flex:none}',
+  '.total{text-align:right;font:800 clamp(40px,7.4vw,120px)/.82 Montserrat,Pretendard,sans-serif;letter-spacing:-.05em}',
+  '.total small{display:block;margin-top:1em;font:600 clamp(10px,.9vw,13px)/1 Pretendard,sans-serif;letter-spacing:.24em;color:var(--mut)}',
+  '.join{display:flex;align-items:flex-end;gap:clamp(8px,1vw,16px)}.join[hidden]{display:none}',
+  '.qr{width:clamp(76px,9vw,140px);aspect-ratio:1;padding:5px;background:#fff}',
+  '.qr svg{display:block;width:100%;height:100%}.qr path{fill:#000}',
+  '.join b{display:block;font-size:clamp(12px,1.2vw,19px);line-height:1.3}.join span{color:var(--mut);font-size:clamp(10px,.9vw,13px)}',
+  '.share{display:flex;gap:2px;height:clamp(6px,1vh,10px)}',
+  '.share i{display:block;min-width:0;flex:0 1 0;background:#f2f2f2;transition:flex-grow .9s cubic-bezier(.2,.8,.2,1)}',
+  '.share i.k0{background:var(--red)}.share i.k1{opacity:.7}.share i.k2{opacity:.45}.share i.k3{opacity:.28}.share i.k4{opacity:.16}',
+  '.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(clamp(150px,17vw,300px),1fr));gap:clamp(12px,1.6vw,26px);min-height:0}',
+  '.col{display:flex;flex-direction:column;min-height:0;overflow:hidden;border-top:1px solid var(--fg);padding-top:clamp(8px,1vw,16px)}',
+  '.col.lead{border-top:4px solid var(--red);padding-top:calc(clamp(8px,1vw,16px) - 3px)}',
+  '.col h2{display:grid;grid-template-columns:1fr auto;align-items:end;gap:2px 10px;margin:0 0 clamp(10px,1.4vh,18px);font-size:clamp(14px,1.5vw,24px);font-weight:700;letter-spacing:-.01em;line-height:1.2}',
+  '.col h2 span{grid-column:1;grid-row:2}.col h2 u{grid-column:1;grid-row:1;text-decoration:none;font:600 clamp(9px,.8vw,12px)/1 Montserrat,Pretendard,sans-serif;letter-spacing:.2em;color:var(--mut)}',
+  '.col h2 em{grid-column:2;grid-row:1/3;font:800 clamp(26px,3.6vw,58px)/.9 Montserrat,Pretendard,sans-serif;font-style:normal;letter-spacing:-.04em}',
+  '.col.lead h2 em{color:var(--red)}',
+  '.msgs{display:flex;flex-direction:column;gap:clamp(6px,1vh,12px);min-height:0;overflow:hidden}',
+  '.ko{letter-spacing:.04em}',
+  '.b{padding:.1em 0 .1em .85em;word-break:keep-all;overflow-wrap:anywhere;border-left:2px solid var(--line);font-size:clamp(13px,1.4vw,22px);line-height:1.4;animation:in .5s ease}',
+  '.b.new{border-left-color:var(--red)}',
+  '@keyframes in{from{opacity:0;transform:translateX(-8px)}}',
+  '.wait{grid-column:1/-1;align-self:center;justify-self:start;max-width:16em;color:var(--mut);font-size:clamp(16px,2.4vw,38px);font-weight:700;letter-spacing:-.02em;line-height:1.3}'
+].join('');
+
+function boardClient_() {
+  var $ = function (s) { return document.querySelector(s); };
+  var prev = -1, qrDone = false;
+  function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function qr(url) {
+    if (typeof qrcode !== 'function') return '';
+    var q = qrcode(0, 'M'); q.addData(url); q.make();
+    var n = q.getModuleCount(), d = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (q.isDark(y, x)) d += 'M' + x + ',' + y + 'h1v1h-1z';
+    return '<svg viewBox="-2 -2 ' + (n + 4) + ' ' + (n + 4) + '" shape-rendering="crispEdges"><path d="' + d + '"/></svg>';
+  }
+  function draw(d) {
+    $("#q").textContent = d.q;
+    $("#c").textContent = String(d.total);
+    if (d.join && !qrDone) { var svg = qr(d.join); if (svg) { $("#qr").innerHTML = svg; $("#join").hidden = false; } qrDone = true; }
+    var g = $("#g"), sh = $("#sh");
+    g.textContent = ''; sh.textContent = '';
+    if (!d.total) { g.appendChild(mk('div', 'wait', '첫 번째 생각을 기다리고 있습니다. QR을 스캔해 보내 주세요.')); prev = 0; return; }
+    var cols = d.cats.length ? d.cats : ['모두'];
+    var vh = typeof innerHeight === 'number' ? innerHeight : 800;
+    var per = Math.max(3, Math.min(10, Math.floor((vh - 300) / 74)));
+    var fresh = prev >= 0 ? Math.max(0, d.total - prev) : 0;
+    var groups = cols.map(function (name) {
+      var mine = [];
+      d.items.forEach(function (x, idx) {
+        if (d.cats.length ? (x.c === name || (name === '기타' && !x.c)) : true) mine.push({ t: x.t, isNew: idx >= d.items.length - fresh });
+      });
+      return { name: name, mine: mine };
+    });
+    var order = groups.map(function (gr, i) { return i; }).sort(function (a, b) { return groups[b].mine.length - groups[a].mine.length || a - b; });
+    groups.forEach(function (gr, i) {
+      var rank = order.indexOf(i), lead = rank === 0 && d.cats.length > 1 && gr.mine.length > (groups[order[1]] ? groups[order[1]].mine.length : 0);
+      var col = mk('section', 'col' + (lead ? ' lead' : '')), h = mk('h2'), box = mk('div', 'msgs');
+      h.appendChild(mk('u', '', (i < 9 ? '0' : '') + String(i + 1)));
+      h.appendChild(mk('span', '', gr.name)); h.appendChild(mk('em', '', String(gr.mine.length)));
+      col.appendChild(h);
+      gr.mine.slice(-per).reverse().forEach(function (x) { box.appendChild(mk('div', 'b' + (x.isNew ? ' new' : ''), x.t)); });
+      col.appendChild(box); g.appendChild(col);
+      var seg = mk('i', 'k' + (lead ? 0 : Math.max(1, Math.min(rank, 4)))); seg.style.flexGrow = String(gr.mine.length); sh.appendChild(seg);
+    });
+    prev = d.total;
+  }
+  function tick() {
+    google.script.run.withSuccessHandler(function (d) { draw(d); setTimeout(tick, d.refresh * 1000); })
+      .withFailureHandler(function () { setTimeout(tick, 8000); }).getBoard();
+  }
+  tick();
+}
+
+var BOARD_HTML = '<div class="stage"><div class="top"><div><div class="live"><span class="dot"></span>LIVE · <span class="ko">교실 반응판</span></div><h1 id="q">…</h1></div>' +
+  '<div class="side"><div class="join" id="join" hidden><div class="qr" id="qr"></div><div><b>휴대폰으로 참여</b><span>QR을 스캔하세요</span></div></div>' +
+  '<div class="total"><span id="c">0</span><small>모인 생각</small></div></div></div>' +
+  '<div class="share" id="sh"></div><div class="cols" id="g"></div></div>' +
+  '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' +
+  '<script>(' + boardClient_.toString() + ')();</script>';

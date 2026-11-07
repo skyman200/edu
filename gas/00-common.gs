@@ -106,17 +106,55 @@ function throttle_(key, max, sec) {
   return true;
 }
 
-var PAGE_CSS = 'body{margin:0;background:#f6f3ec;color:#1b1a17;font:17px/1.6 -apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}' +
-  'main{max-width:720px;margin:0 auto;padding:24px 18px 60px}h1{font-size:1.35rem;line-height:1.35;margin:0 0 14px}h2{font-size:1rem;margin:22px 0 8px;color:#6b675e}' +
-  'textarea,input,select{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;border:1px solid #cfc8b6;border-radius:8px;background:#fffdf8;color:inherit;margin:4px 0 10px}' +
-  'textarea{min-height:96px;resize:vertical}button{font:inherit;font-weight:600;padding:10px 18px;border:0;border-radius:8px;background:#1b1a17;color:#fff;cursor:pointer}' +
-  'button:disabled{opacity:.45;cursor:default}button.alt{background:#fffdf8;color:#1b1a17;border:1px solid #cfc8b6}.muted{color:#6b675e;font-size:.9rem}' +
-  '.msg{margin:12px 0;padding:10px 12px;border-radius:8px;background:#ece6d6}.err{background:#f6dcd5;color:#7c2412}.chip{display:inline-block;padding:2px 9px;border-radius:99px;background:#ece6d6;font-size:.85rem}' +
-  '.bubble{background:#fffdf8;border:1px solid #d9d3c4;border-radius:10px;padding:8px 12px;margin:0 0 8px;font-size:1.02rem;word-break:break-word}' +
-  '.me{background:#1b1a17;color:#fff;border-color:#1b1a17}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}';
+var FONT_LINK = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap">';
 
-// 웹 화면 하나를 만듭니다. body에는 <script>까지 넣습니다.
-function page_(title, body) {
-  return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' + title + '</title><style>' + PAGE_CSS + '</style></head><body><main>' + body + '</main></body></html>')
-    .setTitle(title).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+// 실습실 본 페이지와 같은 말씨: 종이색 바탕, 잉크색 글씨, 1px 선, 각진 모서리, 빨강 한 가지 포인트.
+var PAGE_CSS = [
+  ':root{--ink:#1a1a1a;--ink2:#4a4a4a;--mut:#8e8e8e;--paper:#f2f2f2;--sheet:#f8f8f8;--line:#d2d2d2;--line2:#bcbcbc;--red:#e54536}',
+  '*{box-sizing:border-box}',
+  '.ko{letter-spacing:.04em}',
+  'body{margin:0;word-break:keep-all;background:var(--paper);color:var(--ink);font:17px/1.65 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}',
+  'main{max-width:620px;margin:0 auto;padding:40px 20px 88px}',
+  '.kick{margin:0 0 20px;padding-left:10px;border-left:3px solid var(--red);font:700 11px/1.1 Montserrat,Pretendard,sans-serif;letter-spacing:.28em;color:var(--ink2)}',
+  'h1{margin:0 0 22px;font-size:clamp(24px,6vw,33px);font-weight:800;letter-spacing:-.025em;line-height:1.25;text-wrap:balance}',
+  'h2{margin:34px 0 12px;padding-top:12px;border-top:1px solid var(--ink);font:700 12px/1 Montserrat,Pretendard,sans-serif;letter-spacing:.22em;color:var(--ink2)}',
+  'textarea,input,select{display:block;width:100%;margin:6px 0 12px;padding:12px 14px;border:1px solid var(--line2);border-radius:2px;background:#fff;color:inherit;font:inherit;font-size:16px}',
+  'textarea:focus,input:focus,select:focus{outline:2px solid var(--ink);outline-offset:-1px;border-color:var(--ink)}',
+  'textarea{min-height:120px;resize:vertical}',
+  'button{padding:12px 24px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:#fff;font:inherit;font-weight:700;cursor:pointer}',
+  'button:hover{background:#000}button:disabled{opacity:.35;cursor:default}',
+  'button.alt{background:transparent;color:var(--ink)}button.alt:hover{background:#fff}',
+  '.muted{color:var(--mut);font-size:.9rem}',
+  '.msg{margin:16px 0;padding:12px 16px;border-left:3px solid var(--ink);background:var(--sheet)}',
+  '.msg.err{border-left-color:var(--red);color:#8a1f12}',
+  '.chip{display:inline-block;padding:2px 9px;border:1px solid var(--line2);font-size:.82rem}',
+  '.bubble{max-width:94%;margin:0 0 10px;padding:11px 15px;border:1px solid var(--line);background:#fff;font-size:1.02rem;word-break:break-word}',
+  '.me{margin-left:auto;border-color:var(--ink);background:var(--ink);color:#fff}',
+  '.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}'
+].join('');
+
+// 웹 화면 하나를 만듭니다. body에는 <script>까지 넣습니다. opts.raw 이면 기본 틀 없이 opts.css 만 씁니다(강의장 큰 화면용).
+// ALLOWALL: 파워포인트의 웹 뷰어 같은 다른 페이지 안에 이 화면을 넣을 수 있게 합니다.
+function page_(title, body, opts) {
+  opts = opts || {};
+  var css = opts.raw ? (opts.css || '') : PAGE_CSS + (opts.css || '');
+  var inner = opts.raw ? body : '<main>' + body + '</main>';
+  return HtmlService.createHtmlOutput('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' + title + '</title>' + FONT_LINK + '<style>' + css + '</style></head><body>' + inner + '</body></html>')
+    .setTitle(title).addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// 메일을 보냅니다. 글자판(text)을 그대로 두고, 같은 내용을 실습실과 같은 말씨의 HTML로도 함께 보냅니다.
+// "[제목]" 한 줄은 작은 소제목이 됩니다.
+function mail_(to, subject, text) {
+  var esc = function (x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  var body = String(text).split('\n').map(function (l) {
+    if (/^\[.+\]$/.test(l)) return '<div style="margin:24px 0 6px;font:700 11px/1.4 Arial,sans-serif;letter-spacing:.18em;color:#8e8e8e">' + esc(l.slice(1, -1)) + '</div>';
+    if (!l.trim()) return '<div style="height:10px"></div>';
+    return '<div>' + esc(l).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#1a1a1a">$1</a>') + '</div>';
+  }).join('');
+  var html = '<div style="max-width:560px;padding:8px 2px 28px;font:15px/1.75 \'Malgun Gothic\',\'Apple SD Gothic Neo\',sans-serif;color:#1a1a1a">' +
+    '<div style="border-top:3px solid #1a1a1a;padding-top:12px;font:700 11px/1 Arial,sans-serif;letter-spacing:.26em;color:#8e8e8e">PROF.KIMCOOK · AI CLASS LAB</div>' +
+    '<div style="margin:18px 0 16px;font-size:20px;line-height:1.35;font-weight:700">' + esc(subject) + '</div>' + body + '</div>';
+  MailApp.sendEmail(to, subject, text, { htmlBody: html });
 }

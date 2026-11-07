@@ -120,10 +120,10 @@ function weeklyReport() {
     '학생들이 가장 많이 헷갈려 한 것 TOP5를 번호 목록으로 쓰세요. 각 줄은 "한 줄 제목 — 비슷한 질문 수(추정) — 대표 질문 하나" 형식입니다. 마지막에 수업 자료에 보완하면 좋을 내용 세 가지를 쓰세요.', { files: [{ name: '지난주 질문 목록', text: list }] });
   var body = '지난 7일 질문 ' + mine.length + '개 (자동 답변 ' + (mine.length - open.length) + '개, 교수 확인 필요 ' + open.length + '개)\n\n' + top +
     (open.length ? '\n\n[아직 답하지 않은 질문]\n' + open.map(function (r) { return r[1] + ': ' + r[2]; }).join('\n') : '');
-  MailApp.sendEmail(Session.getEffectiveUser().getEmail(), '[수업 조교] 지난주 질문 리포트', body);
+  mail_(Session.getEffectiveUser().getEmail(), '[수업 조교] 지난주 질문 리포트', body);
 }
 
-var ASK_HTML = '<h1 id="nm">…</h1><p class="muted">수업 자료에 있는 내용은 바로 답해 드리고, 교수님이 직접 답할 내용은 전달해 드립니다. 이름이나 학번은 쓰지 마세요.</p>' +
+var ASK_HTML = '<div class="kick">24H · <span class="ko">수업 조교</span></div><h1 id="nm">…</h1><p class="muted">수업 자료에 있는 내용은 바로 답해 드리고, 교수님이 직접 답할 내용은 전달해 드립니다. 이름이나 학번은 쓰지 마세요.</p>' +
   '<textarea id="t" maxlength="300" placeholder="궁금한 것을 적어 주세요"></textarea><div class="row"><button id="b">질문하기</button></div><div id="m"></div>' +
   '<h2>교수님 답변 확인</h2><div class="row"><input id="i" maxlength="6" placeholder="질문 번호 6자리" style="width:200px"><button class="alt" id="k">확인</button></div><div id="r"></div>' +
   '<script>var sid;try{sid=localStorage.getItem("sid");if(!sid){sid=Math.random().toString(36).slice(2,12);localStorage.setItem("sid",sid)}}catch(e){sid=Math.random().toString(36).slice(2,12)}' +
