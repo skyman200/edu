@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 수업 자동화 키트</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap">
+<style>
+:root{--ink:#1a1a1a;--ink2:#4a4a4a;--mute:#8e8e8e;--line:#d2d2d2;--red:#e54536}
+*{box-sizing:border-box}
+html{background:#e9e9e9}
+body{margin:0;color:var(--ink);font:10.5pt/1.65 Pretendard,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;word-break:keep-all;-webkit-font-smoothing:antialiased}
+.bar{position:sticky;top:0;z-index:5;padding:14px 20px;background:#fff;border-bottom:1px solid var(--ink)}
+.bar .in{max-width:210mm;margin:0 auto}
+.bar h1{margin:0 0 4px;font-size:17px}
+.bar p{margin:0 0 10px;color:var(--ink2);font-size:13px}
+.bar .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.bar input[type=text]{flex:1 1 200px;min-width:0;padding:9px 11px;border:1px solid #bcbcbc;border-radius:2px;font:14px Pretendard,sans-serif}
+.bar label{font-size:13px;color:var(--ink2);display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.bar button{padding:10px 18px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:#fff;font:700 14px Pretendard,sans-serif;cursor:pointer}
+.bar .note{font-size:12px;color:var(--mute)}
+#doc{max-width:210mm;margin:18px auto 60px;background:#fff;padding:16mm 16mm 20mm;box-shadow:0 0 0 1px #d0d0d0}
+.k{display:inline-block;margin:0 0 10px;padding-left:8px;border-left:3px solid var(--red);font:700 8pt/1.1 Montserrat,Pretendard,sans-serif;letter-spacing:.26em;color:var(--ink2)}
+h2{margin:0 0 6px;font-size:21pt;font-weight:800;letter-spacing:-.025em;line-height:1.25}
+h3{margin:16pt 0 5pt;padding-top:6pt;border-top:1px solid var(--ink);font:700 8.5pt/1.2 Montserrat,Pretendard,sans-serif;letter-spacing:.2em;color:var(--ink2)}
+p{margin:0 0 6pt}
+.sec{break-before:page}
+.sec:first-child{break-before:auto}
+.cover{min-height:255mm;display:flex;flex-direction:column;justify-content:space-between}
+.cover h2{font-size:34pt;line-height:1.15;margin-top:30mm}
+.cover .for{margin-top:14mm;padding-top:6mm;border-top:3px solid var(--ink)}
+.cover .for b{display:block;font-size:20pt;letter-spacing:-.02em}
+.cover .for span{color:var(--ink2);font-size:12pt}
+.cover .qrrow{display:flex;gap:6mm;align-items:center}
+.cover .qr svg{width:30mm;height:30mm;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:9.5pt;margin:4pt 0 8pt}
+th,td{padding:5pt 7pt;border-top:1px solid var(--line);text-align:left;vertical-align:top}
+th{width:26%;font-weight:700}
+.box{margin:8pt 0 10pt;padding:8pt 11pt;border-left:4px solid var(--red);background:#f6f6f6}
+.box b{display:block;margin-bottom:2pt;font:700 8pt/1.3 Montserrat,Pretendard,sans-serif;letter-spacing:.2em;color:var(--ink2)}
+ol,ul{margin:0 0 6pt;padding-left:16pt}
+li{margin:0 0 3pt}
+.pr{margin:0 0 9pt;break-inside:avoid}
+.pr .n{font:700 8pt/1.3 Montserrat,Pretendard,sans-serif;letter-spacing:.14em;color:var(--red)}
+.pr .p{margin:3pt 0;padding:6pt 9pt;border:1px solid var(--ink);background:#fff;font-size:9.5pt}
+.pr .r{padding-left:9pt;color:var(--ink2);font-size:9.5pt}
+.url{display:flex;gap:5mm;align-items:center;margin:0 0 6pt;padding:6pt;border:1px solid var(--line);break-inside:avoid}
+.url svg{flex:none;width:26mm;height:26mm}
+.url code{display:block;font-size:7.5pt;word-break:break-all}
+.url b{font-size:9.5pt}
+pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;font:6.6pt/1.45 Menlo,Consolas,"D2Coding",monospace;white-space:pre-wrap;word-break:break-all}
+@page{size:A4;margin:14mm 16mm 18mm}
+@media print{
+  html{background:#fff}
+  .bar{display:none}
+  #doc{max-width:none;margin:0;padding:0;box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="bar"><div class="in">
+  <h1>AI 수업 자동화 키트 (PDF)</h1>
+  <p>성함과 소속을 적으면 표지와 모든 쪽 아래에 들어갑니다. 적지 않아도 만들어집니다. 웹 도구에서 만든 내 주소와 QR이 있으면 함께 들어갑니다.</p>
+  <div class="row"><input type="text" id="nm" placeholder="성함 (선택, 예: 김서연)"><input type="text" id="org" placeholder="소속 (선택, 예: 부산외대 경영학과)"></div>
+  <div class="row" id="picks"></div>
+  <div class="row"><label><input type="checkbox" id="withCode" checked> 코드 전문 포함(쪽수가 늘어납니다)</label><button id="save">PDF로 저장</button><span class="note" id="hint">누르면 인쇄 창이 열립니다. 대상을 "PDF로 저장"으로 두고 저장하세요. 파일 이름은 자동으로 채워집니다.</span></div>
+</div></div>
+<div id="doc"></div>
+<style id="pg"></style>
+<script src="vendor/qrcode/qrcode.js"></script>
+<script src="gas-recipes.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var DATA = window.GAS_RECIPES, Q = new URLSearchParams(location.search);
+  var SITE = 'https://kimcook-edu.pages.dev/#gas';
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function qr(text) {
+    if (typeof qrcode !== 'function') return null;
+    var q = qrcode(0, 'M'); q.addData(text); q.make();
+    var n = q.getModuleCount(), d = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (q.isDark(y, x)) d += 'M' + x + ',' + y + 'h1v1h-1z';
+    var b = el('div'); b.innerHTML = '<svg viewBox="-3 -3 ' + (n + 6) + ' ' + (n + 6) + '" shape-rendering="crispEdges"><rect x="-3" y="-3" width="' + (n + 6) + '" height="' + (n + 6) + '" fill="#fff"/><path d="' + d + '"/></svg>';
+    return b.firstChild;
+  }
+  var nm = $('#nm'), org = $('#org'), withCode = $('#withCode');
+  nm.value = Q.get('name') != null ? Q.get('name') : lsGet('acl-kit-name', '');
+  org.value = Q.get('org') != null ? Q.get('org') : lsGet('acl-kit-org', '');
+  var chosen = Q.get('r') ? Q.get('r').split(',') : lsGet('acl-kit-recipes', null);
+  var recs = DATA.recipes.filter(function (r) { return r.id !== 'blank'; });
+  var blank = DATA.recipes.filter(function (r) { return r.id === 'blank'; })[0];
+  function urlOf(id) { return lsGet('acl-gas-url-' + id, ''); }
+  var picks = $('#picks');
+  recs.concat([blank]).forEach(function (r) {
+    var lab = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.value = r.id; cb.checked = chosen ? chosen.indexOf(r.id) >= 0 : true;
+    cb.onchange = function () { render(); };
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + r.name)); picks.appendChild(lab);
+  });
+  function selected() { return Array.prototype.map.call(picks.querySelectorAll('input:checked'), function (c) { return c.value; }); }
+  function who() { var n = nm.value.trim(), o = org.value.trim(); return { n: n, o: o, line: [o, n ? n + ' 교수님' : ''].filter(Boolean).join(' · ') }; }
+
+  function add(parent, tag, cls, text) { var e = el(tag, cls, text); parent.appendChild(e); return e; }
+  function stories(parent, r) {
+    add(parent, 'p', '', '아래 프롬프트는 이 코드가 어떤 요구에서 나왔는지를 단계별로 다시 정리한 것입니다. AI는 같은 프롬프트에도 매번 조금 다른 코드를 만듭니다. 그대로 따라 하면 비슷한 코드가 나오고, 마음에 들지 않으면 같은 방식으로 한 단계씩 고쳐 말하면 됩니다.');
+    r.story.forEach(function (s, i) {
+      var d = add(parent, 'div', 'pr');
+      add(d, 'div', 'n', 'STEP ' + (i + 1) + ' · ' + s.step);
+      add(d, 'div', 'p', s.prompt);
+      add(d, 'div', 'r', '→ ' + s.result);
+    });
+  }
+  function recipeSection(root, r, no) {
+    var s = add(root, 'section', 'sec');
+    add(s, 'div', 'k', 'RECIPE ' + String(no).padStart(2, '0'));
+    add(s, 'h2', '', r.name);
+    add(s, 'p', '', r.tag + ' · ' + r.short);
+    var w = add(s, 'div', 'box'); add(w, 'b', '', 'WOW POINT'); w.appendChild(document.createTextNode(r.wow));
+    var web = r.web || {}, u = urlOf(r.id);
+    add(s, 'h3', '', '1 · 시작하기');
+    var ol = add(s, 'ol');
+    ['웹 도구(' + SITE + ')에서 수업 코드를 저장하고 "' + r.name + '"을 고릅니다.', '"코드 복사"를 누르고 https://sheets.new 로 새 시트를 엽니다.',
+      '확장 프로그램 → Apps Script에 붙여 넣고 저장한 뒤, 위쪽 함수 선택 칸에서 start 를 골라 ▶ 실행합니다. 승인 화면이 나오면 허용합니다.']
+      .concat(web.deploy ? ['배포 → 새 배포 → 웹 앱(액세스: 모든 사용자)으로 배포하고 웹 앱 URL을 웹 도구에 붙여 넣으면 주소와 QR이 만들어집니다.'] : [])
+      .concat(web.after || []).forEach(function (t) { add(ol, 'li', '', t); });
+    if (u) {
+      add(s, 'h3', '', '내 주소 (웹 도구에서 만든 것)');
+      (web.links || [{ label: '학생용 주소', suffix: '' }]).forEach(function (L) {
+        var full = u + L.suffix, row = add(s, 'div', 'url'), q = qr(full), t = add(row, 'div');
+        if (q) row.insertBefore(q, t);
+        add(t, 'b', '', L.label); add(t, 'code', '', full);
+      });
+    }
+    add(s, 'h3', '', '2 · 프롬프트 기록: 이 코드는 이렇게 만들어졌습니다');
+    stories(s, r);
+    add(s, 'h3', '', '3 · 고쳐 쓸 때 바로 써 보는 프롬프트');
+    var ul = add(s, 'ul'); r.examples.forEach(function (t) { add(ul, 'li', '', t); });
+    if (r.jev && r.jev.length) { add(s, 'h3', '', 'JEV가 판정하는 것'); var jl = add(s, 'ul'); r.jev.forEach(function (t) { add(jl, 'li', '', t); }); }
+  }
+  function render() {
+    var root = $('#doc'); root.textContent = '';
+    var W = who(), ids = selected(), list = DATA.recipes.filter(function (r) { return ids.indexOf(r.id) >= 0; });
+    lsSet('acl-kit-name', nm.value.trim()); lsSet('acl-kit-org', org.value.trim()); lsSet('acl-kit-recipes', ids);
+    document.title = 'AI수업키트_' + (W.n ? W.n + '교수' : '맞춤');
+    var cssStr = function (x) { return '"' + x.replace(/["\\]/g, ' ').replace(/[\r\n]+/g, ' ') + '"'; };
+    $('#pg').textContent = '@page{@bottom-left{content:' + cssStr('PROF.KIMCOOK · AI CLASS LAB' + (W.line ? '  ·  ' + W.line + ' 맞춤 키트' : '')) + ';font:700 7pt Montserrat,Pretendard,sans-serif;letter-spacing:.14em;color:#8e8e8e;vertical-align:top;padding-top:6mm}@bottom-right{content:counter(page) " / " counter(pages);font:700 7pt Montserrat,sans-serif;color:#8e8e8e;vertical-align:top;padding-top:6mm}}';
+
+    var c = add(root, 'section', 'sec cover');
+    var top = add(c, 'div'); add(top, 'div', 'k', 'PROF.KIMCOOK · AI CLASS LAB');
+    add(top, 'h2', '', 'AI 수업 자동화 키트');
+    add(top, 'p', '', '프롬프트로 만들고, 오류는 바로 고치고, 교실에서 움직이는 결과물까지.');
+    var f = add(top, 'div', 'for');
+    if (W.n || W.o) { add(f, 'span', '', 'PREPARED FOR'); add(f, 'b', '', W.n ? W.n + ' 교수님' : W.o); if (W.n && W.o) add(f, 'span', '', W.o); }
+    else add(f, 'span', '', '교수님 맞춤 키트 (성함과 소속을 적으면 이 자리에 들어갑니다)');
+    var bot = add(c, 'div', 'qrrow'), q0 = qr(SITE), qb = add(bot, 'div', 'qr'); if (q0) qb.appendChild(q0);
+    var tx = add(bot, 'div'); add(tx, 'b', '', '웹 도구'); add(tx, 'p', '', SITE); add(tx, 'p', '', '코드 복사는 이 PDF가 아니라 웹 도구의 "코드 복사" 버튼으로 하세요. PDF에서 복사하면 줄바꿈이 깨질 수 있습니다.');
+
+    var s1 = add(root, 'section', 'sec');
+    add(s1, 'div', 'k', 'OVERVIEW'); add(s1, 'h2', '', '이 키트로 만들 수 있는 것');
+    add(s1, 'p', '', '각 결과물은 프로젝터에 띄웠을 때 한눈에 "여기까지 된다"가 보이도록 만들었습니다. 한 가지는 약 10분, 프롬프트 한 번이면 시작할 수 있습니다.');
+    var tb = add(s1, 'table');
+    list.forEach(function (r) { var tr = add(tb, 'tr'); add(tr, 'th', '', r.name); add(tr, 'td', '', r.wow); });
+    add(s1, 'h3', '', '10분 시작 순서 (모든 결과물 공통)');
+    var ol = add(s1, 'ol');
+    ['웹 도구를 열고 연수 현장에서 받은 수업 코드를 저장합니다. 코드는 이 문서에 들어 있지 않습니다.', '만들고 싶은 결과물을 하나 고릅니다.', '"코드 복사" → 새 구글 시트 → Apps Script에 붙여 넣기 → 저장.',
+      '위쪽 함수 선택 칸에서 start 를 골라 ▶ 실행, 승인 화면에서 허용.', '학생 화면이나 큰 화면이 필요한 결과물은 배포 → 새 배포 → 웹 앱으로 배포하고, 웹 앱 URL을 웹 도구에 붙여 넣어 주소와 QR을 받습니다.',
+      '(선택) 반응판과 설문 결과 화면은 웹 도구의 "파워포인트에서도 쓰기"로 슬라이드 파일을 받아 수업 중간에 열 수 있습니다.'].forEach(function (t) { add(ol, 'li', '', t); });
+    add(s1, 'h3', '', '프롬프트 공식: 여섯 가지만 말하면 됩니다');
+    var pt = add(s1, 'table'); DATA.promptRule.forEach(function (x) { var tr = add(pt, 'tr'); add(tr, 'th', '', x[0]); add(tr, 'td', '', x[1]); });
+
+    var n = 0;
+    list.filter(function (r) { return r.id !== 'blank'; }).forEach(function (r) { recipeSection(root, r, ++n); });
+    var bl = list.filter(function (r) { return r.id === 'blank'; })[0];
+    if (bl) recipeSection(root, bl, ++n);
+
+    var t = add(root, 'section', 'sec');
+    add(t, 'div', 'k', 'TROUBLESHOOTING'); add(t, 'h2', '', '막혔을 때');
+    var tt = add(t, 'table'); DATA.trouble.forEach(function (x) { var tr = add(tt, 'tr'); add(tr, 'th', '', x[0]); add(tr, 'td', '', x[1]); });
+    add(t, 'h3', '', '오류를 고치는 프롬프트 기본형');
+    add(t, 'div', 'box').textContent = '[오류 문구 전체] 이 오류는 아래 코드를 실행하다 났어. 원인을 한 줄로 설명하고, 고친 전체 코드를 줘. 고치지 않은 부분은 그대로 둬.\n[고칠 코드를 이어서 붙여 넣기]';
+    add(t, 'p', '', '웹 도구 4번 칸에 붙여 넣으면 이 프롬프트가 자동으로 채워지고, 자주 나는 오류는 AI 없이 원인과 처방을 바로 보여 줍니다.');
+    add(t, 'h3', '', '쓰기 전 지킬 것');
+    var rl = add(t, 'ul');
+    ['수업 코드는 다른 사람에게 보내지 마세요. 복사한 코드 맨 위에 들어 있습니다.', '학생에게는 실명 대신 별칭을 쓰게 하고, 이해도 같은 판정은 성적이나 징계에 쓰지 마세요.', '긴급 판정이나 오개념 판정은 참고용입니다. 사람이 읽고 판단하세요.', '학생 글이 AI 서버로 전송된다는 점을 수업 전에 알려 주세요.']
+      .forEach(function (x) { add(rl, 'li', '', x); });
+
+    if (withCode.checked) {
+      var ap = add(root, 'section', 'sec'); add(ap, 'div', 'k', 'APPENDIX'); add(ap, 'h2', '', '코드 전문');
+      add(ap, 'p', '', '모든 결과물 코드 앞에는 공통 도우미(Jev·AI 호출, 시트 도우미, 화면 틀)가 필요합니다. 웹 도구의 복사 버튼은 둘을 합쳐서 복사합니다.');
+      add(ap, 'h3', '', '공통 도우미 (모든 결과물 앞에 붙습니다)'); add(ap, 'pre', '', DATA.common.code);
+      list.forEach(function (r) { if (r.code) { add(ap, 'h3', '', r.name); add(ap, 'pre', '', r.code); } });
+    }
+  }
+  nm.oninput = org.oninput = render; withCode.onchange = render;
+  $('#save').onclick = function () { render(); setTimeout(function () { window.print(); }, 150); };
+  render();
+  if (Q.get('auto') === '1') {
+    var go = function () { setTimeout(function () { window.print(); }, 500); };
+    (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(go);
+  }
+})();
+</script>
+</body>
+</html>

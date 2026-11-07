@@ -5,7 +5,7 @@
    이해도는 교수만 봅니다. 성적이나 징계에 쓰지 마세요. 학생에게는 실명 대신 별칭을 쓰게 합니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('튜터')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls').addToUi();
+    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 화면 PIN 보기', 'showUrls').addToUi();
 }
 
 function setup() {
@@ -25,12 +25,12 @@ function setup() {
   }
   sheet_('대화록', ['시간', '세션', '별칭', '턴', '역할', '내용', '이해도(0~3)', '행동']);
   sheet_('제출', ['시간', '세션', '별칭', '대화 횟수', '마지막 이해도', '이해도 흐름', '학생 정리 이해도(0~3)', '학생 정리', '과정 요약']);
-  say_('준비 끝! [설정] 시트에서 주제와 핵심 개념을 바꾸고, 웹 도구 화면의 다음 단계(배포)를 따라 하세요.');
+  say_('준비 끝! [설정] 시트에서 주제와 핵심 개념을 바꾸고, 웹 도구 화면의 다음 단계(배포)를 따라 하세요.\n교수 화면(교실 이해도 실시간) PIN: ' + pin_() + ' — 학생에게 알리지 마세요.');
 }
 
 function showUrls() {
   var url = ScriptApp.getService().getUrl();
-  say_(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  say_(url ? '학생용 주소: ' + url + '\n교수 화면(큰 화면): ' + url + '?v=class\n교수 화면 PIN: ' + pin_() : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
 }
 
 function cfg_() {
@@ -39,8 +39,47 @@ function cfg_() {
     open: String(v[4][0]).trim().toUpperCase() === 'O' };
 }
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.v === 'class') return page_('교실 이해도', CLASS_HTML, { raw: true, css: CLASS_CSS });
   return page_('튜터와 대화', TUTOR_HTML);
+}
+
+// 교수 화면 PIN: [설정] B6. 없으면 4자리 숫자를 만들어 적습니다. 학생 이름 대신 별칭과 이해도 숫자만 보여 주고, 대화 내용은 보여 주지 않습니다.
+function pin_() {
+  var s = ss_().getSheetByName('설정'), c = s.getRange('B6'), v = String(c.getValue()).trim();
+  if (!/^\d{4}$/.test(v)) {
+    v = String(1000 + Math.floor(Math.random() * 9000));
+    s.getRange('A6').setValue('교수 화면 PIN(4자리, 학생에게 알리지 마세요)');
+    c.setValue(v);
+  }
+  return v;
+}
+
+function getClass(pin) {
+  if (String(pin || '').trim() !== pin_()) {
+    throttle_('pinfail', 10, 600);
+    return { ok: false, msg: 'PIN이 맞지 않습니다.' };
+  }
+  var cache = CacheService.getScriptCache(), hit = cache.get('cls');
+  if (hit) return JSON.parse(hit);
+  var c = cfg_(), sh = sheet_('대화록'), n = sh.getLastRow() - 1, by = {}, order = [];
+  if (n > 0) {
+    var from = Math.max(2, n + 2 - 3000);
+    sh.getRange(from, 1, n + 2 - from, 8).getValues().forEach(function (r) {
+      if (r[4] !== '학생') return;
+      var k = String(r[1]);
+      if (!by[k]) { by[k] = { a: String(r[2]), lv: [] }; order.push(k); }
+      if (r[6] !== '' && r[6] != null) by[k].lv.push(Number(r[6]));
+    });
+  }
+  var sub = sheet_('제출'), m = sub.getLastRow() - 1, done = {};
+  if (m > 0) sub.getRange(2, 2, m, 1).getValues().forEach(function (r) { done[String(r[0])] = true; });
+  var students = order.map(function (k) { return { a: by[k].a, lv: by[k].lv, done: !!done[k] }; });
+  var dist = [0, 0, 0, 0];
+  students.forEach(function (x) { if (x.lv.length) dist[Math.max(0, Math.min(3, x.lv[x.lv.length - 1]))]++; });
+  var out = { ok: true, topic: c.topic, max: c.max, total: students.length, submitted: students.filter(function (x) { return x.done; }).length, dist: dist, students: students.slice(-60) };
+  cache.put('cls', JSON.stringify(out), 3);
+  return out;
 }
 
 function getInfo() {
@@ -154,3 +193,93 @@ var TUTOR_HTML = '<div class="kick">SOCRATIC · <span class="ko">되묻는 튜�
   '.withFailureHandler(function(e){busy=false;$("#b").disabled=false;note("보내지 못했습니다: "+e.message,"msg err")}).tutorTurn(sid,$("#al").value,t)};' +
   '$("#sub").onclick=function(){$("#sub").disabled=true;google.script.run.withSuccessHandler(function(r){if(r.ok){$("#fin").hidden=true;$("#chat").hidden=true;note("제출했습니다. 수고했어요.")}else{$("#sub").disabled=false;note(r.msg,"msg err")}})' +
   '.withFailureHandler(function(e){$("#sub").disabled=false;note("제출하지 못했습니다: "+e.message,"msg err")}).submitTranscript(sid,$("#al").value,$("#ft").value)};</script>';
+
+// 교수 화면: 학생이 튜터와 대화하는 동안 교실 전체의 이해도가 실시간으로 올라가는 모습입니다. PIN을 아는 사람만 봅니다.
+var CLASS_CSS = [
+  ':root{--bg:#161616;--fg:#f2f2f2;--mut:#8e8e8e;--line:rgba(242,242,242,.16);--red:#e54536}',
+  '*{box-sizing:border-box}html,body{height:100%}',
+  'body{margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font:16px/1.5 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;word-break:keep-all;-webkit-font-smoothing:antialiased}',
+  '.stage{height:100vh;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:clamp(12px,2.4vh,26px);padding:clamp(14px,2.8vw,48px)}',
+  '.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}',
+  '.live{display:flex;align-items:center;gap:.9em;font:700 clamp(10px,1vw,14px)/1 Montserrat,Pretendard,sans-serif;letter-spacing:.3em;color:var(--mut)}',
+  '.live:before{content:"";width:.8em;height:.8em;background:var(--red)}',
+  'h1{max-width:20em;margin:.6em 0 0;font-size:clamp(22px,3.6vw,56px);font-weight:800;letter-spacing:-.03em;line-height:1.15;text-wrap:balance}',
+  '.num{text-align:right;font:800 clamp(40px,7vw,112px)/.85 Montserrat,Pretendard,sans-serif;letter-spacing:-.05em}',
+  '.num small{display:block;margin-top:1em;font:600 clamp(10px,.9vw,13px)/1 Pretendard,sans-serif;letter-spacing:.2em;color:var(--mut)}',
+  '.dist{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}',
+  '.dist div{padding-top:10px;border-top:clamp(6px,1vh,10px) solid #f2f2f2;opacity:.25;transition:opacity .9s}',
+  '.dist div.on{opacity:1}.dist div:nth-child(4).on{border-top-color:var(--red)}',
+  '.dist b{display:block;font:800 clamp(24px,3.4vw,52px)/1 Montserrat,Pretendard,sans-serif;letter-spacing:-.04em}',
+  '.dist span{font-size:clamp(11px,1vw,15px);color:var(--mut)}',
+  '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(150px,15vw,240px),1fr));gap:clamp(8px,1vw,16px);align-content:start;overflow:hidden;min-height:0}',
+  '.st{padding:10px 12px 12px;border:1px solid var(--line);border-left:3px solid var(--line)}',
+  '.st.up{border-left-color:var(--red)}',
+  '.st h3{margin:0 0 8px;display:flex;justify-content:space-between;gap:8px;font-size:clamp(12px,1.1vw,17px);font-weight:700}',
+  '.st h3 span{color:var(--mut);font:600 11px/1.6 Montserrat,Pretendard,sans-serif;letter-spacing:.1em}',
+  '.bars{display:flex;align-items:flex-end;gap:3px;height:clamp(34px,5vh,56px)}',
+  '.bars i{flex:1;max-width:18px;background:#f2f2f2;transition:height .8s cubic-bezier(.2,.8,.2,1)}',
+  '.bars i.now{background:var(--red)}',
+  '.gate{height:100vh;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:16px;padding:0 clamp(24px,8vw,120px)}',
+  '.gate h1{margin:0}.gate input{width:200px;padding:12px 14px;border:1px solid var(--fg);border-radius:2px;background:transparent;color:var(--fg);font:700 28px Montserrat,sans-serif;letter-spacing:.4em}',
+  '.gate button{padding:12px 28px;border:0;border-radius:2px;background:var(--fg);color:var(--bg);font:700 16px Pretendard,sans-serif;cursor:pointer}',
+  '.gate p{margin:0;color:var(--mut)}',
+  '[hidden]{display:none!important}'
+].join('');
+
+function classClient_() {
+  var $ = function (s) { return document.querySelector(s); };
+  var pin = '', first = true, prevLen = {}, shown = 0, LB = ['거의 이해 못함', '일부만 이해', '대체로 이해', '정확하고 깊게'];
+  function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function count(e, from, to) {
+    if (from === to || typeof requestAnimationFrame !== 'function') { e.textContent = String(to); return; }
+    var t0 = Date.now();
+    (function step() {
+      var k = Math.min(1, (Date.now() - t0) / 700), v = 1 - Math.pow(1 - k, 3);
+      e.textContent = String(Math.round(from + (to - from) * v));
+      if (k < 1) requestAnimationFrame(step);
+    })();
+  }
+  function draw(d) {
+    $('#tp').textContent = d.topic;
+    count($('#n'), shown, d.total); shown = d.total;
+    $('#sb').textContent = '명 참여 · ' + d.submitted + '명 제출';
+    var dist = $('#dist'); dist.textContent = '';
+    d.dist.forEach(function (n, i) {
+      var c = mk('div', n ? 'on' : ''), b = mk('b', '', String(n));
+      c.appendChild(b); c.appendChild(mk('span', '', LB[i])); dist.appendChild(c);
+    });
+    var g = $('#grid'); g.textContent = '';
+    d.students.slice().reverse().forEach(function (x) {
+      var grew = prevLen[x.a] != null && x.lv.length > prevLen[x.a];
+      var card = mk('div', 'st' + (grew ? ' up' : '')), h = mk('h3'), bars = mk('div', 'bars');
+      h.appendChild(mk('span', '', x.a === '' ? '익명' : x.a));
+      var last = x.lv.length ? x.lv[x.lv.length - 1] : null;
+      h.appendChild(mk('span', '', x.done ? '제출함' : (x.lv.length ? '대화 ' + x.lv.length + '턴' : '시작 전')));
+      card.appendChild(h);
+      x.lv.slice(-12).forEach(function (lv, i, arr) {
+        var bar = mk('i', i === arr.length - 1 ? 'now' : ''), hh = (25 + lv * 25) + '%';
+        if (first && typeof requestAnimationFrame === 'function') {
+          bar.style.height = '4%';
+          requestAnimationFrame(function () { requestAnimationFrame(function () { bar.style.height = hh; }); });
+        } else bar.style.height = hh;
+        bars.appendChild(bar);
+      });
+      card.appendChild(bars); g.appendChild(card);
+      prevLen[x.a] = x.lv.length;
+    });
+    first = false;
+  }
+  function tick() {
+    google.script.run.withSuccessHandler(function (d) {
+      if (!d.ok) { $('#err').textContent = d.msg; $('#gate').hidden = false; $('#stage').hidden = true; return; }
+      $('#gate').hidden = true; $('#stage').hidden = false; draw(d); setTimeout(tick, 5000);
+    }).withFailureHandler(function () { setTimeout(tick, 8000); }).getClass(pin);
+  }
+  $('#go').onclick = function () { pin = $('#pin').value; $('#err').textContent = ''; tick(); };
+  $('#pin').onkeydown = function (e) { if (e.key === 'Enter') $('#go').onclick(); };
+}
+
+var CLASS_HTML = '<div class="gate" id="gate"><div class="live">LIVE · <span class="ko">교실 이해도</span></div><h1>교수 화면 PIN</h1><input id="pin" maxlength="4" inputmode="numeric" placeholder="0000"><button id="go">열기</button><p id="err"></p></div>' +
+  '<div class="stage" id="stage" hidden><div class="top"><div><div class="live">LIVE · <span class="ko">교실 이해도</span></div><h1 id="tp">…</h1></div><div class="num"><span id="n">0</span><small id="sb">명 참여</small></div></div>' +
+  '<div class="dist" id="dist"></div><div class="grid" id="grid"></div></div>' +
+  '<script>(' + classClient_.toString() + ')();</script>';

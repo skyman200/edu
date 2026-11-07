@@ -85,7 +85,8 @@ function ask(question, sid) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try { sheet_('질문기록').appendRow([new Date(), id, q, a.kind.choice, Math.round(a.answerable.p * 100) / 100, auto ? '자동답변' : '교수님께', auto ? answer : '']); } finally { lock.releaseLock(); }
-  return auto ? { ok: true, auto: true, answer: answer } : { ok: true, auto: false, id: id };
+  var kind = { content: '수업 내용', task: '과제·평가', schedule: '일정·행정', personal: '개인 사정', other: '기타' }[a.kind.choice] || '기타', pct = Math.round(a.answerable.p * 100);
+  return auto ? { ok: true, auto: true, answer: answer, p: pct, kind: kind } : { ok: true, auto: false, id: id, p: pct, kind: kind };
 }
 
 function checkAnswer(id) {
@@ -126,11 +127,13 @@ function weeklyReport() {
 var ASK_HTML = '<div class="kick">24H · <span class="ko">수업 조교</span></div><h1 id="nm">…</h1><p class="muted">수업 자료에 있는 내용은 바로 답해 드리고, 교수님이 직접 답할 내용은 전달해 드립니다. 이름이나 학번은 쓰지 마세요.</p>' +
   '<textarea id="t" maxlength="300" placeholder="궁금한 것을 적어 주세요"></textarea><div class="row"><button id="b">질문하기</button></div><div id="m"></div>' +
   '<h2>교수님 답변 확인</h2><div class="row"><input id="i" maxlength="6" placeholder="질문 번호 6자리" style="width:200px"><button class="alt" id="k">확인</button></div><div id="r"></div>' +
-  '<script>var sid;try{sid=localStorage.getItem("sid");if(!sid){sid=Math.random().toString(36).slice(2,12);localStorage.setItem("sid",sid)}}catch(e){sid=Math.random().toString(36).slice(2,12)}' +
+  '<script>' + TYPE_JS + 'var sid;try{sid=localStorage.getItem("sid");if(!sid){sid=Math.random().toString(36).slice(2,12);localStorage.setItem("sid",sid)}}catch(e){sid=Math.random().toString(36).slice(2,12)}' +
   'var $=function(s){return document.querySelector(s)};function say(box,text,cls){box.textContent="";var p=document.createElement("p");p.className=cls||"msg";p.style.whiteSpace="pre-wrap";p.textContent=text;box.appendChild(p)}' +
   'google.script.run.withSuccessHandler(function(r){$("#nm").textContent=r.name;if(!r.open){$("#b").disabled=true;say($("#m"),"지금은 질문을 받지 않습니다.")}}).getInfo();' +
-  '$("#b").onclick=function(){var t=$("#t").value;if(t.trim().length<4)return;$("#b").disabled=true;say($("#m"),"자료를 찾아보는 중…");' +
-  'google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(!r.ok){say($("#m"),r.msg,"msg err");return}$("#t").value="";' +
-  'say($("#m"),r.auto?r.answer:"수업 자료만으로는 답하기 어려워 교수님께 전달했습니다. 질문 번호 "+r.id+" 를 적어 두고 나중에 아래에서 확인하세요.")})' +
-  '.withFailureHandler(function(e){$("#b").disabled=false;say($("#m"),"질문을 보내지 못했습니다: "+e.message,"msg err")}).ask(t,sid)};' +
+  'var waiting=false,STEPS=["자료를 훑어 읽는 중","근거 문장을 찾는 중","답을 쓰는 중"];function cycle(n){if(!waiting)return;say($("#m"),STEPS[n%3]+"…");setTimeout(function(){cycle(n+1)},1500)}' +
+  'function meter(r){var l=document.createElement("div");l.className="gl";l.textContent="JEV 판정 · "+r.kind+" · 자료로 답할 수 있을 확률 "+r.p+"%";var g=document.createElement("div");g.className="gauge"+(r.auto?"":" hot");var f=document.createElement("i");g.appendChild(f);$("#m").appendChild(l);$("#m").appendChild(g);setTimeout(function(){f.style.width=r.p+"%"},80)}' +
+  '$("#b").onclick=function(){var t=$("#t").value;if(t.trim().length<4)return;$("#b").disabled=true;waiting=true;cycle(0);' +
+  'google.script.run.withSuccessHandler(function(r){waiting=false;$("#b").disabled=false;if(!r.ok){say($("#m"),r.msg,"msg err");return}$("#t").value="";' +
+  'if(r.auto){say($("#m"),"","msg");typeOut($("#m").children[0],r.answer)}else say($("#m"),"수업 자료만으로는 답하기 어려워 교수님께 전달했습니다. 질문 번호 "+r.id+" 를 적어 두고 나중에 아래에서 확인하세요.");meter(r)})' +
+  '.withFailureHandler(function(e){waiting=false;$("#b").disabled=false;say($("#m"),"질문을 보내지 못했습니다: "+e.message,"msg err")}).ask(t,sid)};' +
   '$("#k").onclick=function(){google.script.run.withSuccessHandler(function(r){say($("#r"),r.found?(r.answer||"아직 답변이 없습니다. 조금 뒤에 다시 확인하세요."):"해당하는 질문이 없습니다.")}).checkAnswer($("#i").value)};</script>';

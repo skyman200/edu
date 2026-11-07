@@ -130,8 +130,29 @@ var PAGE_CSS = [
   '.chip{display:inline-block;padding:2px 9px;border:1px solid var(--line2);font-size:.82rem}',
   '.bubble{max-width:94%;margin:0 0 10px;padding:11px 15px;border:1px solid var(--line);background:#fff;font-size:1.02rem;word-break:break-word}',
   '.me{margin-left:auto;border-color:var(--ink);background:var(--ink);color:#fff}',
-  '.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}'
+  '.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}',
+  '.gl{margin-top:14px;font:700 11px/1.4 Montserrat,Pretendard,sans-serif;letter-spacing:.14em;color:var(--ink2)}',
+  '.gauge{height:6px;margin:6px 0 18px;background:var(--line)}',
+  '.gauge i{display:block;width:0;height:100%;background:var(--ink);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}',
+  '.gauge.hot i{background:var(--red)}',
+  '.rise{animation:rise .55s cubic-bezier(.2,.8,.2,1) both}@keyframes rise{from{opacity:0;transform:translateY(12px)}}'
 ].join('');
+
+// 글자가 한 글자씩 써지는 효과. 브라우저 안에서만 움직이고, 움직일 수 없는 환경에서는 전체 글이 바로 보입니다.
+// 페이지 스크립트 맨 앞에 TYPE_JS 를 붙여 typeOut(요소, 글) 로 부릅니다.
+function typeOut_(el, text) {
+  text = String(text);
+  el.textContent = text;
+  if (typeof requestAnimationFrame !== 'function') return;
+  var n = text.length, t0 = Date.now(), dur = Math.min(2800, 500 + n * 26);
+  el.textContent = '';
+  (function step() {
+    var i = Math.ceil(n * Math.min(1, (Date.now() - t0) / dur));
+    el.textContent = text.slice(0, i);
+    if (i < n) requestAnimationFrame(step);
+  })();
+}
+var TYPE_JS = typeOut_.toString().replace('function typeOut_', 'function typeOut');
 
 // 웹 화면 하나를 만듭니다. body에는 <script>까지 넣습니다. opts.raw 이면 기본 틀 없이 opts.css 만 씁니다(강의장 큰 화면용).
 // ALLOWALL: 파워포인트의 웹 뷰어 같은 다른 페이지 안에 이 화면을 넣을 수 있게 합니다.

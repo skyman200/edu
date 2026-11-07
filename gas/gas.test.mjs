@@ -244,8 +244,10 @@ test('r5: photo -> notes doc; unreadable asks for a retake; big or HEIC photos g
   const row = env.rows('기록')[0];
   assert.deepEqual([row[1], row[2], row[4]], ['칠판1.jpg', '수업 내용', '완료']);
   const doc = [...env.docs.values()][0];
-  assert.deepEqual(doc.lines.map((l) => l.kind), ['P', 'H1', 'H2', 'LI', 'LI', 'H2', 'P']);
-  assert.equal(doc.lines[1].t, '광합성 정리');
+  assert.deepEqual(doc.lines.map((l) => l.kind), ['P', 'P', 'H1', 'H2', 'LI', 'LI', 'H2', 'P']);
+  assert.equal(doc.images.length, 1, 'the original blackboard photo sits at the top of the note');
+  assert.equal(doc.lines[1].t, '원본 칠판 사진');
+  assert.equal(doc.lines[2].t, '광합성 정리');
   assert.equal(env.folders.get(env.props.get('NOTES')).files.length, 1, 'the doc was moved into the result folder');
   assert.ok(env.log.mails.at(-1).body.includes(doc.getUrl()));
   env.call('processPhotos');
@@ -320,6 +322,69 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   sub(1, '판정 실패', '판정 실패');
   rows = env.rows('분석');
   assert.deepEqual([rows.at(-2)[1], rows.at(-2)[2], rows.at(-1)[3]], [3, '', '판정 실패']);
+});
+
+test('r3 class screen: PIN-gated, shows aliases and levels, never conversation text', () => {
+  let level = 1;
+  const env = boot('r3-tutor.gs', { jev: (s, q) => ({ ...defaultAnswers(q), understanding: score(level), move: choice('probe') }), ai: () => '왜 그렇게 생각하나요?' });
+  env.setup();
+  const pin = env.call('pin_');
+  assert.match(pin, /^\d{4}$/);
+  assert.equal(env.call('pin_'), pin, 'the PIN stays the same');
+  assert.ok(env.log.alerts.at(-1).includes(pin), 'setup tells the professor the PIN');
+  env.call('tutorTurn', 'sidaaaa1', '파랑고래', '빛을 먹어요');
+  level = 3;
+  env.call('tutorTurn', 'sidaaaa1', '파랑고래', '빛은 에너지예요');
+  level = 0;
+  env.call('tutorTurn', 'sidbbbb2', '노랑곰', '모르겠어요');
+  const wrong = env.call('getClass', pin === '0000' ? '1111' : '0000');
+  assert.equal(wrong.ok, false);
+  const r = env.call('getClass', pin);
+  assert.equal(r.total, 2);
+  assert.deepEqual(r.students.find((x) => x.a === '파랑고래').lv, [1, 3]);
+  assert.deepEqual(r.dist, [1, 0, 0, 1]);
+  assert.ok(!JSON.stringify(r).includes('에너지예요'), 'no conversation text leaves the server');
+  const doc = env.call('doGet', { parameter: { v: 'class' } });
+  assert.ok(doc.html.includes('교수 화면 PIN') && doc.xframe === 'ALLOWALL');
+  const pg = runPage(env, env.ctx.CLASS_HTML);
+  pg.set('#pin', pin);
+  pg.click('#go');
+  assert.equal(pg.el('#n').textContent, '2');
+  assert.equal(pg.el('#grid').children.length, 2);
+  assert.equal(pg.el('#gate').hidden, true);
+});
+
+test('r6 report screen: totals and rankings for the big screen, never urgent rows or complaints', () => {
+  const env = boot('r6-survey.gs', {
+    jev: (s, q) => ({ ...defaultAnswers(q), mood: score(3), topic: choice('pace'), suggest: noul(0.1), urgent: noul(s.includes('괴롭') ? 0.95 : 0.05) }),
+    ai: () => '키워드: 속도',
+  });
+  env.setup();
+  const sub = (sat, good, want) => env.call('onSurveySubmit', { namedValues: { '오늘 수업 만족도': [String(sat)], '좋았던 점': [good], '아쉬웠던 점이나 바라는 점': [want] } });
+  sub(5, '예시가 좋았어요', '조금 빨랐어요');
+  sub(4, '실습이 좋았어요', '');
+  sub(2, '숨겨질 칭찬', '이 수업에서 괴롭힘을 당했어요');
+  const r = env.call('getReport');
+  assert.equal(r.n, 3);
+  assert.equal(r.avg, 3.7);
+  assert.deepEqual(r.sat, [0, 1, 0, 1, 1]);
+  assert.equal(r.mood[3], 3);
+  assert.deepEqual(r.topics, [{ k: '속도', n: 3 }]);
+  const wire = JSON.stringify(r);
+  assert.ok(!wire.includes('괴롭') && !wire.includes('숨겨질') && !wire.includes('조금 빨랐어요'), 'urgent rows and the "want" column stay off the screen');
+  assert.deepEqual(r.quotes, ['예시가 좋았어요', '실습이 좋았어요']);
+  const doc = env.call('doGet', {});
+  assert.equal(doc.xframe, 'ALLOWALL');
+  const pg = runPage(env, env.ctx.REPORT_HTML);
+  assert.equal(pg.el('#avg').textContent, '3.7');
+  assert.equal(pg.el('#hist').children.length, 5);
+  assert.equal(pg.el('#mood').children.length, 5);
+  assert.equal(pg.el('#tp').children.length, 1);
+  assert.equal(pg.el('#wait').hidden, true);
+  const empty = boot('r6-survey.gs', {});
+  empty.setup();
+  const pe = runPage(empty, empty.ctx.REPORT_HTML);
+  assert.equal(pe.el('#main').hidden, true, 'an empty survey shows the waiting message');
 });
 
 test('one-step start: pasting the code and running start() prepares everything, with the class code embedded', () => {

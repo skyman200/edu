@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EXTRA, PROMPT_RULE, TROUBLE } from './story.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => fs.readFileSync(path.join(here, f), 'utf8').replace(/\r\n/g, '\n').trimEnd() + '\n';
@@ -15,7 +16,7 @@ const Q = {
 
 export const RECIPES = [
   {
-    id: 'r1', web: { deploy: true, links: [{ label: '참석자용 주소 (QR로 띄우세요)', suffix: '' }, { label: '강의장 큰 화면 주소 (프로젝터에 띄우세요)', suffix: '?v=board' }], after: ['시트의 [설정] 탭에서 질문과 묶음 이름을 내 수업에 맞게 바꾸세요. 바로 반영됩니다.'] }, file: 'r1-board.gs', name: '실시간 교실 반응판', tag: '참석자 폰 → 큰 화면',
+    id: 'r1', web: { deploy: true, ppt: { suffix: '?v=board', title: '교실 반응판' }, links: [{ label: '참석자용 주소 (QR로 띄우세요)', suffix: '' }, { label: '강의장 큰 화면 주소 (프로젝터에 띄우세요)', suffix: '?v=board' }], after: ['시트의 [설정] 탭에서 질문과 묶음 이름을 내 수업에 맞게 바꾸세요. 바로 반영됩니다.'] }, file: 'r1-board.gs', name: '실시간 교실 반응판', tag: '참석자 폰 → 큰 화면',
     short: '질문을 던지면 참석자가 폰으로 한 줄씩 답하고, 큰 화면에 묶음별로 말풍선이 모입니다.',
     jev: ['답이 어느 묶음에 속하는지 고르기', '광고·장난·욕설이면 화면에서 숨기기'],
     steps: [
@@ -68,7 +69,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r3', web: { deploy: true, links: [{ label: '학생용 주소 (LMS나 QR로 나눠 주세요)', suffix: '' }], after: ['시트의 [설정] 탭에서 주제, 학습 목표, 교수용 핵심 개념을 바꾸세요. 핵심 개념은 학생 화면에 나오지 않습니다.'] }, file: 'r3-tutor.gs', name: '소크라테스 튜터와 대화록 제출', tag: '정답 대신 되묻는 AI',
+    id: 'r3', web: { deploy: true, links: [{ label: '학생용 주소 (LMS나 QR로 나눠 주세요)', suffix: '' }, { label: '교수 화면 주소 (프로젝터에 띄우세요. 처음 준비 때 알림창에 나온 PIN 4자리가 필요합니다)', suffix: '?v=class' }], after: ['시트의 [설정] 탭에서 주제, 학습 목표, 교수용 핵심 개념을 바꾸세요. 핵심 개념은 학생 화면에 나오지 않습니다.', 'PIN은 [설정] 탭 B6 칸에도 있습니다. 학생에게 알리지 마세요.'] }, file: 'r3-tutor.gs', name: '소크라테스 튜터와 대화록 제출', tag: '정답 대신 되묻는 AI',
     short: '정답을 알려 주지 않고 되묻는 튜터입니다. 대화 전체와 이해도 흐름이 시트에 저장되어 "AI를 어떻게 썼는지"를 평가할 수 있습니다.',
     jev: ['지금 이해도 (0~3 단계)', '오개념이 있는지', '튜터의 다음 행동 고르기 (힌트·반례·이유 묻기·심화·정리)'],
     steps: [
@@ -147,7 +148,7 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r6', web: { deploy: false, links: [], after: ['실행 후 뜨는 알림창의 설문 주소를 학생에게 보여 주세요. 응답이 오면 [분석] 탭에 쌓이고 내 메일로 요약이 옵니다.'] }, file: 'r6-survey.gs', name: '수업 후 설문 즉석 분석', tag: '폼 제출 → 감정·키워드·건의 → 내 메일',
+    id: 'r6', web: { deploy: true, ppt: { suffix: '', title: '수업 후 설문 결과' }, links: [{ label: '강의장 결과 화면 (프로젝터나 슬라이드에 띄우세요. 응답이 올 때마다 움직입니다)', suffix: '' }], after: ['실행 후 뜨는 알림창의 설문 주소를 학생에게 보여 주세요(메뉴의 주소 보기에서 다시 볼 수 있습니다). 응답이 오면 [분석] 탭에 쌓이고, 위 결과 화면이 움직이고, 내 메일로 요약이 옵니다.'] }, file: 'r6-survey.gs', name: '수업 후 설문 즉석 분석', tag: '폼 제출 → 감정·키워드·건의 → 내 메일',
     short: '설문 폼이 제출될 때마다 감정, 주제, 건의 여부, 긴급 여부를 판정해 시트에 쌓고, 일정 개수가 모이면 요약을 메일로 보냅니다.',
     jev: ['수업에 대한 감정 (0~4 단계)', '가장 비중 있게 말한 주제', '구체적인 건의가 있는지', '교수가 바로 알아야 할 긴급 내용인지'],
     steps: [
@@ -205,9 +206,9 @@ export const RECIPES = [
 export function buildRecipes() {
   const common = read('00-common.gs');
   const out = {
-    common: { code: common },
+    common: { code: common }, promptRule: PROMPT_RULE, trouble: TROUBLE,
     recipes: RECIPES.map((r) => ({
-      id: r.id, web: r.web, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
+      id: r.id, web: r.web, wow: EXTRA[r.id].wow, story: EXTRA[r.id].story, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
       code: r.file ? read(r.file) : '', jevPreset: r.jevPreset,
     })),
   };

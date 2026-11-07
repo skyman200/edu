@@ -51,7 +51,7 @@ function today_() {
 function doGet(e) {
   if (e && e.parameter && e.parameter.r) {
     var id = String(e.parameter.r).replace(/[^a-z0-9]/gi, '').slice(0, 12); // the page runs in an iframe, so location.search cannot carry it
-    return page_('회고 쓰기', REFLECT_HTML.replace('__ID__', id));
+    return page_('회고 쓰기', REFLECT_HTML.replace('__ID__', id), { css: LETTER_CSS });
   }
   return page_(cfg_().title, WRITE_HTML);
 }
@@ -140,7 +140,7 @@ function getLetter(id) {
   if (!row) return { found: false };
   var v = sheet_('편지').getRange(row, 1, 1, 11).getValues()[0];
   if (v[7] === '예약') return { found: false };
-  return { found: true, alias: String(v[2]), goals: String(v[4]), worry: String(v[5]), done: v[7] === '회고완료', comment: String(v[10] || '') };
+  return { found: true, alias: String(v[2]), goals: String(v[4]), worry: String(v[5]), done: v[7] === '회고완료', comment: String(v[10] || ''), growth: v[9] === '' ? -1 : Number(v[9]) };
 }
 
 function submitReflection(id, text) {
@@ -152,7 +152,7 @@ function submitReflection(id, text) {
   if (!row) return { ok: false, msg: '편지를 찾지 못했습니다.' };
   var sh = sheet_('편지'), v = sh.getRange(row, 1, 1, 11).getValues()[0];
   if (v[7] === '예약') return { ok: false, msg: '아직 도착일 전입니다.' };
-  if (v[7] === '회고완료') return { ok: true, comment: String(v[10]) };
+  if (v[7] === '회고완료') return { ok: true, comment: String(v[10]), growth: Number(v[9]) };
   var a = jev_({ 처음목표: String(v[4]), 처음걱정: String(v[5]), 지금의회고: text }, {
     growth: { type: 'score', instructions: '처음 글과 지금의 회고를 비교할 때 학생의 변화나 성장이 얼마나 뚜렷한가?', criteria: ['변화가 보이지 않음', '조금 나아짐', '뚜렷이 나아짐', '크게 성장함'] },
     tone: { type: 'choice', instructions: '회고글의 정서', criteria: { proud: '뿌듯하고 자신감이 있다', mixed: '성취와 아쉬움이 섞여 있다', regret: '아쉬움과 후회가 크다', flat: '무덤덤하거나 구체성이 없다' } }
@@ -164,7 +164,7 @@ function submitReflection(id, text) {
   sh.getRange(row, 9, 1, 3).setValues([[text, a.growth.level, comment]]);
   sh.getRange(row, 8).setValue('회고완료');
   try { if (MailApp.getRemainingDailyQuota() > 2) mail_(String(v[3]), '[미래의 나에게] 회고 코멘트', comment); } catch (err) {}
-  return { ok: true, comment: comment };
+  return { ok: true, comment: comment, growth: a.growth.level };
 }
 
 var WRITE_HTML = '<div class="kick">LETTER · <span class="ko">미래의 나에게</span></div><h1 id="tt">…</h1><p class="muted">학기 초의 나에게 쓰는 편지입니다. 도착일에 아래 메일 주소로 다시 옵니다. 메일 주소는 편지 배달에만 쓰입니다.</p>' +
@@ -176,10 +176,24 @@ var WRITE_HTML = '<div class="kick">LETTER · <span class="ko">미래의 나에�
   '$("#b").onclick=function(){$("#b").disabled=true;google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){note(r.date+"에 도착합니다. 확인 메일도 보냈어요.");$("#go").value="";$("#wo").value=""}else note(r.msg,"msg err")})' +
   '.withFailureHandler(function(e){$("#b").disabled=false;note("보내지 못했습니다: "+e.message,"msg err")}).saveLetter({alias:$("#al").value,email:$("#em").value,goals:$("#go").value,worry:$("#wo").value,date:$("#dt").value})};</script>';
 
-var REFLECT_HTML = '<div class="kick">LETTER · <span class="ko">도착</span></div><h1>학기 초의 내가 보낸 편지</h1><div id="orig"></div><div id="ref" hidden><h2>지금의 생각</h2><textarea id="t" maxlength="900" placeholder="학기를 돌아보며 달라진 점, 아쉬운 점을 적어 보세요"></textarea><button id="b">코멘트 받기</button></div><div id="m"></div>' +
-  '<script>var $=function(s){return document.querySelector(s)},id="__ID__";' +
-  'function note(t,c){var m=$("#m");m.textContent="";var p=document.createElement("p");p.className=c||"msg";p.style.whiteSpace="pre-wrap";p.textContent=t;m.appendChild(p)}' +
-  'function line(h,t){if(!t)return;var a=document.createElement("h2");a.textContent=h;var b=document.createElement("div");b.className="bubble";b.style.whiteSpace="pre-wrap";b.textContent=t;$("#orig").appendChild(a);$("#orig").appendChild(b)}' +
-  'google.script.run.withSuccessHandler(function(r){if(!r.found){note("편지를 찾지 못했습니다. 메일의 링크를 다시 눌러 주세요.","msg err");return}line("그때의 목표",r.goals);line("그때의 걱정",r.worry);if(r.done)note(r.comment);else $("#ref").hidden=false}).getLetter(id);' +
-  '$("#b").onclick=function(){$("#b").disabled=true;note("코멘트를 쓰는 중…");google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){$("#ref").hidden=true;note(r.comment)}else note(r.msg,"msg err")})' +
+// 편지 도착 화면: 봉투가 열리고, 학기 초에 쓴 글이 한 글자씩 나타납니다. 회고를 내면 변화 지수가 차오릅니다.
+var LETTER_CSS = [
+  '.env{position:relative;height:96px;margin:0 0 22px;border:1px solid var(--ink);background:#fff;overflow:hidden}',
+  '.env .flap{position:absolute;left:0;right:0;top:0;height:60px;background:var(--sheet);border-bottom:1px solid var(--ink);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transition:transform .8s cubic-bezier(.6,0,.2,1)}',
+  '.env.open .flap{transform:rotateX(180deg)}',
+  '.env .from{position:absolute;left:16px;bottom:12px;font:700 11px/1 Montserrat,Pretendard,sans-serif;letter-spacing:.24em;color:var(--ink2)}',
+  '.env .seal{position:absolute;left:50%;top:44px;width:14px;height:14px;margin-left:-7px;background:var(--red);transition:opacity .4s .5s}.env.open .seal{opacity:0}',
+  '.seg4{display:flex;gap:3px;margin:6px 0 4px}.seg4 i{flex:1;height:8px;background:var(--line);transition:background .4s}.seg4 i.on{background:var(--ink)}.seg4 i.top{background:var(--red)}'
+].join('');
+
+var REFLECT_HTML = '<div class="kick">LETTER · <span class="ko">도착</span></div><h1>학기 초의 내가 보낸 편지</h1><div class="env" id="env"><div class="flap"></div><div class="seal"></div><div class="from">FROM · <span class="ko">학기 초의 나</span></div></div><div id="orig"></div><div id="ref" hidden><h2>지금의 생각</h2><textarea id="t" maxlength="900" placeholder="학기를 돌아보며 달라진 점, 아쉬운 점을 적어 보세요"></textarea><button id="b">코멘트 받기</button></div><div id="m"></div>' +
+  '<script>' + TYPE_JS + 'var $=function(s){return document.querySelector(s)},id="__ID__",GL=["변화가 보이지 않음","조금 나아짐","뚜렷이 나아짐","크게 성장함"];' +
+  'function note(t,c){var m=$("#m");m.textContent="";var p=document.createElement("p");p.className=c||"msg";p.style.whiteSpace="pre-wrap";p.textContent=t;m.appendChild(p);return p}' +
+  'function line(h,t,d){if(!t)return;setTimeout(function(){var a=document.createElement("h2");a.textContent=h;var b=document.createElement("div");b.className="bubble rise";b.style.whiteSpace="pre-wrap";$("#orig").appendChild(a);$("#orig").appendChild(b);typeOut(b,t)},d)}' +
+  'function growth(g){if(g==null||g<0)return;var l=document.createElement("div");l.className="gl";l.textContent="변화 지수 · "+GL[g];var s=document.createElement("div");s.className="seg4";$("#m").appendChild(l);$("#m").appendChild(s);' +
+  'for(var i=0;i<4;i++){(function(i){var x=document.createElement("i");s.appendChild(x);setTimeout(function(){if(i<=g)x.className=i===g&&g>=2?"top":"on"},400+i*350)})(i)}}' +
+  'function show(c,g){var p=note(c);typeOut(p,c);growth(g)}' +
+  'google.script.run.withSuccessHandler(function(r){if(!r.found){note("편지를 찾지 못했습니다. 메일의 링크를 다시 눌러 주세요.","msg err");return}setTimeout(function(){$("#env").className="env open"},500);' +
+  'line("그때의 목표",r.goals,1300);line("그때의 걱정",r.worry,1300+Math.min(2800,500+r.goals.length*26)+400);if(r.done)show(r.comment,r.growth);else $("#ref").hidden=false}).getLetter(id);' +
+  '$("#b").onclick=function(){$("#b").disabled=true;note("코멘트를 쓰는 중…");google.script.run.withSuccessHandler(function(r){$("#b").disabled=false;if(r.ok){$("#ref").hidden=true;show(r.comment,r.growth)}else note(r.msg,"msg err")})' +
   '.withFailureHandler(function(e){$("#b").disabled=false;note("보내지 못했습니다: "+e.message,"msg err")}).submitReflection(id,$("#t").value)};</script>';

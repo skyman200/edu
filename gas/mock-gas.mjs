@@ -158,10 +158,10 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     DocumentApp: {
       ParagraphHeading: { HEADING1: 'H1', HEADING2: 'H2', NORMAL: 'P' },
       create: (name) => {
-        const id = 'D' + ++seq, lines = [];
+        const id = 'D' + ++seq, lines = [], images = [];
         const para = (t, kind) => { const l = { t, kind }; lines.push(l); const api = new Proxy({}, { get: (_, k) => (k === 'setHeading' ? (h) => { l.kind = h; return api; } : () => api) }); return api; };
-        const doc = { id, name, lines, getId: () => id, getUrl: () => 'https://docs.google.com/document/d/' + id, saveAndClose() {},
-          getBody: () => ({ clear: () => { lines.length = 0; }, appendParagraph: (t) => para(t, 'P'), appendListItem: (t) => para(t, 'LI'), getText: () => lines.map((l) => l.t).join('\n') }) };
+        const doc = { id, name, lines, images, getId: () => id, getUrl: () => 'https://docs.google.com/document/d/' + id, saveAndClose() {},
+          getBody: () => ({ clear: () => { lines.length = 0; images.length = 0; }, appendImage: (b) => { images.push(b); return { getWidth: () => 800, getHeight: () => 600, setWidth() { return this; }, setHeight() { return this; } }; }, appendParagraph: (t) => para(t, 'P'), appendListItem: (t) => para(t, 'LI'), getText: () => lines.map((l) => l.t).join('\n') }) };
         docs.set(id, doc);
         return doc;
       },

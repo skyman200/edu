@@ -127,15 +127,24 @@ var BOARD_CSS = [
   '.col.lead h2 em{color:var(--red)}',
   '.msgs{display:flex;flex-direction:column;gap:clamp(6px,1vh,12px);min-height:0;overflow:hidden}',
   '.ko{letter-spacing:.04em}',
-  '.b{padding:.1em 0 .1em .85em;word-break:keep-all;overflow-wrap:anywhere;border-left:2px solid var(--line);font-size:clamp(13px,1.4vw,22px);line-height:1.4;animation:in .5s ease}',
+  '.b{padding:.1em 0 .1em .85em;word-break:keep-all;overflow-wrap:anywhere;border-left:2px solid var(--line);font-size:clamp(13px,1.4vw,22px);line-height:1.4}',
+  '.b.anim{animation:in .5s cubic-bezier(.2,.8,.2,1) both}.b.last{animation-delay:1.9s}',
   '.b.new{border-left-color:var(--red)}',
-  '@keyframes in{from{opacity:0;transform:translateX(-8px)}}',
+  '@keyframes in{from{opacity:0;transform:translateX(-14px)}}',
+  '.arr{position:fixed;left:0;right:0;bottom:7vh;z-index:5;width:min(72vw,900px);margin:0 auto;padding:clamp(14px,2vw,28px) clamp(18px,2.6vw,40px);background:#f2f2f2;color:#161616;border-left:8px solid var(--red);transform-origin:0 0}',
+  '.arr[hidden]{display:none}',
+  '.arr small{display:block;margin-bottom:.8em;font:700 clamp(10px,1vw,14px)/1 Montserrat,Pretendard,sans-serif;letter-spacing:.26em;color:#666}',
+  '.arr p{margin:0;font-size:clamp(20px,3vw,46px);font-weight:800;letter-spacing:-.02em;line-height:1.25;word-break:keep-all}',
+  '.arr.in{animation:rise .55s cubic-bezier(.2,.8,.2,1) both}',
+  '.arr.go{transition:transform .7s cubic-bezier(.6,0,.2,1),opacity .7s ease}',
+  '@keyframes rise{from{opacity:0;transform:translateY(48px)}}',
+  '.total span.bump{animation:bump .45s ease}@keyframes bump{40%{transform:scale(1.12)}}',
   '.wait{grid-column:1/-1;align-self:center;justify-self:start;max-width:16em;color:var(--mut);font-size:clamp(16px,2.4vw,38px);font-weight:700;letter-spacing:-.02em;line-height:1.3}'
 ].join('');
 
 function boardClient_() {
   var $ = function (s) { return document.querySelector(s); };
-  var prev = -1, qrDone = false;
+  var prev = -1, qrDone = false, token = 0, counts = {}, shownTotal = 0;
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function qr(url) {
     if (typeof qrcode !== 'function') return '';
@@ -144,9 +153,40 @@ function boardClient_() {
     for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (q.isDark(y, x)) d += 'M' + x + ',' + y + 'h1v1h-1z';
     return '<svg viewBox="-2 -2 ' + (n + 4) + ' ' + (n + 4) + '" shape-rendering="crispEdges"><path d="' + d + '"/></svg>';
   }
+  // 숫자가 이전 값에서 새 값까지 올라갑니다. 애니메이션 기능이 없는 환경에서는 바로 새 값을 씁니다.
+  function tween(e, from, to) {
+    if (from === to || typeof requestAnimationFrame !== 'function') { e.textContent = String(to); return; }
+    var t0 = Date.now();
+    (function step() {
+      var k = Math.min(1, (Date.now() - t0) / 700), v = 1 - Math.pow(1 - k, 3);
+      e.textContent = String(Math.round(from + (to - from) * v));
+      if (k < 1) requestAnimationFrame(step);
+    })();
+  }
+  // 새 답이 화면 가운데에 크게 뜨고, 분류가 끝나면 해당 묶음으로 날아갑니다.
+  function arrive(text, label, colEl) {
+    var a = $('#arr');
+    if (!a || !a.querySelector || typeof setTimeout !== 'function') return;
+    var my = ++token, lab = a.querySelector('small'), p = a.querySelector('p');
+    a.hidden = false; a.className = 'arr'; a.style.transform = ''; a.style.opacity = '';
+    lab.textContent = '방금 도착 · 분류하는 중'; p.textContent = text;
+    void a.offsetWidth; a.className = 'arr in';
+    setTimeout(function () { if (my === token) lab.textContent = '→ ' + label; }, 1000);
+    setTimeout(function () {
+      if (my !== token) return;
+      var r = a.getBoundingClientRect(), t = colEl.getBoundingClientRect();
+      a.className = 'arr go';
+      a.style.transform = 'translate(' + Math.round(t.left + 12 - r.left) + 'px,' + Math.round(t.top + 40 - r.top) + 'px) scale(.2)';
+      a.style.opacity = '0';
+    }, 1900);
+    setTimeout(function () { if (my === token) a.hidden = true; }, 2700);
+  }
   function draw(d) {
     $("#q").textContent = d.q;
-    $("#c").textContent = String(d.total);
+    var tot = $("#c");
+    tween(tot, shownTotal, d.total);
+    if (d.total !== shownTotal && shownTotal > 0 && tot.className !== undefined) { tot.className = ''; void tot.offsetWidth; tot.className = 'bump'; }
+    shownTotal = d.total;
     if (d.join && !qrDone) { var svg = qr(d.join); if (svg) { $("#qr").innerHTML = svg; $("#join").hidden = false; } qrDone = true; }
     var g = $("#g"), sh = $("#sh");
     g.textContent = ''; sh.textContent = '';
@@ -154,25 +194,40 @@ function boardClient_() {
     var cols = d.cats.length ? d.cats : ['모두'];
     var vh = typeof innerHeight === 'number' ? innerHeight : 800;
     var per = Math.max(3, Math.min(10, Math.floor((vh - 300) / 74)));
-    var fresh = prev >= 0 ? Math.max(0, d.total - prev) : 0;
+    var first = prev < 0, fresh = first ? 0 : Math.max(0, d.total - prev);
     var groups = cols.map(function (name) {
       var mine = [];
       d.items.forEach(function (x, idx) {
-        if (d.cats.length ? (x.c === name || (name === '기타' && !x.c)) : true) mine.push({ t: x.t, isNew: idx >= d.items.length - fresh });
+        if (d.cats.length ? (x.c === name || (name === '기타' && !x.c)) : true) mine.push({ t: x.t, isNew: idx >= d.items.length - fresh, last: fresh > 0 && idx === d.items.length - 1 });
       });
       return { name: name, mine: mine };
     });
     var order = groups.map(function (gr, i) { return i; }).sort(function (a, b) { return groups[b].mine.length - groups[a].mine.length || a - b; });
+    var landing = null, n = 0;
     groups.forEach(function (gr, i) {
       var rank = order.indexOf(i), lead = rank === 0 && d.cats.length > 1 && gr.mine.length > (groups[order[1]] ? groups[order[1]].mine.length : 0);
-      var col = mk('section', 'col' + (lead ? ' lead' : '')), h = mk('h2'), box = mk('div', 'msgs');
-      h.appendChild(mk('u', '', (i < 9 ? '0' : '') + String(i + 1)));
-      h.appendChild(mk('span', '', gr.name)); h.appendChild(mk('em', '', String(gr.mine.length)));
+      var col = mk('section', 'col' + (lead ? ' lead' : '')), h = mk('h2'), box = mk('div', 'msgs'), em = mk('em', '', String(gr.mine.length));
+      var label = (i < 9 ? '0' : '') + String(i + 1);
+      h.appendChild(mk('u', '', label));
+      h.appendChild(mk('span', '', gr.name)); h.appendChild(em);
+      tween(em, counts[gr.name] || 0, gr.mine.length); counts[gr.name] = gr.mine.length;
       col.appendChild(h);
-      gr.mine.slice(-per).reverse().forEach(function (x) { box.appendChild(mk('div', 'b' + (x.isNew ? ' new' : ''), x.t)); });
+      gr.mine.slice(-per).reverse().forEach(function (x) {
+        var b = mk('div', 'b' + (x.isNew ? ' new' : '') + (first || x.isNew ? ' anim' : '') + (x.last ? ' last' : ''), x.t);
+        if (first && b.style) b.style.animationDelay = Math.min(1.2, n * 0.07) + 's';
+        n++;
+        if (x.last) landing = { text: x.t, label: label + ' ' + gr.name, col: col };
+        box.appendChild(b);
+      });
       col.appendChild(box); g.appendChild(col);
-      var seg = mk('i', 'k' + (lead ? 0 : Math.max(1, Math.min(rank, 4)))); seg.style.flexGrow = String(gr.mine.length); sh.appendChild(seg);
+      var seg = mk('i', 'k' + (lead ? 0 : Math.max(1, Math.min(rank, 4))));
+      if (first && typeof requestAnimationFrame === 'function') {
+        seg.style.flexGrow = '0';
+        requestAnimationFrame(function () { requestAnimationFrame(function () { seg.style.flexGrow = String(gr.mine.length); }); });
+      } else seg.style.flexGrow = String(gr.mine.length);
+      sh.appendChild(seg);
     });
+    if (landing) arrive(landing.text, landing.label, landing.col);
     prev = d.total;
   }
   function tick() {
@@ -185,6 +240,6 @@ function boardClient_() {
 var BOARD_HTML = '<div class="stage"><div class="top"><div><div class="live"><span class="dot"></span>LIVE · <span class="ko">교실 반응판</span></div><h1 id="q">…</h1></div>' +
   '<div class="side"><div class="join" id="join" hidden><div class="qr" id="qr"></div><div><b>휴대폰으로 참여</b><span>QR을 스캔하세요</span></div></div>' +
   '<div class="total"><span id="c">0</span><small>모인 생각</small></div></div></div>' +
-  '<div class="share" id="sh"></div><div class="cols" id="g"></div></div>' +
+  '<div class="share" id="sh"></div><div class="cols" id="g"></div><div class="arr" id="arr" hidden><small></small><p></p></div></div>' +
   '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' +
   '<script>(' + boardClient_.toString() + ')();</script>';

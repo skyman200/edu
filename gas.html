@@ -57,6 +57,7 @@ a.btn{display:inline-block;font:600 14px Pretendard,system-ui,sans-serif;border:
 button.big,a.btn.big{font-size:16px;padding:12px 22px}
 .lnk{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;background:#fff;border:1px solid var(--line);padding:10px 12px;margin:8px 0}
 .lnk .lb{grid-column:1/-1;font-weight:700;font-size:14px}.lnk input{font-size:12.5px}
+.pptbox{margin:12px 0;padding:10px 14px;border:1px solid var(--line2);background:#fff}.pptbox summary{cursor:pointer;font-weight:700}.pptbox p{margin:8px 0}
 .lnk .qr{grid-column:1/-1;width:150px}.lnk .qr svg{display:block;width:150px;height:150px;border:1px solid var(--line)}
 </style>
 </head>
@@ -119,6 +120,13 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     <textarea id="jq" class="code" style="min-height:220px" spellcheck="false"></textarea>
     <div class="row"><button id="jrun">Jev에게 묻기</button><span id="jstateTxt" class="sub" style="margin:0"></span></div>
     <div id="jout"></div>
+  </section>
+  <section id="s6">
+    <div class="k">6 · 가져가기</div>
+    <h2>내 결과물 키트 (PDF)</h2>
+    <p class="sub">모든 레시피의 "와 포인트", 시작 순서, <b>프롬프트 기록</b>(이 코드가 어떤 말로 만들어졌는지), 예제 프롬프트, 막혔을 때 처방, 코드 전문을 한 권으로 묶습니다. 위에서 웹 앱 주소를 만들었다면 그 주소와 QR도 들어갑니다. 성함과 소속은 적지 않아도 됩니다. 적으면 표지와 모든 쪽 아래에 들어갑니다.</p>
+    <div class="row"><input id="kitName" style="max-width:220px" placeholder="성함 (선택)" autocomplete="off"><input id="kitOrg" style="max-width:300px" placeholder="소속 (선택)" autocomplete="off"><button id="kitGo">맞춤 키트 PDF 만들기</button></div>
+    <p class="sub">누르면 새 탭에서 인쇄 창이 열립니다. 대상을 "PDF로 저장"으로 두고 저장하세요. 파일 이름은 자동으로 채워집니다. 수업 코드는 키트에 들어가지 않습니다.</p>
   </section>
 </div>
 <div class="toast" id="toast"></div>
@@ -212,6 +220,48 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     var box = el('div'); box.innerHTML = '<svg viewBox="-3 -3 ' + (n + 6) + ' ' + (n + 6) + '" shape-rendering="crispEdges" role="img" aria-label="QR 코드"><rect x="-3" y="-3" width="' + (n + 6) + '" height="' + (n + 6) + '" fill="#fff"/><path d="' + d + '" fill="#000"/></svg>';
     return box.firstChild;
   }
+  function loadScript(src) { return new Promise(function (ok, no) { var t = document.createElement('script'); t.src = src; t.onload = ok; t.onerror = function () { no(new Error('불러오지 못했습니다: ' + src)); }; document.head.appendChild(t); }); }
+  // QR을 PNG 그림으로 바꿉니다(슬라이드 파일에 넣기 위해).
+  function qrPng(text) {
+    return new Promise(function (ok) {
+      var svg = qrSvg(text); if (!svg) return ok(null);
+      var img = new Image();
+      img.onload = function () { var c = document.createElement('canvas'); c.width = c.height = 640; var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 640, 640); g.drawImage(img, 0, 0, 640, 640); ok(c.toDataURL('image/png')); };
+      img.onerror = function () { ok(null); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    });
+  }
+  // 슬라이드 한 장짜리 파일: 제목, (있으면) 참여 QR, 슬라이드쇼에서 누르면 큰 화면이 열리는 링크.
+  async function makePpt(cfg, bigUrl, joinUrl) {
+    if (!window.JSZip) await loadScript('vendor/jszip/jszip.min.js');
+    if (!window.PptxGenJS) await loadScript('vendor/pptxgenjs/pptxgen.bundle.js');
+    var png = joinUrl ? await qrPng(joinUrl) : null;
+    var P = new window.PptxGenJS(); P.layout = 'LAYOUT_WIDE';
+    var f = 'Malgun Gothic', sl = P.addSlide(); sl.background = { color: 'F2F2F2' };
+    sl.addShape(P.ShapeType.rect, { x: 0.6, y: 0.62, w: 0.13, h: 0.13, fill: { color: 'E54536' }, line: { color: 'E54536' } });
+    sl.addText('LIVE · PROF.KIMCOOK AI CLASS LAB', { x: 0.85, y: 0.5, w: 8, h: 0.36, fontSize: 11, bold: true, color: '4A4A4A', fontFace: f, charSpacing: 3 });
+    sl.addText(cfg.title, { x: 0.6, y: 1.3, w: png ? 7.6 : 12, h: 1.8, fontSize: 48, bold: true, color: '1A1A1A', fontFace: f, valign: 'top' });
+    sl.addText(png ? '휴대폰으로 오른쪽 QR을 스캔해 참여하세요.' : '설문 결과는 아래 링크를 누르면 실시간으로 열립니다.', { x: 0.6, y: 3.2, w: png ? 7.6 : 12, h: 0.6, fontSize: 20, color: '4A4A4A', fontFace: f });
+    if (png) sl.addImage({ data: png, x: 9.0, y: 1.3, w: 3.7, h: 3.7 });
+    sl.addShape(P.ShapeType.rect, { x: 0.6, y: 5.2, w: png ? 7.6 : 8.5, h: 1.2, fill: { color: 'FFFFFF' }, line: { color: '1A1A1A', width: 1.5 } });
+    sl.addText([{ text: '▶ 큰 화면 열기 (슬라이드쇼에서 클릭)', options: { hyperlink: { url: bigUrl, tooltip: '브라우저에서 큰 화면이 열립니다' }, bold: true, fontSize: 24, fontFace: f } }], { x: 0.6, y: 5.2, w: png ? 7.6 : 8.5, h: 1.2, align: 'center', valign: 'middle' });
+    sl.addNotes('슬라이드쇼(F5)에서 파란 링크를 누르면 브라우저가 열려 큰 화면이 나옵니다. 다시 슬라이드로 돌아오려면 Alt+Tab(맥은 Cmd+Tab). 링크가 열리지 않으면 이 주소를 브라우저에 직접 붙여 넣으세요: ' + bigUrl);
+    await P.writeFile({ fileName: cfg.title.replace(/\s+/g, '') + '_슬라이드.pptx' });
+  }
+  function pptBox(u, cfg) {
+    var det = el('details', 'pptbox'), bigUrl = u + cfg.suffix, joinUrl = cfg.qr === false ? '' : u;
+    det.appendChild(el('summary', '', '선택 · 파워포인트 수업 중간에 넣어서 쓰기'));
+    det.appendChild(el('p', 'how', '하지 않아도 됩니다. 쓰고 싶은 분만 쓰세요. 슬라이드에 "큰 화면 열기" 링크가 있는 파일을 받아 내 발표 자료에 붙이면, 슬라이드쇼 중에 그 링크를 눌러 큰 화면을 바로 띄울 수 있습니다. 슬라이드로 돌아올 때는 Alt+Tab(맥은 Cmd+Tab)을 누르세요.'));
+    var row = el('div', 'row'), b1 = el('button', '', '슬라이드 파일(.pptx) 받기'), b2 = el('button', 'g', '큰 화면 주소 복사'), st = el('span', 'sub'); st.style.margin = '0';
+    b1.onclick = function () {
+      b1.disabled = true; st.textContent = '만드는 중…';
+      makePpt(cfg, bigUrl, joinUrl).then(function () { st.textContent = '내려받았습니다. 파일을 열고 F5 슬라이드쇼에서 파란 링크를 눌러 보세요.'; }, function (e) { st.textContent = '만들지 못했습니다: ' + e.message; }).then(function () { b1.disabled = false; });
+    };
+    b2.onclick = function () { copy(bigUrl, '복사했습니다.'); };
+    row.appendChild(b1); row.appendChild(b2); row.appendChild(st); det.appendChild(row);
+    det.appendChild(el('p', 'sub', '슬라이드 안에 화면을 바로 넣고 싶다면 PowerPoint 365(윈도우)의 삽입 → 추가 기능 → "Web Viewer"에 같은 주소를 넣는 방법도 있습니다. PC 버전과 강의장 네트워크에 따라 막힐 수 있으니 연수 전에 강의장 PC에서 먼저 열어 보세요.'));
+    return det;
+  }
   var EXEC = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec\/?$/;
   function codeForEditor() { return (aiCode ? 'var EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n\n' : '') + $('#src').value; }
   function step(ol, title) { var li = el('li'); li.appendChild(el('b', 't', title)); ol.appendChild(li); return li; }
@@ -255,6 +305,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
           var q = qrSvg(url); if (q) { var qb = el('div', 'qr'); qb.appendChild(q); box.appendChild(qb); }
           res.appendChild(box);
         });
+        if (w.ppt) res.appendChild(pptBox(u, w.ppt));
         res.appendChild(el('div', 'sub', '코드를 고친 뒤에는 편집기에서 배포 → 배포 관리 → 연필 → 버전 "새 버전" → 배포를 해야 학생 화면에 반영됩니다. 주소는 그대로입니다.'));
       };
       go.onclick = show; inp.onkeydown = function (e) { if (e.key === 'Enter') show(); };
@@ -426,6 +477,12 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   }
   codeUi(); pick(0);
   var h = decodeURIComponent(location.hash.slice(1)); var m = /^r([1-6])$/.exec(h); if (m) pick(Number(m[1]) - 1);
+  var kn = $('#kitName'), ko = $('#kitOrg');
+  kn.value = lsGet('acl-kit-name', ''); ko.value = lsGet('acl-kit-org', '');
+  $('#kitGo').onclick = function () {
+    lsSet('acl-kit-name', kn.value.trim()); lsSet('acl-kit-org', ko.value.trim());
+    window.open('kit.html?auto=1&name=' + encodeURIComponent(kn.value.trim()) + '&org=' + encodeURIComponent(ko.value.trim()), '_blank');
+  };
 })();
 </script>
 </body>

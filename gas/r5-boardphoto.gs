@@ -53,7 +53,7 @@ function photoUrl_(file) {
 // 간단한 마크다운(#, ##, -)을 구글 문서로 옮기고, 실습실과 같은 말씨(잉크색 글씨, 굵은 제목, 넉넉한 줄 간격)로 꾸밉니다.
 var DOC_FONT = 'Noto Sans KR';
 
-function writeDoc_(doc, text) {
+function writeDoc_(doc, text, photo) {
   var body = doc.getBody();
   body.clear();
   var ink = '#1a1a1a', mute = '#8e8e8e';
@@ -61,7 +61,16 @@ function writeDoc_(doc, text) {
     p.setFontFamily(DOC_FONT).setFontSize(size).setBold(bold).setForegroundColor(color).setLineSpacing(1.5).setSpacingBefore(before).setSpacingAfter(after);
     return p;
   };
-  put(body.appendParagraph('PROF.KIMCOOK · 칠판 노트 ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy.MM.dd')).setHeading(DocumentApp.ParagraphHeading.NORMAL), 9, true, mute, 0, 12);
+  var hard = (text.match(/\[\?\]/g) || []).length;
+  put(body.appendParagraph('PROF.KIMCOOK · 칠판 노트 ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy.MM.dd') + (hard ? ' · 읽기 어려운 곳 ' + hard + '군데([?])' : '')).setHeading(DocumentApp.ParagraphHeading.NORMAL), 9, true, mute, 0, 12);
+  // 원본 칠판 사진을 맨 위에 넣어, 사진과 정리된 노트를 한 문서에서 나란히 보게 합니다. 넣지 못하는 형식(HEIC 등)이면 건너뜁니다.
+  if (photo) {
+    try {
+      var img = body.appendImage(photo), w = img.getWidth(), h = img.getHeight();
+      img.setWidth(460).setHeight(Math.round(460 * h / w));
+      put(body.appendParagraph('원본 칠판 사진').setHeading(DocumentApp.ParagraphHeading.NORMAL), 9, true, mute, 4, 14);
+    } catch (err) {}
+  }
   text.split('\n').forEach(function (line) {
     var t;
     if (/^##\s+/.test(line)) t = put(body.appendParagraph(line.replace(/^##\s+/, '')).setHeading(DocumentApp.ParagraphHeading.HEADING2), 13, true, ink, 18, 4);
@@ -107,7 +116,9 @@ function handlePhoto_(f) {
   }
   var title = (notes.match(/^#\s+(.+)$/m) || [0, '칠판 노트'])[1].slice(0, 60);
   var doc = DocumentApp.create(title + ' ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MM-dd HH:mm'));
-  writeDoc_(doc, notes);
+  var photo = null;
+  try { if (!f.getSize || f.getSize() <= 8000000) photo = f.getBlob(); } catch (err) {}
+  writeDoc_(doc, notes, photo);
   DriveApp.getFileById(doc.getId()).moveTo(DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('NOTES')));
   sheet_('기록').appendRow([new Date(), name, kind, conf, '완료', doc.getUrl()]);
   var extra = a.kind.choice === 'assignment' || a.kind.choice === 'schedule' ? '\n\n※ ' + kind + '로 보입니다. 날짜와 내용을 직접 확인한 뒤 학생에게 알려 주세요.' : '';
