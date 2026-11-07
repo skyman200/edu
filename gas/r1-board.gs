@@ -3,7 +3,7 @@
    질문과 묶음 기준은 [설정] 시트에서 바꿉니다. 답은 [응답] 시트에 쌓이고, Jev가 묶음을 고릅니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('반응판')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls').addToUi();
+    .addItem('처음 준비', 'setup').addItem('새 질문 시작(지금 응답은 보관)', 'newRound').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls').addToUi();
 }
 
 function setup() {
@@ -22,6 +22,17 @@ function setup() {
   }
   sheet_('응답', ['시간', '응답', '묶음', '확신도', '상태']);
   say_('준비 끝! 질문과 묶음은 [설정] 시트에서 바꿀 수 있습니다. 이제 웹 도구 화면의 다음 단계(배포)를 따라 하세요.');
+}
+
+// 큰 화면에 쌓인 생각을 비우고 새로 시작합니다. 지금까지의 응답은 [응답_날짜] 시트로 보관되어 지워지지 않습니다.
+function newRound() {
+  var ss = ss_(), sh = ss.getSheetByName('응답');
+  if (sh && sh.getLastRow() > 1) {
+    sh.setName('응답_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMdd_HHmm'));
+    sheet_('응답', ['시간', '응답', '묶음', '확신도', '상태']);
+    CacheService.getScriptCache().remove('board');
+    say_('보관했습니다. 큰 화면이 곧 비워집니다. 질문을 바꾸려면 [설정] 시트 B1을 고치세요.');
+  } else say_('비울 응답이 아직 없습니다.');
 }
 
 function showUrls() {

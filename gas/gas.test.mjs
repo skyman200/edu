@@ -75,6 +75,13 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.equal(spam.rows('응답')[0][4], '숨김');
   assert.equal(spam.call('getBoard').items.length, 0);
   assert.equal(env.call('getBoard').items.length, 1);
+  // a new round archives the answers and empties the board
+  env.call('newRound');
+  assert.equal(env.call('getBoard').items.length, 0, 'the board starts empty again');
+  assert.equal(env.rows('응답').length, 0);
+  env.call('submitAnswer', '새 질문에 대한 첫 생각', 's9');
+  assert.equal(env.rows('응답').length, 1, 'new answers land in the fresh sheet');
+  assert.ok([...env.ctx.SpreadsheetApp.getActive().sheets.keys()].some((n) => /^응답_\d{4}_\d{4}$/.test(n)), 'the old answers are archived, not deleted');
   // too short, closed, throttled
   assert.equal(env.call('submitAnswer', '가', 's2').ok, false);
   env.sheet('설정').getRange('B3').setValue('X');

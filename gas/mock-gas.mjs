@@ -58,7 +58,7 @@ class Spreadsheet {
   constructor(id) { this.id = id; this.sheets = new Map(); }
   getId() { return this.id; }
   getSheetByName(n) { return this.sheets.get(n) || null; }
-  insertSheet(n) { const s = new Sheet(n); this.sheets.set(n, s); return s; }
+  insertSheet(n) { const s = new Sheet(n); s.setName = (nn) => { this.sheets.delete(s.name); s.name = nn; this.sheets.set(nn, s); return s; }; this.sheets.set(n, s); return s; }
 }
 
 const items = () => { const it = {}; for (const m of ['setTitle', 'setBounds', 'setLabels', 'setRequired']) it[m] = () => it; return it; };
@@ -116,7 +116,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     console, Date, Math, JSON, Object, Array, String, Number, Buffer, URLSearchParams,
     SpreadsheetApp: { getActive: () => active, getActiveSpreadsheet: () => active, openById: (id) => { if (id !== active.id) throw new Error('no such spreadsheet'); return active; }, getUi: () => ui },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => { props.set(k, String(v)); } }) },
-    CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => { cache.set(k, v); } }) },
+    CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => { cache.set(k, v); }, remove: (k) => { cache.delete(k); } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
     Utilities: {
       sleep: () => { log.sleeps++; },

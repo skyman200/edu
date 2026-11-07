@@ -96,7 +96,8 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     <h2>복사되는 코드</h2>
     <p class="sub">1번의 복사 버튼이 이 코드를 복사합니다. 직접 고쳐도 됩니다.</p>
     <textarea id="src" class="code" spellcheck="false"></textarea>
-    <div class="row"><button id="copyAll" class="g">코드 복사</button><button id="check" class="g">코드 점검</button><button id="safety" class="g">실행 전 안전 점검</button><button id="diff" class="g">처음 코드와 비교</button><button id="undo" class="g" disabled>되돌리기</button><span id="srcInfo" class="sub" style="margin:0"></span></div>
+    <div class="row"><button id="copyAll" class="g">코드 복사</button><button id="check" class="g">코드 점검</button><button id="safety" class="g">실행 전 안전 점검</button><button id="diff" class="g">처음 코드와 비교</button><button id="undo" class="g" disabled>되돌리기</button><button id="saveMine" class="g">내 코드 저장</button><button id="loadMine" class="g" disabled>저장본 불러오기</button><button id="dlGs" class="g">.gs 파일로 받기</button><button id="resetSrc" class="g">처음 코드로</button><span id="srcInfo" class="sub" style="margin:0"></span></div>
+    <div id="saveInfo" class="sub"></div>
     <div id="srcOut"></div>
   </section>
 
@@ -209,9 +210,26 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   function fullCode(r) { return r.code ? DATA.common.code + '\n' + r.code : DATA.common.code; }
   function setSrc(text, remember) {
     if (remember) { history.push($('#src').value); $('#undo').disabled = false; }
-    $('#src').value = text; srcInfo();
+    $('#src').value = text; srcInfo(); if (typeof autosave === 'function' && original) autosave();
   }
   function srcInfo() { var v = $('#src').value; $('#srcInfo').textContent = v.split('\n').length + '줄 · ' + v.length.toLocaleString() + '자'; }
+  // ---------- 레시피별 저장: 이 브라우저에 내 코드와 요청문을 레시피마다 따로 보관합니다 ----------
+  var VER = (DATA.common && DATA.common.version) || '';
+  function mineKey() { return 'acl-gas-mine-' + DATA.recipes[cur].id; }
+  function fmtT(t) { var d = new Date(t); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function saveMine(quiet) {
+    var code = $('#src').value, req = $('#req').value;
+    if (code === original && !req.trim()) { try { localStorage.removeItem(mineKey()); } catch (e) {} showSave(); return; }
+    lsSet(mineKey(), { code: code, req: req, v: VER, t: Date.now() });
+    showSave(); if (!quiet) toast('이 레시피의 내 코드를 저장했습니다.');
+  }
+  function showSave() {
+    var m = lsGet(mineKey(), null), b = $('#loadMine'), box = $('#saveInfo');
+    b.disabled = !m;
+    box.textContent = m ? '저장됨 · ' + fmtT(m.t) + (m.v !== VER ? ' · 이전 버전 코드입니다(불러오기 전에 확인하세요)' : '') + ' · 레시피마다 따로 저장되고, 이 브라우저에만 남습니다.' : '아직 저장한 내용이 없습니다. 고친 코드는 자동으로 저장됩니다.';
+  }
+  var saveTimer = null;
+  function autosave() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { saveMine(true); }, 700); }
 
   function qrSvg(text) {
     if (typeof qrcode !== 'function') return null;
@@ -287,7 +305,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
       li = step(ol, '웹 앱으로 배포합니다 (학생이 폰으로 열 주소가 생깁니다)');
       how = el('p', 'how'); how.innerHTML = '편집기 오른쪽 위 파란 <b>배포 → 새 배포</b>를 누르고, 톱니바퀴 <b>유형 선택 → 웹 앱</b>을 고르세요. <b>액세스 권한이 있는 사용자</b>를 <b>모든 사용자</b>로 바꾸고 <b>배포</b>를 누르면 "웹 앱 URL"이 나옵니다. <b>복사</b>를 누르세요.';
       li.appendChild(how);
-      li = step(ol, '복사한 웹 앱 URL을 여기에 붙여 넣습니다');
+      li = step(ol, '복사한 웹 앱 URL을 여기에 붙여 넣습니다(한 번 넣으면 이 브라우저에 기억됩니다)');
       row = el('div', 'row'); var inp = el('input'); inp.placeholder = 'https://script.google.com/macros/s/…/exec'; inp.style.maxWidth = '520px'; inp.id = 'wzUrl';
       var go = el('button', '', '주소와 QR 만들기'); row.appendChild(inp); row.appendChild(go); li.appendChild(row);
       var res = el('div'); li.appendChild(res);
@@ -308,6 +326,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
           res.appendChild(box);
         });
         if (w.ppt) res.appendChild(pptBox(u, w.ppt));
+        var clr = el('button', 'g', '이 주소 지우기'); clr.style.marginTop = '8px'; clr.onclick = function () { try { localStorage.removeItem('acl-gas-url-' + r.id); } catch (e) {} inp.value = ''; clear(res); toast('저장된 주소를 지웠습니다.'); }; res.appendChild(clr);
         res.appendChild(el('div', 'sub', '코드를 고친 뒤에는 편집기에서 배포 → 배포 관리 → 연필 → 버전 "새 버전" → 배포를 해야 학생 화면에 반영됩니다. 주소는 그대로입니다.'));
       };
       go.onclick = show; inp.onkeydown = function (e) { if (e.key === 'Enter') show(); };
@@ -325,6 +344,10 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     Array.prototype.forEach.call($('#tabs').children, function (b, j) { b.classList.toggle('on', j === i); });
     original = fullCode(r); history = []; $('#undo').disabled = true; lastSig = ''; fixCount = 0;
     $('#src').value = original; srcInfo(); clear($('#srcOut')); clear($('#makeOut')); clear($('#fixOut'));
+    var mine = lsGet(mineKey(), null);
+    $('#req').value = mine && mine.req ? mine.req : '';
+    if (mine && mine.v === VER && mine.code && mine.code !== original) { $('#src').value = mine.code; srcInfo(); }
+    showSave();
     renderWizard(r);
     var ex = clear($('#examples'));
     r.examples.forEach(function (t) { var b = el('button', 'ex', t); b.onclick = function () { $('#req').value = t; $('#req').focus(); }; ex.appendChild(b); });
@@ -386,6 +409,15 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   // ---------- 코드 도구 ----------
   $('#src').oninput = srcInfo;
   $('#copyAll').onclick = function () { copy(codeForEditor(), aiCode ? '코드를 복사했습니다(수업 코드 포함). 편집기에 붙여 넣고 저장하세요.' : '코드를 복사했습니다. 수업 코드는 들어 있지 않습니다.'); };
+  $('#saveMine').onclick = function () { saveMine(false); };
+  $('#loadMine').onclick = function () { var m = lsGet(mineKey(), null); if (!m) return; setSrc(m.code, true); if (m.req) $('#req').value = m.req; toast('저장본을 불러왔습니다. 되돌리기로 직전 코드로 돌아갈 수 있습니다.'); };
+  $('#resetSrc').onclick = function () { if ($('#src').value === original) { toast('이미 처음 코드입니다.'); return; } setSrc(original, true); autosave(); toast('처음 코드로 돌렸습니다. 되돌리기로 취소할 수 있습니다.'); };
+  $('#dlGs').onclick = function () {
+    var r = DATA.recipes[cur], blob = new Blob([codeForEditor()], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = r.id + '-' + r.name.replace(/\s+/g, '') + '.gs'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000); toast('.gs 파일로 받았습니다. 열어서 전체를 복사해 편집기에 붙여 넣으세요.');
+  };
+  $('#src').addEventListener('input', autosave); $('#req').addEventListener('input', autosave);
   $('#undo').onclick = function () { if (history.length) { $('#src').value = history.pop(); srcInfo(); } $('#undo').disabled = !history.length; };
   $('#check').onclick = function () {
     var res = D.staticCheck($('#src').value), box = clear($('#srcOut'));
