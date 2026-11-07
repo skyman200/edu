@@ -379,6 +379,7 @@ body.focus section.keep{padding:28px 0;border:0}
       <a href="#rules">안전 수칙</a>
       <a href="#mission1">미션 1</a>
       <a href="#vibe">미션 2</a>
+      <a href="#gas">GAS 작업실</a>
       <a href="#library">자료실</a>
       <a href="#mine">내 결과물</a>
     </nav>
@@ -404,6 +405,7 @@ body.focus section.keep{padding:28px 0;border:0}
         <div class="mtiles">
           <a class="mtile" href="#mission1"><span class="k num">MISSION 1 · 25 MIN</span><b>내 과제, AI가 풀면 몇 점?</b><span class="d">AI가 학생인 척 답안을 내면 교수님이 채점합니다. 점수는 이름 없이 강의장 화면에 모이고, 그다음 AI 시대에도 배움이 남는 과제로 다시 설계합니다.</span></a>
           <a class="mtile" href="#vibe"><span class="k num">MISSION 2 · 30 MIN</span><b>다음 주 수업에 쓸 앱 하나</b><span class="d">말로 기획하면 AI가 만들고 이 화면에서 바로 돌아갑니다. 옆 교수님이 학생처럼 써 보고, 전시판에 올리면 학생 휴대폰 링크가 생깁니다.</span></a>
+          <a class="mtile" href="#gas"><span class="k num">PLUS · GOOGLE SHEETS</span><b>구글 시트 자동화, 말로 만들고 오류도 여기서 고칩니다</b><span class="d">반응판, 24시간 조교, 소크라테스 튜터, 칠판 사진 노트, 설문 즉석 분석. 판정 모델 Jev가 들어 있습니다.</span></a>
         </div>
         <div class="meta">
           <span><b>부산외국어대학교</b> PSC교수학습기술센터</span>
@@ -612,6 +614,20 @@ body.focus section.keep{padding:28px 0;border:0}
     </div>
   </section>
 
+  <section class="block" id="gas">
+    <div class="wrap">
+      <div class="head">
+        <div class="big num">GAS<small>APPS SCRIPT</small></div>
+        <div>
+          <h2>구글 시트 자동화, 말로 만들고 오류도 여기서 고칩니다<span class="lv">10 MIN</span></h2>
+          <p class="sub">레시피를 고르거나 하고 싶은 일을 적으면 AI ONE이 Apps Script 코드를 만듭니다. 실행하다 오류가 나면 오류 문구를 붙여 넣어 원인을 읽고 바로 고칩니다. 코드 안에서 판정 모델 Jev(예/아니오, 여럿 중 하나, 단계 점수를 확률로)를 부를 수 있습니다. 수업 코드는 위에서 한 번 넣었다면 그대로 쓰입니다.</p>
+        </div>
+      </div>
+      <iframe id="gasFrame" title="GAS 작업실" src="gas.html?embed=1" style="width:100%;height:1200px;border:1px solid var(--line);background:var(--paper)" loading="lazy"></iframe>
+      <p class="livelink"><a href="gas.html" target="_blank" rel="noopener">별도 창에서 크게 열기</a></p>
+    </div>
+  </section>
+
   <section class="block lib" id="library">
     <div class="wrap">
       <div class="head" style="margin-bottom:0">
@@ -619,7 +635,7 @@ body.focus section.keep{padding:28px 0;border:0}
         <div>
           <h2>자료실: 학기 중에 하나씩<span class="lv">수업 후에도</span></h2>
           <p class="sub">오늘 다 하지 않아도 됩니다. 강의계획서, 활동지, 루브릭, 시험 문항 점검, 수업 슬라이드, 구글 폼 자동화, Aside까지 실습이 그대로 있습니다. 프롬프트 복사 버튼으로 ChatGPT, Claude, Gemini 어디에나 붙여 쓸 수 있습니다.</p>
-          <div class="libnav"><a href="#work">AI 작업실</a><a href="#step1">STEP 1 · AI와 첫 대화</a><a href="#step2">STEP 2 · 한 차시 설계</a><a href="#plus">PLUS · 교육에 바로 쓰는 것들</a><a href="#step3">STEP 3 · 수업 슬라이드</a><a href="#step4">STEP 4 · 자동화와 수업 도구</a><a href="#step5">STEP 5 · Aside</a><a href="gas.html">GAS 작업실 · 코드 만들기와 오류 고치기</a></div>
+          <div class="libnav"><a href="#work">AI 작업실</a><a href="#step1">STEP 1 · AI와 첫 대화</a><a href="#step2">STEP 2 · 한 차시 설계</a><a href="#plus">PLUS · 교육에 바로 쓰는 것들</a><a href="#step3">STEP 3 · 수업 슬라이드</a><a href="#step4">STEP 4 · 자동화와 수업 도구</a><a href="#step5">STEP 5 · Aside</a><a href="#gas">GAS 작업실</a></div>
         </div>
       </div>
     </div>
@@ -3348,6 +3364,12 @@ function sheetFor_(name, header) {
   window.addEventListener('load', () => openFromHash());  // again once web fonts have settled the layout
   if (document.fonts) document.fonts.ready.then(() => openFromHash());
 })();
+</script>
+<script>
+window.addEventListener('message', function (e) {
+  if (e.origin !== location.origin || !e.data || e.data.type !== 'gas-height') return;
+  var f = document.getElementById('gasFrame'); if (f) f.style.height = Math.max(600, Math.min(20000, Number(e.data.h) || 0) + 8) + 'px';
+});
 </script>
 </body>
 </html>

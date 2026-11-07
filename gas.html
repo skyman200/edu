@@ -10,6 +10,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 Pretendard,system-ui,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
 .wrap{max-width:980px;margin:0 auto;padding:28px 22px 80px}
+body.embed .wrap{padding:6px 14px 20px}body.embed .top{display:none}body.embed section:first-of-type{border-top:0}
 h1{font-size:30px;line-height:1.25;margin:6px 0 8px}
 h2{font-size:20px;margin:0 0 6px}
 h3{font-size:14px;margin:18px 0 6px;color:var(--ink2)}
@@ -48,9 +49,11 @@ a{color:inherit}
 </head>
 <body>
 <div class="wrap">
+  <div class="top">
   <div class="k">PROF.KIMCOOK · GAS LAB</div>
   <h1>GAS 작업실: 말로 시키면 코드가 되고, 오류가 나면 여기서 고칩니다</h1>
   <p class="lede">구글 시트에 붙일 Apps Script를 레시피에서 고르거나 말로 설명해 만듭니다. 실행하다 오류가 나면 오류 문구를 붙여 넣어 원인을 읽고 바로 고칩니다. 판정 모델 <b>Jev</b>를 코드 안에서 부르는 도우미(<code>jev_</code>)가 들어 있습니다. <a href="./">실습실로 돌아가기</a></p>
+  </div>
 
   <section id="s0">
     <div class="k">0 · 수업 코드</div>
@@ -343,6 +346,11 @@ a{color:inherit}
     finally { $('#jrun').disabled = false; $('#jstateTxt').textContent = ''; }
   };
 
+  if (new URLSearchParams(location.search).get('embed') === '1') {
+    document.body.classList.add('embed');
+    var lastH = 0, send = function () { var h = document.querySelector('.wrap').offsetHeight + 4; if (h !== lastH) { lastH = h; parent.postMessage({ type: 'gas-height', h: h }, location.origin); } };
+    if (window.ResizeObserver) new ResizeObserver(send).observe(document.body); setInterval(send, 700);
+  }
   codeUi(); pick(0);
   var h = decodeURIComponent(location.hash.slice(1)); var m = /^r([1-6])$/.exec(h); if (m) pick(Number(m[1]) - 1);
 })();
