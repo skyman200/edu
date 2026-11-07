@@ -1088,39 +1088,58 @@ body.focus section.keep{padding:28px 0;border:0}
 
 <!-- Apps Script code shown in STEP 3 -->
 <script type="text/plain" id="code-3-1">/* 퀴즈 시트를 구글 폼 퀴즈로 바꿉니다.
-   시트 이름: 퀴즈 / 첫 줄: 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 */
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('AI 수업 도구')
-    .addItem('퀴즈 폼 만들기', 'makeQuizForm')
-    .addToUi();
-}
-
+   시트 이름: 퀴즈 / 첫 줄: 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설
+   위쪽 함수 목록에서 makeQuizForm을 고르고 실행합니다. */
 function makeQuizForm() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = sheetFor_('퀴즈', '문항');
-  const rows = sheet.getDataRange().getValues().slice(1).filter(r => r[0] !== '');
+  const rows = sheet.getDataRange().getValues().slice(1).filter(r => String(r[0]).trim() !== '');
   if (rows.length === 0) throw new Error("'퀴즈' 시트에 문항이 없습니다. 2번째 줄부터 문항을 붙여 넣으세요.");
 
   const form = FormApp.create(ss.getName() + ' 확인 퀴즈');
   form.setIsQuiz(true);
 
-  rows.forEach(r => {
-    const item = form.addMultipleChoiceItem().setTitle(String(r[0])).setPoints(1);
-    const answer = Number(r[5]);
-    item.setChoices([1, 2, 3, 4].map(i => item.createChoice(String(r[i]), i === answer)));
-    if (r[6] !== '') {
-      const fb = FormApp.createFeedback().setText(String(r[6])).build();
+  const problems = [];
+  rows.forEach((r, k) => {
+    const answer = answerNumber_(r[5]);
+    const choices = [1, 2, 3, 4].filter(i => String(r[i]).trim() !== '');
+    if (!choices.includes(answer)) problems.push((k + 2) + '번째 줄');
+    const item = form.addMultipleChoiceItem().setTitle(String(r[0]).trim()).setPoints(1);
+    item.setChoices(choices.map(i => item.createChoice(String(r[i]).trim(), i === answer)));
+    if (String(r[6]).trim() !== '') {
+      const fb = FormApp.createFeedback().setText(String(r[6]).trim()).build();
       item.setFeedbackForCorrect(fb).setFeedbackForIncorrect(fb);
     }
   });
 
   sheet.getRange('I1').setValue('응답 주소');
   sheet.getRange('I2').setValue(form.getPublishedUrl());
-  SpreadsheetApp.getUi().alert(rows.length + '문항 퀴즈를 만들었습니다.\n\n학생용 주소는 I2 칸에 적어 두었습니다.\n편집 주소: ' + form.getEditUrl());
+  const msg = rows.length + '문항 퀴즈를 만들었습니다.\n\n학생용 주소는 I2 칸에 적어 두었습니다.\n편집 주소: ' + form.getEditUrl()
+    + (problems.length ? '\n\n정답 칸을 확인해 주세요(1~4 숫자): ' + problems.join(', ') : '');
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
 }
 
-/* '퀴즈' 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 '문항'인 시트를 찾아 이름을 '퀴즈'(으)로 바꿔 줍니다. */
+/* 정답 칸의 3, "3번", "③"을 모두 3으로 읽습니다. */
+function answerNumber_(v) {
+  const s = String(v).trim();
+  if (s === '') return 0;
+  const circled = '①②③④'.indexOf(s.charAt(0));
+  if (circled >= 0) return circled + 1;
+  const m = s.match(/[1-4]/);
+  return m ? Number(m[0]) : 0;
+}
+
+/* 시트를 열면 'AI 수업 도구' 메뉴가 생깁니다. 4–1, 4–2, 4–3 코드를 함께 넣어도 메뉴 하나에 모입니다. */
+function onOpen() {
+  const menu = SpreadsheetApp.getUi().createMenu('AI 수업 도구');
+  if (typeof makeQuizForm === 'function') menu.addItem('퀴즈 폼 만들기', 'makeQuizForm');
+  if (typeof sendScoreMails === 'function') menu.addItem('성적 메일 보내기', 'sendScoreMails');
+  if (typeof mailMissingList === 'function') menu.addItem('미제출 명단 지금 받기', 'mailMissingList');
+  menu.addToUi();
+}
+
+/* 이름으로 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 제목 줄과 같으면 찾아서 이름을 바꿔 줍니다. */
 function sheetFor_(name, header) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(name);
@@ -1132,24 +1151,22 @@ function sheetFor_(name, header) {
 }</script>
 
 <script type="text/plain" id="code-3-2">/* 성적 시트의 학생마다 맞춤 메일을 한 번에 보냅니다.
-   시트 이름: 성적 / 첫 줄: 이름 | 이메일 | 점수 | 한마디 | 발송 */
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('AI 수업 도구')
-    .addItem('성적 메일 보내기', 'sendScoreMails')
-    .addToUi();
-}
-
+   시트 이름: 성적 / 첫 줄: 이름 | 이메일 | 점수 | 한마디 | 발송
+   위쪽 함수 목록에서 sendScoreMails를 고르고 실행합니다. 확인 창은 시트 탭에 뜹니다. */
 function sendScoreMails() {
   const ui = SpreadsheetApp.getUi();
   const sheet = sheetFor_('성적', '이름');
   const rows = sheet.getDataRange().getValues();
 
-  const todo = [];
+  const todo = [], badMail = [];
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][1] !== '' && rows[i][4] !== '발송 완료') todo.push(i);
+    const email = String(rows[i][1]).trim();
+    if (email === '' || String(rows[i][4]).trim() === '발송 완료') continue;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) badMail.push((i + 1) + '번째 줄');
+    else todo.push(i);
   }
-  if (todo.length === 0) { ui.alert('보낼 사람이 없습니다.'); return; }
+  if (badMail.length) { ui.alert('이메일 칸을 확인해 주세요: ' + badMail.join(', ') + '\n예시의 "(본인 메일 주소)"는 내 메일 주소로 바꿉니다.'); return; }
+  if (todo.length === 0) { ui.alert('보낼 사람이 없습니다. 이미 모두 "발송 완료"입니다.'); return; }
 
   const quota = MailApp.getRemainingDailyQuota();
   if (todo.length > quota) { ui.alert('오늘은 ' + quota + '통까지만 보낼 수 있습니다.'); return; }
@@ -1159,15 +1176,24 @@ function sendScoreMails() {
     const [name, email, score, note] = rows[i];
     const body = name + ' 학생, 안녕하세요.\n\n'
       + '이번 과제 점수는 ' + score + '점입니다.\n'
-      + (note ? '한마디: ' + note + '\n' : '')
+      + (String(note).trim() ? '한마디: ' + note + '\n' : '')
       + '\n궁금한 점은 다음 수업 시간에 물어봐 주세요.';
-    MailApp.sendEmail(email, '[과제 결과] ' + name + ' 학생', body);
+    MailApp.sendEmail(String(email).trim(), '[과제 결과] ' + name + ' 학생', body);
     sheet.getRange(i + 1, 5).setValue('발송 완료');
   });
   ui.alert(todo.length + '통을 보냈습니다. 다시 눌러도 이미 보낸 사람에게는 가지 않습니다.');
 }
 
-/* '성적' 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 '이름'인 시트를 찾아 이름을 '성적'(으)로 바꿔 줍니다. */
+/* 시트를 열면 'AI 수업 도구' 메뉴가 생깁니다. 4–1, 4–2, 4–3 코드를 함께 넣어도 메뉴 하나에 모입니다. */
+function onOpen() {
+  const menu = SpreadsheetApp.getUi().createMenu('AI 수업 도구');
+  if (typeof makeQuizForm === 'function') menu.addItem('퀴즈 폼 만들기', 'makeQuizForm');
+  if (typeof sendScoreMails === 'function') menu.addItem('성적 메일 보내기', 'sendScoreMails');
+  if (typeof mailMissingList === 'function') menu.addItem('미제출 명단 지금 받기', 'mailMissingList');
+  menu.addToUi();
+}
+
+/* 이름으로 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 제목 줄과 같으면 찾아서 이름을 바꿔 줍니다. */
 function sheetFor_(name, header) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(name);
@@ -1179,29 +1205,49 @@ function sheetFor_(name, header) {
 }</script>
 
 <script type="text/plain" id="code-3-3">/* 제출현황 시트에서 아직 안 낸 학생만 골라 내 메일로 명단을 보냅니다.
-   시트 이름: 제출현황 / 첫 줄: 번호 | 이름 | 제출 (낸 학생은 O) */
+   시트 이름: 제출현황 / 첫 줄: 번호 | 이름 | 제출 (낸 학생은 O, 체크박스도 됩니다)
+   위쪽 함수 목록에서 mailMissingList를 먼저 실행해 봅니다. */
 function mailMissingList() {
   const sheet = sheetFor_('제출현황', '번호');
   const rows = sheet.getDataRange().getValues().slice(1);
-  const missing = rows.filter(r => r[1] !== '' && r[2] !== 'O').map(r => r[0] + '번 ' + r[1]);
-  if (missing.length === 0) return;
+  const done = v => v === true || ['O', 'Ｏ', '○', '◯', 'ㅇ', 'V', '✓', '✔', 'Y', 'YES', 'TRUE', '제출'].includes(String(v).trim().toUpperCase());
+  const missing = rows.filter(r => String(r[1]).trim() !== '' && !done(r[2])).map(r => r[0] + '번 ' + r[1]);
 
-  const me = Session.getEffectiveUser().getEmail();
-  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'M월 d일');
-  MailApp.sendEmail(me, '[미제출 ' + missing.length + '명] ' + today, missing.join('\n'));
+  let msg;
+  if (missing.length === 0) msg = '모두 제출했습니다. 메일은 보내지 않았습니다.';
+  else {
+    const me = Session.getEffectiveUser().getEmail();
+    const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'M월 d일');
+    MailApp.sendEmail(me, '[미제출 ' + missing.length + '명] ' + today, missing.join('\n'));
+    msg = '미제출 ' + missing.length + '명 명단을 ' + me + '로 보냈습니다.';
+  }
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}  // 예약 실행 때는 창이 없어 그냥 넘어갑니다
 }
 
-/* 한 번만 실행하면 매일 저녁 8시쯤 자동으로 보냅니다. */
+/* 한 번만 실행하면 매일 저녁 8시쯤 자동으로 보냅니다. 여러 번 눌러도 예약은 하나만 남습니다. */
 function setDailyAlarm() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'mailMissingList').forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('mailMissingList').timeBased().everyDays(1).atHour(20).create();
+  Logger.log('매일 저녁 8시쯤 미제출 명단을 보내도록 예약했습니다.');
 }
 
 /* 실습이 끝나면 꼭 실행해서 예약을 지웁니다. */
 function removeAlarms() {
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+  Logger.log('예약을 모두 지웠습니다.');
 }
 
-/* '제출현황' 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 '번호'인 시트를 찾아 이름을 '제출현황'(으)로 바꿔 줍니다. */
+/* 시트를 열면 'AI 수업 도구' 메뉴가 생깁니다. 4–1, 4–2, 4–3 코드를 함께 넣어도 메뉴 하나에 모입니다. */
+function onOpen() {
+  const menu = SpreadsheetApp.getUi().createMenu('AI 수업 도구');
+  if (typeof makeQuizForm === 'function') menu.addItem('퀴즈 폼 만들기', 'makeQuizForm');
+  if (typeof sendScoreMails === 'function') menu.addItem('성적 메일 보내기', 'sendScoreMails');
+  if (typeof mailMissingList === 'function') menu.addItem('미제출 명단 지금 받기', 'mailMissingList');
+  menu.addToUi();
+}
+
+/* 이름으로 시트를 찾습니다. 이름을 안 바꿨어도 A1 칸이 제목 줄과 같으면 찾아서 이름을 바꿔 줍니다. */
 function sheetFor_(name, header) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(name);
@@ -1521,28 +1567,28 @@ function sheetFor_(name, header) {
       next: ['이 원칙을 학생 동의 체크리스트 5문항으로 바꿔 줘.', '과제 제출 양식 맨 아래에 붙일 "AI 사용 기록" 칸을 만들어 줘.'] },
 
     { id: 's4-1', step: 4, title: '퀴즈 표를 구글 폼 퀴즈로', sub: 'Apps Script 붙여넣기 한 번으로 자동 채점 퀴즈 완성', min: 10,
-      steps: ['sheets.new 로 새 구글 시트를 엽니다. 아래쪽 시트 이름을 "퀴즈"로 바꿉니다. (깜빡해도 A1 칸이 "문항"이면 코드가 알아서 찾아 이름을 바꿉니다)', 'STEP 1-4에서 받은 표(또는 아래 예시 데이터)를 A1부터 붙여 넣습니다. 첫 줄은 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 입니다.', '메뉴 확장 프로그램 → Apps Script를 열고, 원래 있던 코드를 지운 뒤 아래 코드를 붙여 넣고 저장합니다.', '위쪽 함수 목록에서 makeQuizForm을 고르고 실행합니다. "확인되지 않은 앱" 화면이 나오면 고급 → 이동 → 허용을 누릅니다. 내가 만든 코드라서 나오는 안내입니다.', '시트로 돌아가면 완성 안내가 뜹니다. I2 칸의 주소로 들어가 직접 풀어 봅니다.'],
+      steps: ['sheets.new 로 새 구글 시트를 엽니다. 아래쪽 시트 이름을 "퀴즈"로 바꿉니다. (깜빡해도 A1 칸이 "문항"이면 코드가 알아서 찾아 이름을 바꿉니다)', 'STEP 1-4에서 받은 표(또는 아래 예시 데이터)를 A1부터 붙여 넣습니다. 첫 줄은 문항 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 해설 입니다.', '메뉴 확장 프로그램 → Apps Script를 열고, 원래 있던 코드를 지운 뒤 아래 코드를 붙여 넣고 저장합니다.', '위쪽 함수 목록에 makeQuizForm이 골라져 있는지 보고 실행을 누릅니다. 처음에는 권한 검토 창이 뜹니다. "확인되지 않은 앱" 화면이 나오면 고급 → 이동 → 허용을 누릅니다. 내가 만든 코드라서 나오는 안내입니다.', '시트로 돌아가면 완성 안내가 뜹니다. I2 칸의 주소로 들어가 직접 풀어 봅니다.'],
       code: 'code-3-1',
-      data: '문항\t보기1\t보기2\t보기3\t보기4\t정답\t해설\n업무 이메일 제목으로 가장 알맞은 것은?\tHello\tMeeting\tRequest to move Friday\'s meeting to Monday\tImportant!!!\t3\t제목만 보고도 용건과 날짜를 알 수 있어야 합니다.\n처음 연락하는 상대에게 알맞은 인사는?\tHey there,\tDear Ms. Park,\tYo,\tHi guys,\t2\t이름을 알면 Dear + 호칭 + 성을 씁니다.\n"I am writing to ___ the order status." 빈칸에 알맞은 말은?\task\tinquire about\tasking\tinquiry\t2\t공식 이메일에서 문의할 때는 inquire about을 씁니다.\n정중하게 요청하는 표현은?\tSend it now.\tYou must send it.\tCould you send it by Friday?\tSend it, OK?\t3\tCould you ~?는 정중한 요청입니다.\n업무 이메일을 맺는 말로 알맞은 것은?\tBye bye\tBest regards,\tSee ya\tOver.\t2\tBest regards는 무난한 맺음말입니다.',
+      data: '문항\t보기1\t보기2\t보기3\t보기4\t정답\t해설\n업무 이메일 제목으로 가장 알맞은 것은?\tHello\tMeeting\tRequest to move Friday\'s meeting to Monday\tImportant!!!\t3\t제목만 보고도 용건과 날짜를 알 수 있어야 합니다.\n처음 연락하는 상대에게 알맞은 인사는?\tHey there,\tDear Ms. Park,\tYo,\tHi guys,\t2\t이름을 알면 Dear + 호칭 + 성을 씁니다.\n빈칸에 알맞은 말은? I am writing to ___ the order status.\task\tinquire about\tasking\tinquiry\t2\t공식 이메일에서 문의할 때는 inquire about을 씁니다.\n정중하게 요청하는 표현은?\tSend it now.\tYou must send it.\tCould you send it by Friday?\tSend it, OK?\t3\tCould you ~?는 정중한 요청입니다.\n업무 이메일을 맺는 말로 알맞은 것은?\tBye bye\tBest regards,\tSee ya\tOver.\t2\tBest regards는 무난한 맺음말입니다.',
       helpPrompt: () => ['구글 시트에서 Apps Script로 퀴즈 폼을 만드는 코드를 실행했는데 아래 오류가 났어.', '코딩을 모르는 사람도 따라 할 수 있게, 무엇이 문제인지와 고친 전체 코드를 알려 줘.', '', '[오류 메시지]', '(여기에 오류를 붙여 넣으세요)', '', '[내 코드]', $('#code-3-1').textContent].join('\n'),
       checks: ['폼이 만들어지고 I2 칸에 주소가 생겼다', '직접 풀어 보고 자동 채점 점수를 확인했다'],
       next: ['이 폼 응답 시트에서 문항별 정답률을 계산하고 가장 많이 틀린 문항을 알려 주는 Apps Script를 만들어 줘.', '문항 순서와 보기 순서를 학생마다 섞이게 설정하는 방법을 알려 줘.'] },
 
     { id: 's4-2', step: 4, title: '성적 메일 한 번에 보내기', sub: '학생마다 다른 내용, 두 번 가지 않게', min: 10,
-      steps: ['같은 시트 파일에 새 시트를 추가하고 이름을 "성적"으로 바꿉니다.', '예시 데이터를 붙여 넣고, 이메일 칸은 모두 본인 주소로 바꿉니다. 실제 학생 주소는 쓰지 않습니다.', 'Apps Script에 아래 코드를 새 파일로 추가하고 저장합니다. (4-1 코드와 함께 둘 때는 onOpen이 겹치니 이 코드의 onOpen 부분은 지웁니다.)', 'sendScoreMails를 실행하고 확인 창에서 예를 누릅니다.', '내 메일함에 세 통이 왔는지, 시트 E열에 "발송 완료"가 찍혔는지 봅니다. 다시 실행해도 또 가지 않는지 확인합니다.'],
+      steps: ['같은 시트 파일에 새 시트를 추가하고 이름을 "성적"으로 바꿉니다.', '예시 데이터를 붙여 넣고, 이메일 칸은 모두 본인 주소로 바꿉니다. 실제 학생 주소는 쓰지 않습니다.', 'Apps Script 왼쪽 파일 옆 +를 눌러 새 스크립트 파일을 만들고, 아래 코드를 붙여 넣고 저장합니다. 4–1 코드와 함께 두어도 됩니다.', '함수 목록에서 sendScoreMails를 고르고 실행합니다. 확인 창은 시트 탭에 뜨니 시트로 가서 예를 누릅니다.', '내 메일함에 세 통이 왔는지, 시트 E열에 "발송 완료"가 찍혔는지 봅니다. 다시 실행해도 또 가지 않는지 확인합니다.'],
       code: 'code-3-2',
       data: '이름\t이메일\t점수\t한마디\t발송\n학생A\t(본인 메일 주소)\t92\t발표 구성이 좋았어요\t\n학생B\t(본인 메일 주소)\t78\t예시를 하나 더 넣어 보세요\t\n학생C\t(본인 메일 주소)\t85\t결론이 분명했어요\t',
-      helpPrompt: () => ['아래 Apps Script는 성적 시트를 읽어 학생마다 메일을 보내는 코드야.', '여기에 기능을 하나 더하고 싶어: 점수가 60점 미만이면 "보충 안내" 문장을 메일에 넣어 줘.', '바뀐 부분이 어디인지 표시해서 전체 코드를 다시 줘.', '', $('#code-3-2').textContent].join('\n'),
+      helpPrompt: () => ['구글 시트에서 성적 메일을 보내는 Apps Script를 실행했는데 아래 오류가 났어.', '코딩을 모르는 사람도 따라 할 수 있게, 무엇이 문제인지와 고친 전체 코드를 알려 줘.', '', '[오류 메시지]', '(여기에 오류를 붙여 넣으세요)', '', '[내 코드]', $('#code-3-2').textContent].join('\n'),
       checks: ['내 메일함에 맞춤 메일이 왔다', '다시 실행해도 중복 발송되지 않았다'],
-      next: ['메일 본문 대신 학생별 성적표를 PDF로 만들어 첨부하는 방법을 알려 줘.', '보내기 전에 미리보기 시트에 메일 내용을 먼저 써 두고, 내가 확인한 줄만 보내게 바꿔 줘.'] },
+      next: ['점수가 60점 미만이면 "보충 안내" 문장을 메일에 넣어 줘. 바뀐 부분을 표시해서 전체 코드를 다시 줘.', '메일 본문 대신 학생별 성적표를 PDF로 만들어 첨부하는 방법을 알려 줘.', '보내기 전에 미리보기 시트에 메일 내용을 먼저 써 두고, 내가 확인한 줄만 보내게 바꿔 줘.'] },
 
     { id: 's4-3', step: 4, title: '미제출자 명단 자동으로 받기', sub: '매일 저녁, 아직 안 낸 학생만 골라서', min: 8,
-      steps: ['새 시트 "제출현황"을 만들고 예시 데이터를 붙여 넣습니다. 이름 대신 번호와 가상 이름을 씁니다.', 'Apps Script에 아래 코드를 추가하고 저장합니다.', 'mailMissingList를 먼저 실행해 내 메일로 명단이 오는지 봅니다.', '원하면 setDailyAlarm을 한 번 실행해 매일 저녁 자동으로 받습니다.', '실습이 끝나면 removeAlarms를 실행해 예약을 지웁니다.'],
+      steps: ['새 시트 "제출현황"을 만들고 예시 데이터를 붙여 넣습니다. 이름 대신 번호와 가상 이름을 씁니다.', 'Apps Script에 새 스크립트 파일을 만들어 아래 코드를 붙여 넣고 저장합니다.', 'mailMissingList를 먼저 실행해 내 메일로 명단이 오는지 봅니다. 제출 칸은 O나 체크박스 모두 됩니다.', '원하면 setDailyAlarm을 한 번 실행해 매일 저녁 자동으로 받습니다.', '실습이 끝나면 removeAlarms를 실행해 예약을 지웁니다.'],
       code: 'code-3-3',
       data: '번호\t이름\t제출\n1\t학생A\tO\n2\t학생B\t\n3\t학생C\tO\n4\t학생D\t',
-      helpPrompt: () => ['아래 Apps Script는 제출현황 시트에서 미제출 학생 명단을 내 메일로 보내 줘.', '마감일이 지난 과제만 보도록 바꾸고 싶어. D열에 마감일이 있다고 할 때 어떻게 고치면 되는지 전체 코드를 다시 줘.', '', $('#code-3-3').textContent].join('\n'),
+      helpPrompt: () => ['구글 시트에서 미제출자 명단을 메일로 받는 Apps Script를 실행했는데 아래 오류가 났어.', '코딩을 모르는 사람도 따라 할 수 있게, 무엇이 문제인지와 고친 전체 코드를 알려 줘.', '', '[오류 메시지]', '(여기에 오류를 붙여 넣으세요)', '', '[내 코드]', $('#code-3-3').textContent].join('\n'),
       checks: ['내 메일로 미제출 명단이 왔다', '실습 뒤 예약(트리거)을 지웠다'],
-      next: ['미제출 학생에게 직접 안내 메일을 보내되, 같은 학생에게는 하루에 한 번만 가게 만들어 줘.', '3일 연속 미제출이면 나에게 따로 알려 주는 기능을 더해 줘.'] },
+      next: ['D열에 마감일이 있을 때, 마감이 지난 과제의 미제출자만 보도록 바꿔 줘. 전체 코드를 다시 줘.', '미제출 학생에게 직접 안내 메일을 보내되, 같은 학생에게는 하루에 한 번만 가게 만들어 줘.', '3일 연속 미제출이면 나에게 따로 알려 주는 기능을 더해 줘.'] },
 
     { id: 's4-4', step: 4, title: '바이브코딩: 수업용 미니 웹앱', sub: '말로 설명해서 HTML 파일 하나로', min: 12,
       fields: [{ k: 'appType', label: '만들 도구', sel: ['객관식 복습 퀴즈', '단어 카드', '발표 순서 뽑기', '조 편성기'], def: () => '객관식 복습 퀴즈' }],
