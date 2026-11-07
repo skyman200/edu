@@ -436,7 +436,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     await P.writeFile({ fileName: cfg.title.replace(/\s+/g, '') + '_슬라이드.pptx' });
   }
   function pptBox(u, cfg) {
-    var det = el('details', 'pptbox'), bigUrl = u + cfg.suffix, joinUrl = cfg.qr === false ? '' : u;
+    var det = el('details', 'pptbox'), bigUrl = linkUrl(u, cfg), joinUrl = cfg.qr === false ? '' : u;
     det.appendChild(el('summary', '', '선택 · 파워포인트 수업 중간에 넣어서 쓰기'));
     det.appendChild(el('p', 'how', '하지 않아도 됩니다. 쓰고 싶은 분만 쓰세요. 슬라이드에 "큰 화면 열기" 링크가 있는 파일을 받아 내 발표 자료에 붙이면, 슬라이드쇼 중에 그 링크를 눌러 큰 화면을 바로 띄울 수 있습니다. 슬라이드로 돌아올 때는 Alt+Tab(맥은 Cmd+Tab)을 누르세요.'));
     var row = el('div', 'row'), b1 = el('button', '', '슬라이드 파일(.pptx) 받기'), b2 = el('button', 'g', '큰 화면 주소 복사'), st = el('span', 'sub'); st.style.margin = '0';
@@ -449,6 +449,11 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     det.appendChild(el('p', 'sub', '슬라이드 안에 화면을 바로 넣고 싶다면 PowerPoint 365(윈도우)의 삽입 → 추가 기능 → "Web Viewer"에 같은 주소를 넣는 방법도 있습니다. PC 버전과 강의장 네트워크에 따라 막힐 수 있으니 연수 전에 강의장 PC에서 먼저 열어 보세요.'));
     return det;
   }
+  // 큰 화면 주소에는 참여 QR용 학생 주소(join)를 붙여 줍니다. 시트의 웹 앱이 스스로 아는 주소(getUrl)는 /dev 이거나 틀릴 때가 있습니다.
+  function linkUrl(u, L) { var s = L.suffix || ''; return u + s + (L.join ? (s.indexOf('?') < 0 ? '?' : '&') + 'join=' + encodeURIComponent(u) : ''); }
+  // 붙여 넣은 주소 정리: 뒤의 ?…, #…, / 와 여러 계정 로그인 때 붙는 /u/숫자 를 뗍니다(서버의 execUrl_ 과 같은 규칙).
+  // 학교 계정 주소(/a/macros/학교/s/…)는 /macros/s/… 로 바꿉니다. 학교 주소는 로그인하지 않은 학생 폰에서 열리지 않습니다.
+  function tidyUrl(raw) { return String(raw || '').trim().replace(/[?#][\s\S]*$/, '').replace(/\/+$/, '').replace(/\/u\/\d+(?=\/s\/)/, '').replace(/^https:\/\/script\.google\.com\/a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\//, 'https://script.google.com/macros/s/'); }
   var EXEC = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec\/?$/;
   // 수업 코드 줄은 맨 아래에 붙입니다. 맨 위에 붙이면 편집기 오류의 '줄 N'이 웹 도구의 코드와 어긋납니다.
   function codeForEditor() { var c = stripEmbedded($('#src').value).replace(/\s+$/, ''); return c + (aiCode ? '\n\n// 수업 코드(지우지 마세요)\nvar EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n' : '\n'); }
@@ -472,34 +477,36 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     li.appendChild(how);
     if (w.deploy) {
       li = step(ol, '웹 앱으로 배포합니다 (학생이 폰으로 열 주소가 생깁니다)');
-      how = el('p', 'how'); how.innerHTML = '편집기 오른쪽 위 파란 <b>배포 → 새 배포</b>를 누르고, 톱니바퀴 <b>유형 선택 → 웹 앱</b>을 고르세요. <b>액세스 권한이 있는 사용자</b>를 <b>모든 사용자</b>로 바꾸고 <b>배포</b>를 누르면 "웹 앱 URL"이 나옵니다. <b>복사</b>를 누르세요.';
+      how = el('p', 'how'); how.innerHTML = '편집기 오른쪽 위 파란 <b>배포 → 새 배포</b>를 누르고, 톱니바퀴 <b>유형 선택 → 웹 앱</b>을 고르세요. 두 칸을 꼭 이렇게 맞춥니다: <b>다음 사용자 인증 정보로 실행: 나</b>, <b>액세스 권한이 있는 사용자: 모든 사용자</b>. 기본값 "나만"으로 두면 학생 폰에 "현재 파일을 열 수 없습니다"가 뜹니다. <b>배포</b>를 누르면 나오는 "웹 앱 URL"(끝이 <b>/exec</b>)의 <b>복사</b>를 누르세요.';
       li.appendChild(how);
+      li.appendChild(el('p', 'how', '학교 계정(@bufs.ac.kr 같은 기관 구글 계정)으로 만들면 "모든 사용자"가 목록에 없을 수 있습니다(학교 관리자가 막아 둔 경우). "bufs.ac.kr 내 모든 사용자"를 고르면 학교 계정으로 로그인한 폰에서만 열립니다. "Google 계정이 있는 모든 사용자"를 고르면 구글에 로그인하지 않은 폰에서는 열리지 않습니다. 둘 다 학생 일부에게 "현재 파일을 열 수 없습니다"가 뜨니, 개인 Gmail 계정으로 새 시트를 만들어 처음부터 다시 하세요.'));
       li = step(ol, '복사한 웹 앱 URL을 여기에 붙여 넣습니다(한 번 넣으면 이 브라우저에 기억됩니다)');
       row = el('div', 'row'); var inp = el('input'); inp.placeholder = 'https://script.google.com/macros/s/…/exec'; inp.style.maxWidth = '520px'; inp.id = 'wzUrl';
       var go = el('button', '', '주소와 QR 만들기'); row.appendChild(inp); row.appendChild(go); li.appendChild(row);
       var res = el('div'); li.appendChild(res);
       inp.value = prefill != null ? prefill : latestUrl(r.id);
       var show = function (register) {
-        var u = inp.value.trim().replace(/\/+$/, ''); clear(res);
+        var u = tidyUrl(inp.value); clear(res);
         if (!u) return;
         if (/\/dev$/.test(u)) { say(res, '끝이 /dev 인 주소는 나만 열 수 있는 시험용입니다. 배포 → 새 배포로 만든 /exec 주소를 붙여 넣으세요.', 'warn'); if (register === true) fail('주소와 QR 만들기를 못했어요. /dev 주소 대신 /exec 주소를 붙여 넣으세요.'); return; }
         if (!EXEC.test(u)) { say(res, '웹 앱 URL이 아닙니다. 주소가 https://script.google.com/…/exec 로 끝나야 합니다.', 'err'); if (register === true) fail('주소와 QR 만들기를 못했어요. 웹 앱 URL이 아닙니다.'); return; }
         var saved = register === true ? saveResult(r, u) : null;
         if (saved) { if (!saved.ok) fail('내 결과물 저장을 못했어요. ' + FULL); else toast('주소와 QR을 만들고 ' + (saved.fresh ? '내 결과물로 저장했어요 (' + saved.total + '개째)' : '내 결과물을 갱신했어요.')); }
         (w.links || [{ label: '학생용 주소', suffix: '' }]).forEach(function (L) {
-          var url = u + L.suffix, box = el('div', 'lnk'); box.appendChild(el('div', 'lb', L.label));
+          var url = linkUrl(u, L), box = el('div', 'lnk'); box.appendChild(el('div', 'lb', L.label));
           var f = el('input'); f.readOnly = true; f.value = url; f.onclick = function () { f.select(); }; box.appendChild(f);
           var rr = el('div', 'row'); rr.style.margin = '0';
           var c1 = el('button', 'g', '복사'); c1.onclick = function () { copy(url, '주소를 복사했어요.'); };
           var o1 = el('a', 'btn', '열기'); o1.href = url; o1.target = '_blank'; o1.rel = 'noopener'; rr.appendChild(c1); rr.appendChild(o1); box.appendChild(rr);
-          var q = qrSvg(url); if (q) { var qb = el('div', 'qr'); qb.appendChild(q); box.appendChild(qb); }
+          var q = L.join ? null : qrSvg(url); if (q) { var qb = el('div', 'qr'); qb.appendChild(q); box.appendChild(qb); }
           res.appendChild(box);
         });
         if (w.ppt) res.appendChild(pptBox(u, w.ppt));
         var clr = el('button', 'g', '이 주소 지우기'); clr.style.marginTop = '8px'; clr.onclick = function () { inp.value = ''; clear(res); toast('입력칸을 비웠어요. 내 결과물 목록은 그대로입니다.'); }; res.appendChild(clr);
         var rec = saved ? (saved.ok ? saved.item : null) : loadResults().filter(function (x) { return x.r === r.id && x.url === u; })[0];
         if (rec) res.appendChild(el('div', 'sub', '내 결과물에 담겨 있습니다: ' + rec.title + ' · 아래 6번에서 PDF로 가져갈 수 있습니다.'));
-        res.appendChild(el('div', 'sub', '코드를 고친 뒤에는 편집기에서 배포 → 배포 관리 → 연필 → 버전 "새 버전" → 배포를 해야 학생 화면에 반영됩니다. 주소는 그대로입니다.'));
+        res.appendChild(el('div', 'msg warn', '학생처럼 확인하기: 내 폰의 시크릿(비공개) 탭이나, 구글에 로그인하지 않은 다른 폰으로 위 QR을 찍어 보세요. 거기서 열리면 학생 폰에서도 열립니다. 내 계정으로 로그인한 내 폰은 학생에게 안 열리는 주소도 열리니 확인용으로 쓰지 마세요.'));
+        res.appendChild(el('div', 'sub', '코드를 고친 뒤에는 편집기에서 배포 → 배포 관리 → 연필 → 버전 "새 버전" → 배포를 해야 학생 화면에 반영됩니다. 주소는 그대로입니다. "새 배포"를 다시 누르면 주소가 바뀌어, 이미 나눠 준 QR과 링크가 예전 코드로 열립니다.'));
       };
       go.onclick = function () { if (!inp.value.trim()) { fail('주소와 QR 만들기를 못했어요. 웹 앱 URL을 먼저 붙여 넣으세요.'); return; } show(true); }; inp.onkeydown = function (e) { if (e.key === 'Enter') show(true); };
       if (inp.value) show(false);

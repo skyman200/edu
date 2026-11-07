@@ -5,7 +5,7 @@
    구글 무료 계정은 하루 메일 약 100통이 한도입니다. 연습할 때는 본인 메일 주소를 쓰세요. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('미래 편지')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls')
+    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl')
     .addItem('매일 아침 배달 켜기', 'dailyOn').addItem('지금 모두 배달(시연용)', 'demoDeliverAll').addToUi();
 }
 
@@ -26,12 +26,13 @@ function setup() {
   }
   sheet_('편지', ['시간', '번호', '별칭', '이메일', '지금의 목표', '지금의 걱정', '도착일', '상태', '회고', '변화(0~3)', '코멘트']);
   dailyOn_();
-  say_('준비 끝! 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매일 아침 편지 배달도 켜졌습니다.');
+  say_('준비 끝! 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매일 아침 편지 배달도 켜졌습니다.\n배포한 뒤 시트 메뉴 미래 편지 → 웹 앱 주소 넣기를 꼭 하세요(편지 메일의 회고 링크에 씁니다).');
 }
 
 function showUrls() {
-  var url = ScriptApp.getService().getUrl();
-  say_(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  menuOnly_();
+  var url = webUrl_() || setWebUrl();
+  say_(url ? '학생용 주소: ' + url : '웹 앱 주소가 아직 없습니다. 배포 → 배포 관리에서 웹 앱 URL(/exec)을 복사해 메뉴 미래 편지 → 웹 앱 주소 넣기에 붙여 넣으세요.');
 }
 
 function cfg_() {
@@ -96,31 +97,42 @@ function saveLetter(d) {
 
 function letterMail_(row, url) {
   return row.alias + '님, 학기 초의 내가 보낸 편지가 도착했습니다.\n\n[그때의 목표]\n' + row.goals + (row.worry ? '\n\n[그때의 걱정]\n' + row.worry : '') +
-    '\n\n지금의 생각을 짧게 써 보세요. 처음 글과 비교한 코멘트를 바로 받을 수 있습니다.\n' + (url ? url + '?r=' + row.id : '(회고 링크는 교수님께 문의하세요)');
+    '\n\n지금의 생각을 짧게 써 보세요. 처음 글과 비교한 코멘트를 바로 받을 수 있습니다.\n' + url + '?r=' + row.id;
 }
 
-function deliverFrom_(all) {
-  var sh = sheet_('편지'), n = sh.getLastRow() - 1;
-  if (n < 1) return 0;
-  var rows = sh.getRange(2, 1, n, 8).getValues(), url = ScriptApp.getService().getUrl(), t = today_(), sent = 0;
+// url이 없으면(웹 앱 주소를 아직 넣지 않음) 보내지 않고, 배달을 기다리는 편지 수만 셉니다. 깨진 회고 링크가 든 메일은 되돌릴 수 없습니다.
+function deliverFrom_(all, url) {
+  var sh = sheet_('편지'), n = sh.getLastRow() - 1, out = { sent: 0, held: 0 };
+  if (n < 1) return out;
+  var rows = sh.getRange(2, 1, n, 8).getValues(), t = today_();
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (r[7] !== '예약' || (!all && fmtDate_(r[6]) > t)) continue;
+    if (!url) { out.held++; continue; }
     if (MailApp.getRemainingDailyQuota() < 2) break;
     mail_(String(r[3]), '[미래의 나에게] 학기 초의 내가 보낸 편지', letterMail_({ id: r[1], alias: r[2], goals: r[4], worry: r[5] }, url));
     sh.getRange(2 + i, 8).setValue('배달');
-    sent++;
+    out.sent++;
   }
-  return sent;
+  return out;
 }
 
+// 매일 아침 자동 실행. 웹 앱 주소가 없으면 배달하지 않고 교수에게 알립니다(하루 한 번).
 function deliverLetters() {
-  deliverFrom_(false);
+  var r = deliverFrom_(false, webUrl_()), p = PropertiesService.getScriptProperties();
+  // 알림은 하루 한 번만(누가 이 함수를 여러 번 불러도 메일 한도를 쓰지 않게).
+  if (!r.held || p.getProperty('HELD_MAIL') === today_()) return;
+  p.setProperty('HELD_MAIL', today_());
+  mail_(Session.getEffectiveUser().getEmail(), '[미래의 나에게] 편지 ' + r.held + '통이 배달을 기다립니다',
+    '회고 링크에 쓸 웹 앱 주소가 없어 오늘 배달하지 않았습니다. 시트 메뉴 미래 편지 → 웹 앱 주소 넣기에 /exec 주소를 넣으면 다음 날 아침에 배달합니다.');
 }
 
 function demoDeliverAll() {
-  var n = deliverFrom_(true);
-  say_(n + '통을 배달했습니다. 메일함에서 회고 링크를 눌러 보세요.');
+  menuOnly_();
+  var url = webUrl_() || setWebUrl();
+  if (!url) { say_('웹 앱 주소가 없어 배달하지 않았습니다. 편지 메일의 회고 링크에 필요합니다. 메뉴 미래 편지 → 웹 앱 주소 넣기를 먼저 하세요.'); return; }
+  var r = deliverFrom_(true, url);
+  say_(r.sent + '통을 배달했습니다. 메일함에서 회고 링크를 눌러 보세요.');
 }
 
 function dailyOn_() {
@@ -129,6 +141,7 @@ function dailyOn_() {
 }
 
 function dailyOn() {
+  menuOnly_();
   dailyOn_();
   say_('매일 아침 8시쯤 도착일이 된 편지를 배달합니다.');
 }

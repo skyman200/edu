@@ -148,6 +148,7 @@ const GAS_CODE_SYSTEM = [
   '고친 전체 코드를 ```javascript 코드 블록 하나에 담고 일부만 보여 주지 않습니다.',
   '코드 블록 밖 설명은 다섯 줄 이내로, 무엇을 바꿨는지만 씁니다.',
   '수업 코드나 API 키를 코드에 직접 쓰지 않고 스크립트 속성에서 읽습니다.',
+  '학생에게 줄 웹 앱 주소는 webUrl_()(시트 메뉴 "웹 앱 주소 넣기"로 넣은 /exec 주소)만 씁니다. ScriptApp.getService().getUrl()은 쓰지 않습니다.',
 ].join(' ');
 
 const GAS_RUN_SYSTEM = [

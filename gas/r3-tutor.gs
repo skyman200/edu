@@ -5,7 +5,7 @@
    이해도는 교수만 봅니다. 성적이나 징계에 쓰지 마세요. 학생에게는 실명 대신 별칭을 쓰게 합니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('튜터')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 화면 PIN 보기', 'showUrls').addToUi();
+    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 화면 PIN 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl').addToUi();
 }
 
 function setup() {
@@ -29,8 +29,9 @@ function setup() {
 }
 
 function showUrls() {
-  var url = ScriptApp.getService().getUrl();
-  say_(url ? '학생용 주소: ' + url + '\n교수 화면(큰 화면): ' + url + '?v=class\n교수 화면 PIN: ' + pin_('class') : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  menuOnly_();
+  var url = webUrl_() || setWebUrl();
+  say_((url ? '학생용 주소: ' + url + '\n교수 화면(큰 화면): ' + url + '?v=class\n' : '웹 앱 주소가 아직 없습니다. 배포 → 배포 관리에서 웹 앱 URL(/exec)을 복사해 메뉴 튜터 → 웹 앱 주소 넣기에 붙여 넣으세요.\n') + '교수 화면 PIN: ' + pin_('class'));
 }
 
 function cfg_() {

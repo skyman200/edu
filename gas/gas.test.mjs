@@ -208,6 +208,7 @@ test('r4: letter saved, delivered on its date, reflection compared by Jev + AI',
   assert.equal(env.rows('편지')[0][7], '예약');
   assert.equal(env.log.mails[0].to, 'student@example.com');
   env.call('saveLetter', { ...draft, alias: '둘째', email: 'two@example.com', date: today });
+  env.props.set('WEB_URL', 'https://script.google.com/macros/s/AKfycbTEST/exec');
   env.call('deliverLetters');
   const delivered = env.log.mails.filter((m) => m.subject.includes('편지를 보낸') || m.subject.includes('나에게] 학기 초'));
   assert.equal(delivered.length, 1, 'only the letter due today is delivered');
@@ -227,8 +228,28 @@ test('r4: letter saved, delivered on its date, reflection compared by Jev + AI',
   const n = env.log.requests.length;
   assert.equal(env.call('submitReflection', dueId, '다시 쓰는 회고라도 같은 코멘트').comment, r.comment);
   assert.equal(env.log.requests.length, n, 'a finished letter does not call AI again');
+  // without a saved web app address nothing is mailed (a broken reflection link cannot be taken back)
+  env.props.delete('WEB_URL');
+  env.call('saveLetter', { ...draft, alias: '셋째', email: 'three@example.com', date: today });
+  env.log.prompts.push(null);
+  const mailsBefore = env.log.mails.length;
   env.call('demoDeliverAll');
-  assert.ok(env.log.alerts.at(-1).startsWith('1통'));
+  assert.ok(env.log.alerts.at(-1).startsWith('웹 앱 주소가 없어 배달하지 않았습니다'));
+  assert.equal(env.log.mails.length, mailsBefore);
+  env.call('deliverLetters');
+  assert.ok(env.log.mails.at(-1).subject.includes('배달을 기다립니다'), 'the daily trigger tells the owner instead');
+  const afterHeld = env.log.mails.length;
+  env.call('deliverLetters');
+  assert.equal(env.log.mails.length, afterHeld, 'the owner is told once a day, however often it is called');
+  // the menu asks for the address once; /dev and junk are refused
+  env.log.prompts.push('https://script.google.com/macros/s/AKfycbTEST/dev');
+  env.call('setWebUrl');
+  assert.ok(env.log.alerts.at(-1).includes('/dev'));
+  env.log.prompts.push('https://script.google.com/macros/u/1/s/AKfycbTEST/exec?v=x');
+  env.call('demoDeliverAll');
+  assert.equal(env.props.get('WEB_URL'), 'https://script.google.com/macros/s/AKfycbTEST/exec', 'the /u/1 account part and the query are cleaned off');
+  assert.ok(env.log.alerts.at(-1).startsWith('2통'), 'the held letter and the future one (rehearsal sends all)');
+  assert.ok(env.log.mails.at(-1).body.includes('https://script.google.com/macros/s/AKfycbTEST/exec?r='), 'the letter links to the saved /exec address');
   env.call('dailyOn');
   assert.deepEqual(env.log.triggers.map((t) => t.fn), ['deliverLetters']);
 });
@@ -302,7 +323,7 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   env.call('setup');
   assert.equal(env.log.triggers.length, 1, 'running setup twice does not duplicate the form or trigger');
   env.call('showUrls');
-  assert.ok(env.log.alerts.at(-1).includes('forms.gle'));
+  assert.ok(env.log.alerts.at(-1).includes('forms.gle') && env.log.alerts.at(-1).includes('웹 도구에서 받은 주소'));
   const sub = (sat, good, want) => env.call('onSurveySubmit', { namedValues: { '오늘 수업 만족도': [String(sat)], '좋았던 점': [good], '아쉬웠던 점이나 바라는 점': [want] } });
   env.sheet('설정').getRange('B1').setValue(3);
   sub(5, '예시가 좋았어요', '더 천천히 해 주세요');
@@ -320,9 +341,9 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   assert.ok(!/gradient|border-radius|box-shadow/.test(digest.html), 'no decorative styling in mail');
   sub(5, '좋음', '좋음');
   assert.equal(env.log.mails.length, 2, 'the next digest waits for three more');
-  env.call('sendDigest');
+  env.call('digestNow');
   assert.ok(env.log.mails.at(-1).subject.includes('새 응답 1개'));
-  env.call('sendDigest');
+  env.call('digestNow');
   assert.ok(env.log.alerts.at(-1).includes('새로 쌓인 응답이 없습니다'));
   // rating only, and a Jev outage, still produce a row
   sub(3, '', '');
@@ -516,6 +537,30 @@ test('r1 safety: student text never runs as a formula, archives never collide, a
   assert.equal(env.call('getBoard').total, 2, 'nothing was archived');
 });
 
+test('web app address: never getUrl(); the board QR uses the saved /exec or the wizard join, nothing anonymous is saved', () => {
+  const env = boot('r1-board.gs');
+  env.setup();
+  const A = 'https://script.google.com/macros/s/AKfycbAAA/exec', B = 'https://script.google.com/macros/s/AKfycbBBB/exec';
+  const bootOf = (q) => JSON.parse(/var BOOT = (.*?);<\/script>/.exec(env.call('doGet', { parameter: { v: 'board', ...q } }).html)[1]);
+  assert.deepEqual(bootOf({}), { join: '', warn: false }, 'no address known: no QR (never a guessed one)');
+  assert.deepEqual(bootOf({ join: A }), { join: A, warn: false });
+  assert.deepEqual(bootOf({ join: 'https://script.google.com/macros/s/AKfycbAAA/dev' }).join, '', '/dev only opens for editors');
+  assert.deepEqual(bootOf({ join: 'https://evil.example/macros/s/X/exec' }).join, '');
+  assert.ok(!env.call('doGet', { parameter: { v: 'board', join: A + '"</script><script>alert(1)</script>' } }).html.includes('alert(1)'), 'a crafted join never reaches the page');
+  assert.equal(env.props.get('WEB_URL'), undefined, 'a visitor-supplied join is never saved');
+  assert.equal(bootOf({ join: 'https://script.google.com/a/macros/bufs.ac.kr/s/AKfycbAAA/exec' }).join, A, 'school (Workspace) form becomes the form signed-out phones can open');
+  assert.equal(bootOf({ join: 'https://script.google.com/a/bufs.ac.kr/macros/s/AKfycbAAA/exec' }).join, A, 'old school form too');
+  env.log.prompts.push(A);
+  env.call('showUrls');
+  assert.equal(env.props.get('WEB_URL'), A, 'the menu asks once and keeps it');
+  assert.ok(env.log.alerts.at(-1).includes(A + '?v=board') && /PIN: \d{4}/.test(env.log.alerts.at(-1)));
+  assert.deepEqual(bootOf({ join: B }), { join: A, warn: true }, 'the saved address wins; a different deployment is flagged on the projector');
+  assert.deepEqual(bootOf({ join: 'https://script.google.com/a/macros/bufs.ac.kr/s/AKfycbAAA/exec' }).warn, false, 'same deployment in another form is not a mismatch');
+  env.ctx.SpreadsheetApp.getUi = () => { throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); };
+  assert.throws(() => env.call('setWebUrl'), /시트 메뉴에서만/, 'web callers cannot change it');
+  for (const f of ['r1-board.gs', 'r2-assistant.gs', 'r3-tutor.gs', 'r4-future.gs', 'r6-survey.gs']) assert.ok(!/getService\(\)\.getUrl\(/.test(readGs(f).replace(/\/\/.*$/gm, '')), f + ' does not use getUrl()');
+});
+
 test('design guard: pages and mails stay flat and in the lab style (no gradients, glow, blur, big radii, emoji); mail text is escaped', () => {
   const env = boot('r1-board.gs');
   env.setup();
@@ -576,7 +621,8 @@ test('web pages: each browser script runs against the real server functions', ()
   assert.equal(ask.el('#ml').children.length, 1);
   assert.match(ask.el('#ml').children[0].textContent, /^001시험 때 몰래 쓸까 봐 걱정입니다→ 부정행위 · \d\d:\d\d$/, 'my sent thought stays as a numbered slip with its group');
   r1.cache.clear();
-  const board = runPage(r1, r1.ctx.BOARD_HTML);
+  const boardHtml = (q) => r1.call('doGet', { parameter: { v: 'board', ...q } }).html.match(/<body[^>]*>([\s\S]*)<\/body>/)[1].replace(r1.ctx.TOAST_JS, '');
+  const board = runPage(r1, boardHtml({ join: 'https://script.google.com/macros/s/AKfycbTEST/exec' }));
   assert.deepEqual(board.calls, ['getBoard']);
   assert.equal(board.el('#c').textContent, '1');
   assert.equal(board.el('#g').children.length, 5, 'four groups plus the catch-all');
@@ -599,6 +645,8 @@ test('web pages: each browser script runs against the real server functions', ()
   const waiting = boot('r1-board.gs');
   waiting.setup();
   const w = runPage(waiting, waiting.ctx.BOARD_HTML);
+  assert.ok(!w.el('#qr').innerHTML, 'no trusted address: no QR at all');
+  assert.ok(w.texts('#toast').join(' ').includes('참여 QR을 만들 주소가 없어요'), '…and the projector says what to do');
   assert.equal(w.el('#wait').hidden, false, 'an empty board shows the waiting line');
   assert.equal(w.el('#labs').children.length, 5, 'the groups are already visible before the first answer');
   assert.equal(w.el('#c').textContent, '0');
@@ -641,6 +689,7 @@ test('web pages: each browser script runs against the real server functions', ()
   for (const [k, v] of [['#al', '파랑고래'], ['#em', 'a@b.co'], ['#go', '발표를 두려워하지 않기'], ['#wo', ''], ['#dt', tomorrow]]) p4.set(k, v);
   p4.click('#b');
   assert.ok(p4.el('#m').children[0].textContent.includes('도착합니다'));
+  r4.props.set('WEB_URL', 'https://script.google.com/macros/s/AKfycbTEST/exec');
   r4.call('demoDeliverAll');
   const id = r4.rows('편지')[0][1];
   const p4r = runPage(r4, r4.call('doGet', { parameter: { r: id } }).html);

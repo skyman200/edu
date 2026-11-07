@@ -195,7 +195,7 @@
     return { ok: true };
   }
 
-  const HELPERS = ['post_', 'ai_', 'jev_', 'ss_', 'sheet_', 'throttle_', 'page_'];
+  const HELPERS = ['post_', 'ai_', 'jev_', 'ss_', 'sheet_', 'throttle_', 'page_', 'webUrl_', 'execUrl_'];
 
   function definedFunctions(code) {
     const names = [];
@@ -225,6 +225,9 @@
     lines.forEach((ln, i) => {
       if (/AIza[0-9A-Za-z_-]{30,}|\bsk-[A-Za-z0-9_-]{20,}|Bearer\s+[A-Za-z0-9._-]{30,}/.test(ln)) {
         out.push({ level: 'error', line: i + 1, msg: 'API 키처럼 보이는 글자가 코드에 직접 들어 있습니다. 키는 스크립트 속성에만 두세요(이 도구의 코드는 수업 코드만 속성에 저장합니다).' });
+      }
+      if (/getService\(\)\.getUrl\(/.test(ln.replace(/(^|[^:])\/\/.*$/, '$1'))) {
+        out.push({ level: 'warn', line: i + 1, msg: '학생에게 줄 주소에 ScriptApp.getService().getUrl()을 쓰면 /dev나 없는 주소가 나와 학생 폰에 "현재 파일을 열 수 없습니다"가 뜹니다. webUrl_()을 쓰세요(시트 메뉴 웹 앱 주소 넣기로 넣은 /exec 주소).' });
       }
     });
     return out;
@@ -293,6 +296,7 @@
     '- 첨부한 "기준 코드"의 구조, 함수 이름, 도우미 함수(post_, ai_, jev_, throttle_, sheet_, page_)를 그대로 쓰고, 아래 요청에 필요한 부분만 바꾸거나 더합니다.',
     '- 수정한 전체 코드를 ```javascript 코드 블록 하나로 줍니다. 일부만 보여 주지 않습니다.',
     '- 수업 코드나 API 키를 코드에 쓰지 않습니다.',
+    '- 학생에게 줄 웹 앱 주소는 webUrl_()(시트 메뉴 "웹 앱 주소 넣기"로 넣은 /exec 주소)만 씁니다. ScriptApp.getService().getUrl()은 /dev나 없는 주소를 돌려줄 때가 있어 쓰지 않습니다.',
     '- 학생 이름, 학번 같은 개인정보를 새로 모으지 않습니다.',
     '- 코드 블록 밖 설명은 다섯 줄 이내로, 무엇을 바꿨는지만 씁니다.',
   ].join('\n');

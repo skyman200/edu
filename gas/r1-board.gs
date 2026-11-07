@@ -6,7 +6,7 @@ var BOARD_HEAD = ['시간', '응답', '묶음', '확신도', '상태', '번호']
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('반응판')
-    .addItem('처음 준비', 'setup').addItem('새 질문 시작(지금 응답은 보관)', 'newRound').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 PIN 보기', 'showUrls').addToUi();
+    .addItem('처음 준비', 'setup').addItem('새 질문 시작(지금 응답은 보관)', 'newRound').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 PIN 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl').addToUi();
 }
 
 function setup() {
@@ -59,8 +59,8 @@ function newRound() {
 
 function showUrls() {
   menuOnly_();
-  var url = ScriptApp.getService().getUrl();
-  say_(url ? '학생용: ' + url + '\n강의장 화면: ' + url + '?v=board\n질문 바꾸기 PIN: ' + pin_('board') : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  var url = webUrl_() || setWebUrl();
+  say_((url ? '학생용: ' + url + '\n강의장 화면: ' + url + '?v=board\n' : '웹 앱 주소가 아직 없습니다. 배포 → 배포 관리에서 웹 앱 URL(/exec)을 복사해 메뉴 반응판 → 웹 앱 주소 넣기에 붙여 넣으세요.\n') + '질문 바꾸기 PIN: ' + pin_('board'));
 }
 
 // 묶음 정리: 줄바꿈이나 쉼표로 나누고, 빈 것, 같은 이름, '기타'(따로 붙음)를 빼고 10개까지. 시트에서 고쳐도 같은 규칙입니다.
@@ -76,7 +76,13 @@ function cfg_() {
 }
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.v === 'board') return page_('반응판', BOARD_HTML, { raw: true, css: BOARD_CSS + STAGE_CSS });
+  if (e && e.parameter && e.parameter.v === 'board') {
+    // 참여 QR 주소: 시트 메뉴로 넣어 둔 주소가 먼저이고, 없으면 웹 도구가 큰 화면 주소에 붙여 준 join 을 이 화면에서만 씁니다(저장하지 않음).
+    var saved = webUrl_(), asked = execUrl_(e.parameter.join), id = function (u) { var m = /\/s\/([\w-]+)\/exec$/.exec(u); return m ? m[1] : ''; };
+    var boot = { join: saved || asked, warn: !!(saved && asked && id(saved) !== id(asked)) };
+    var html = BOARD_HTML.replace('/*BOOT*/null', function () { return JSON.stringify(boot).replace(/</g, '\\u003c'); });
+    return page_('반응판', html, { raw: true, css: BOARD_CSS + STAGE_CSS });
+  }
   return page_('내 생각 보내기', ASK_HTML, { raw: true, css: ASK_CSS });
 }
 
@@ -168,7 +174,7 @@ function getBoard() {
     if (cats.length) { cat = String(r[2] || ''); if (cats.indexOf(cat) < 0) cat = '기타'; counts[cat]++; }
     items.push({ i: Number(r[5]) || k + 2, no: k + 1, h: r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'HH:mm') : '', t: String(r[1]), c: cat });
   });
-  var out = { q: c.q, cats: cats, counts: counts, open: c.open, refresh: c.refresh, total: items.length, join: ScriptApp.getService().getUrl() || '',
+  var out = { q: c.q, cats: cats, counts: counts, open: c.open, refresh: c.refresh, total: items.length,
     round: sh ? sh.getSheetId() : 0, rev: rev, items: items.slice(-240) };
   if (rev_() === rev) cache.put('board', JSON.stringify(out), 3);
   return out;
@@ -368,7 +374,7 @@ var BOARD_CSS = [
 function boardClient_() {
   var $ = function (s) { return document.querySelector(s); };
   var live = !!(document.body && document.documentElement && typeof requestAnimationFrame === 'function');
-  var S = { key: null, round: null, rev: -1, gen: 0, redraw: null, cols: {}, names: [], seen: 0, data: null, queue: [], busy: false, shownTotal: 0, qrDone: false };
+  var S = { key: null, round: null, rev: -1, gen: 0, redraw: null, cols: {}, names: [], seen: 0, data: null, queue: [], busy: false, shownTotal: 0, };
   var MAXSLIPS = 60;
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   // 예약한 일은 화면을 다시 그리면(세대 S.gen이 바뀌면) 버립니다. 이전 질문의 도착 연출이 새 화면을 건드리지 않게 합니다.
@@ -526,7 +532,6 @@ function boardClient_() {
     if (S.redraw) { S.redraw.d = d; return; }
     S.data = d;
     var key = keyOf(d);
-    if (d.join && !S.qrDone) { var svg = qr(d.join); if (svg) { $('#qr').innerHTML = svg; $('#join').hidden = false; } S.qrDone = true; }
     if (S.key === null) { S.key = key; S.round = d.round; full(d); return; }
     // 질문이나 묶음이 바뀌었거나, 보관으로 [응답] 시트가 새로 생겼으면(round) 처음부터 다시 그립니다.
     if (key !== S.key || d.round !== S.round) {
@@ -597,6 +602,14 @@ function boardClient_() {
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     return function () { if (ed.classList.contains('on')) close(); else open(); };
   }
+  // 참여 QR: 페이지를 만들 때 서버가 넣어 준 주소(BOOT.join)로 한 번 그립니다. 믿을 주소가 없으면 깨진 QR 대신 안내를 띄웁니다.
+  var boot = (typeof BOOT === 'object' && BOOT) || {};
+  if (boot.join) {
+    var svg = qr(boot.join);
+    if (svg) { $('#qr').innerHTML = svg; $('#join').hidden = false; }
+    else if (typeof fail === 'function') fail('참여 QR을 그리지 못했어요. QR 도구를 불러오지 못했습니다. 인터넷을 확인하고 새로고침하세요.');
+  } else if (typeof fail === 'function') fail('참여 QR을 만들 주소가 없어요. 웹 도구에서 받은 "강의장 큰 화면 주소"로 이 화면을 다시 열거나, 시트 메뉴 반응판 → 웹 앱 주소 넣기에 /exec 주소를 넣으세요.');
+  if (boot.warn && typeof fail === 'function') fail('이 화면을 연 주소와 시트에 저장된 웹 앱 주소가 다릅니다. QR은 시트에 저장된 주소로 만들었습니다. 바꾸려면 시트 메뉴 반응판 → 웹 앱 주소 넣기를 하세요.');
   if (live) {
     var toggle = editor();
     try { if (localStorage.getItem('board-theme') === 'dark') document.body.classList.add('dark'); } catch (e) {}
@@ -624,5 +637,5 @@ var BOARD_HTML = '<div class="stage"><header class="top" id="top"><div class="he
   '<label class="ck"><input type="checkbox" id="ef">지금까지 응답은 시트에 보관하고 화면을 비웁니다</label>' +
   '<label id="epl">교수 PIN<small>시트 메뉴 반응판 → 주소와 교수 PIN 보기. 한 번 맞으면 이 창을 닫을 때까지 다시 묻지 않습니다.</small><input type="password" id="ep" inputmode="numeric" maxlength="4" autocomplete="off"></label>' +
   '<div class="row"><button id="es">바꾸기</button><button id="ex" class="g">닫기</button></div><p class="msg" id="em"></p></aside>' +
-  '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' + STAGE_JS +
+  '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' + STAGE_JS + '<script>var BOOT = /*BOOT*/null;</script>' +
   '<script>(' + boardClient_.toString() + ')();</script>';

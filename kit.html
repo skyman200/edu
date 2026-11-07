@@ -155,7 +155,8 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
   }
   function urlCards(parent, id, u) {
     linksOf(id).forEach(function (L) {
-      var full = u + L.suffix, row = add(parent, 'div', 'url'), q = qr(full), t = add(row, 'div');
+      // 큰 화면 주소에는 참여 QR용 학생 주소(join)를 붙입니다(gas.html linkUrl 과 같은 규칙). 그 주소의 QR은 찍을 일이 없어 그리지 않습니다.
+      var full = u + L.suffix + (L.join ? (L.suffix.indexOf('?') < 0 ? '?' : '&') + 'join=' + encodeURIComponent(u) : ''), row = add(parent, 'div', 'url'), q = L.join ? '' : qr(full), t = add(row, 'div');
       if (q) row.insertBefore(q, t);
       add(t, 'b', '', L.label); add(t, 'code', '', full);
     });

@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.07-f';
+var CODE_VERSION = 'v2026.11.08-a';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    post_  : 수업 서버(kimcook-edu.pages.dev)로 보내는 공통 통로. 수업 코드는 스크립트 속성에만 저장됩니다.
@@ -99,6 +99,35 @@ function sheet_(name, header) {
     if (header) { sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold'); sh.setFrozenRows(1); }
   }
   return sh;
+}
+
+// 학생에게 줄 웹 앱 주소. ScriptApp.getService().getUrl() 은 쓰지 않습니다: 편집기에서만 열리는 /dev 주소나
+// 있지도 않은 배포 번호의 /exec 주소를 돌려줄 때가 있어, 학생 폰에 "현재 파일을 열 수 없습니다"가 뜹니다.
+// 대신 교수가 배포 창에서 복사한 /exec 주소를 시트 메뉴 "웹 앱 주소 넣기"로 한 번 넣어 두고(WEB_URL) 그것만 씁니다.
+var EXEC_RE = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec$/;
+// 주소 정리: 뒤의 ?…, #…, / 와 여러 계정 로그인 때 붙는 /u/숫자 를 떼고, /exec 웹 앱 주소가 아니면 '' 를 돌려줍니다.
+// 학교 계정 주소(/a/macros/학교/s/…, /a/학교/macros/s/…)는 /macros/s/… 로 바꿉니다. 학교 주소는 학교 로그인을 요구해
+// 로그인하지 않은 학생 폰에 "현재 파일을 열 수 없습니다"가 뜹니다. 액세스 "모든 사용자"면 /macros/s/… 주소로 누구나 열립니다.
+function execUrl_(raw) {
+  var u = String(raw || '').trim().replace(/[?#][\s\S]*$/, '').replace(/\/+$/, '').replace(/\/u\/\d+(?=\/s\/)/, '');
+  if (!EXEC_RE.test(u)) return '';
+  return u.replace(/^https:\/\/script\.google\.com\/a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\//, 'https://script.google.com/macros/s/');
+}
+function webUrl_() { return execUrl_(PropertiesService.getScriptProperties().getProperty('WEB_URL')); }
+// 시트 메뉴 "웹 앱 주소 넣기". 받는 값이 없는 함수라 웹 화면(google.script.run)에서는 주소를 바꿀 수 없습니다.
+function setWebUrl() {
+  menuOnly_();
+  var ui = SpreadsheetApp.getUi(), now = webUrl_();
+  var r = ui.prompt('웹 앱 주소 넣기', '배포 → 배포 관리에서 복사한 웹 앱 URL(끝이 /exec)을 붙여 넣으세요.' + (now ? '\n지금 주소: ' + now : ''), ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return now;
+  var raw = r.getResponseText().trim(), u = execUrl_(raw);
+  if (!u) {
+    ui.alert(/\/dev\b/.test(raw) ? '끝이 /dev 인 주소는 편집하는 사람만 열 수 있는 시험용입니다. 배포 → 새 배포(또는 배포 관리)의 웹 앱 URL(/exec)을 넣으세요.' : '웹 앱 주소가 아닙니다. https://script.google.com/…/exec 모양이어야 합니다.');
+    return now;
+  }
+  PropertiesService.getScriptProperties().setProperty('WEB_URL', u);
+  ui.alert('저장했습니다: ' + u);
+  return u;
 }
 
 // 학생이 쓴 글을 시트에 넣을 때: = + - @ 로 시작하면 시트가 수식으로 계산하므로, 앞에 ' 를 붙여 글자 그대로 둡니다.

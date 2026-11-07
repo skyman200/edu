@@ -3,7 +3,7 @@
    설문은 익명으로 받으세요. 이름이나 학번을 묻지 않습니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('설문 분석')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('지금 요약 메일', 'sendDigest').addItem('주소 보기', 'showUrls').addToUi();
+    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('지금 요약 메일', 'digestNow').addItem('주소 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl').addToUi();
 }
 
 var Q_SAT = '오늘 수업 만족도', Q_GOOD = '좋았던 점', Q_WANT = '아쉬웠던 점이나 바라는 점';
@@ -33,8 +33,9 @@ function setup() {
 
 function showUrls() {
   var id = PropertiesService.getScriptProperties().getProperty('FORM_ID');
-  var web = ScriptApp.getService().getUrl();
-  say_(id ? '학생용 설문 주소: ' + FormApp.openById(id).getPublishedUrl() + (web ? '\n강의장 결과 화면: ' + web : '\n강의장 결과 화면은 웹 앱으로 배포하면 생깁니다(배포 → 새 배포 → 웹 앱).') : '먼저 처음 준비를 실행하세요.');
+  menuOnly_();
+  var web = webUrl_();
+  say_(id ? '학생용 설문 주소: ' + FormApp.openById(id).getPublishedUrl() + (web ? '\n강의장 결과 화면: ' + web : '\n강의장 결과 화면: 웹 도구에서 받은 주소를 쓰세요(시트 메뉴 설문 분석 → 웹 앱 주소 넣기에 넣으면 여기에도 보입니다).') : '먼저 처음 준비를 실행하세요.');
 }
 
 function first_(arr) {
@@ -74,7 +75,7 @@ function onSurveySubmit(e) {
   if (urgent) mail_(mailTo_(), '[수업 설문] 긴급으로 보이는 응답', '좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want + '\n\n※ Jev가 긴급으로 판정했습니다. 직접 읽고 판단하세요.');
   var every = Math.max(3, Number(ss_().getSheetByName('설정').getRange('B1').getValue()) || 10);
   var p = PropertiesService.getScriptProperties();
-  if (sheet_('분석').getLastRow() - 1 - Number(p.getProperty('SENT') || 0) >= every) sendDigest(true);
+  if (sheet_('분석').getLastRow() - 1 - Number(p.getProperty('SENT') || 0) >= every) sendDigest_(true);
 }
 
 function mailTo_() {
@@ -88,7 +89,12 @@ function tally_(rows, col) {
   return Object.keys(t).sort(function (a, b) { return t[b] - t[a]; }).map(function (k) { return k + ' ' + t[k]; }).join(', ') || '없음';
 }
 
-function sendDigest(quiet) {
+function digestNow() {
+  menuOnly_();
+  sendDigest_(false);
+}
+
+function sendDigest_(quiet) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return;
   try {

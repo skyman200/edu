@@ -74,7 +74,7 @@ class Spreadsheet {
 const items = () => { const it = {}; for (const m of ['setTitle', 'setBounds', 'setLabels', 'setRequired']) it[m] = () => it; return it; };
 
 export function createEnv({ jev, ai, fetchExtra } = {}) {
-  const log = { logged: [], alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
+  const log = { prompts: [], logged: [], alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
   const active = new Spreadsheet('SS1');
   const props = new Map([['CLASS_CODE', 'TESTCODE']]);
   const cache = new Map();
@@ -84,7 +84,8 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
   const ui = {
     ButtonSet: { OK_CANCEL: 1 }, Button: { OK: 'OK' },
     alert: (m) => log.alerts.push(String(m)),
-    prompt: () => ({ getSelectedButton: () => 'OK', getResponseText: () => ' TESTCODE ' }),
+    // tests queue answers in log.prompts; otherwise the class-code prompt gets the test code
+    prompt: () => { const a = log.prompts.length ? log.prompts.shift() : ' TESTCODE '; return { getSelectedButton: () => (a === null ? 'CANCEL' : 'OK'), getResponseText: () => a || '' }; },
     createMenu: (name) => { const m = { name, items: [], addItem(l, fn) { m.items.push([l, fn]); return m; }, addToUi() { log.menus.push(m); return m; } }; return m; },
   };
   const response = (status, text) => ({ getResponseCode: () => status, getContentText: () => text, getBlob: () => ({ getContentType: () => 'image/jpeg', getBytes: () => Buffer.alloc(1000, 1) }) });
@@ -148,7 +149,8 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     HtmlService: { XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' }, createHtmlOutput: (html) => { const o = { html, title: '', xframe: '', setTitle(t) { o.title = t; return o; }, addMetaTag() { return o; }, setXFrameOptionsMode(m) { o.xframe = m; return o; }, getContent: () => html }; return o; } },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
-      getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/X/exec' }),
+      // the real getUrl() can return /dev or a deployment id that does not exist; recipes must not use it
+      getService: () => ({ getUrl: () => { throw new Error('getUrl() is unreliable; use webUrl_()'); } }),
       getOAuthToken: () => 'tok',
       getProjectTriggers: () => log.triggers,
       deleteTrigger: (t) => { log.triggers.splice(log.triggers.indexOf(t), 1); },

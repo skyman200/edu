@@ -4,8 +4,8 @@
    아니면 [질문기록] 시트에 쌓여 교수에게 갑니다. 교수가 G열에 답을 적으면 학생이 질문 번호로 확인합니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('24시간 조교')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls')
-    .addItem('매주 월요일 리포트 켜기', 'weeklyOn').addItem('리포트 지금 보내기', 'weeklyReport').addToUi();
+    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl')
+    .addItem('매주 월요일 리포트 켜기', 'weeklyOn').addItem('리포트 지금 보내기', 'reportNow').addToUi();
 }
 
 function setup() {
@@ -30,8 +30,9 @@ function setup() {
 }
 
 function showUrls() {
-  var url = ScriptApp.getService().getUrl();
-  say_(url ? '학생용 주소: ' + url : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  menuOnly_();
+  var url = webUrl_() || setWebUrl();
+  say_(url ? '학생용 주소: ' + url : '웹 앱 주소가 아직 없습니다. 배포 → 배포 관리에서 웹 앱 URL(/exec)을 복사해 메뉴 24시간 조교 → 웹 앱 주소 넣기에 붙여 넣으세요.');
 }
 
 function cfg_() {
@@ -106,15 +107,26 @@ function weeklyOn_() {
 }
 
 function weeklyOn() {
+  menuOnly_();
   weeklyOn_();
   say_('매주 월요일 아침 8시쯤 지난주 질문 리포트가 내 메일로 옵니다.');
 }
 
+function reportNow() {
+  menuOnly_();
+  say_(weeklyReport_() ? '리포트를 보냈습니다.' : '지난 7일 동안 질문이 없어 보내지 않았습니다.');
+}
+
+// 월요일 자동 실행이 부릅니다. 웹 화면에서 마구 부르지 못하게 한 시간에 두 번까지만 돕니다.
 function weeklyReport() {
+  if (throttle_('weekly', 2, 3600)) weeklyReport_();
+}
+
+function weeklyReport_() {
   var sh = sheet_('질문기록'), n = sh.getLastRow() - 1;
   var rows = n > 0 ? sh.getRange(2, 1, n, 7).getValues() : [], since = Date.now() - 7 * 86400000, mine = [];
   rows.forEach(function (r) { if (new Date(r[0]).getTime() >= since) mine.push(r); });
-  if (!mine.length) return;
+  if (!mine.length) return false;
   var list = mine.slice(-300).map(function (r, i) { return (i + 1) + '. ' + r[2]; }).join('\n');
   var open = mine.filter(function (r) { return r[5] === '교수님께' && !r[6]; });
   var top = ai_('첨부한 질문 목록은 지난 7일 동안 학생들이 수업 조교에게 한 질문 ' + mine.length + '개입니다. ' +
@@ -122,6 +134,7 @@ function weeklyReport() {
   var body = '지난 7일 질문 ' + mine.length + '개 (자동 답변 ' + (mine.length - open.length) + '개, 교수 확인 필요 ' + open.length + '개)\n\n' + top +
     (open.length ? '\n\n[아직 답하지 않은 질문]\n' + open.map(function (r) { return r[1] + ': ' + r[2]; }).join('\n') : '');
   mail_(Session.getEffectiveUser().getEmail(), '[수업 조교] 지난주 질문 리포트', body);
+  return true;
 }
 
 var ASK_HTML = '<div class="kick">24H · <span class="ko">수업 조교</span></div><h1 id="nm">…</h1><p class="muted">수업 자료에 있는 내용은 바로 답해 드리고, 교수님이 직접 답할 내용은 전달해 드립니다. 이름이나 학번은 쓰지 마세요.</p>' +
