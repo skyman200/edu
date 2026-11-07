@@ -25,12 +25,12 @@ function setup() {
   }
   sheet_('대화록', ['시간', '세션', '별칭', '턴', '역할', '내용', '이해도(0~3)', '행동']);
   sheet_('제출', ['시간', '세션', '별칭', '대화 횟수', '마지막 이해도', '이해도 흐름', '학생 정리 이해도(0~3)', '학생 정리', '과정 요약']);
-  say_('준비 끝! [설정] 시트에서 주제와 핵심 개념을 바꾸고, 웹 도구 화면의 다음 단계(배포)를 따라 하세요.\n교수 화면(교실 이해도 실시간) PIN: ' + pin_() + ' — 학생에게 알리지 마세요.');
+  say_('준비 끝! [설정] 시트에서 주제와 핵심 개념을 바꾸고, 웹 도구 화면의 다음 단계(배포)를 따라 하세요.\n교수 화면(교실 이해도 실시간) PIN: ' + pin_('class') + ' — 학생에게 알리지 마세요.');
 }
 
 function showUrls() {
   var url = ScriptApp.getService().getUrl();
-  say_(url ? '학생용 주소: ' + url + '\n교수 화면(큰 화면): ' + url + '?v=class\n교수 화면 PIN: ' + pin_() : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
+  say_(url ? '학생용 주소: ' + url + '\n교수 화면(큰 화면): ' + url + '?v=class\n교수 화면 PIN: ' + pin_('class') : '아직 웹 앱으로 배포하지 않았습니다. 배포 → 새 배포 → 웹 앱을 먼저 하세요.');
 }
 
 function cfg_() {
@@ -40,28 +40,16 @@ function cfg_() {
 }
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.v === 'class') return page_('교실 이해도', CLASS_HTML, { raw: true, css: CLASS_CSS });
+  if (e && e.parameter && e.parameter.v === 'class') return page_('교실 이해도', CLASS_HTML, { raw: true, css: CLASS_CSS + STAGE_CSS });
   return page_('튜터와 대화', TUTOR_HTML);
 }
 
-// 교수 화면 PIN: [설정] B6. 없으면 4자리 숫자를 만들어 적습니다. 학생 이름 대신 별칭과 이해도 숫자만 보여 주고, 대화 내용은 보여 주지 않습니다.
-function pin_() {
-  var s = ss_().getSheetByName('설정'), c = s.getRange('B6'), v = String(c.getValue()).trim();
-  if (!/^\d{4}$/.test(v)) {
-    v = String(1000 + Math.floor(Math.random() * 9000));
-    s.getRange('A6').setValue('교수 화면 PIN(4자리, 학생에게 알리지 마세요)');
-    c.setValue(v);
-  }
-  return v;
-}
-
-function getClass(pin) {
-  if (String(pin || '').trim() !== pin_()) {
-    throttle_('pinfail', 10, 600);
-    return { ok: false, msg: 'PIN이 맞지 않습니다.' };
-  }
+// 교수 화면 PIN은 시트 메뉴 '주소와 교수 화면 PIN 보기'에 있습니다(공통 pin_, auth_). 학생 이름 대신 별칭과 이해도 숫자만 보여 주고, 대화 내용은 보여 주지 않습니다.
+function getClass(cred) {
+  var chk = auth_(cred, 'class');
+  if (!chk.ok) return chk;
   var cache = CacheService.getScriptCache(), hit = cache.get('cls');
-  if (hit) return JSON.parse(hit);
+  if (hit) { var d = JSON.parse(hit); d.token = chk.token; return d; }
   var c = cfg_(), sh = sheet_('대화록'), n = sh.getLastRow() - 1, by = {}, order = [];
   if (n > 0) {
     var from = Math.max(2, n + 2 - 3000);
@@ -79,6 +67,7 @@ function getClass(pin) {
   students.forEach(function (x) { if (x.lv.length) dist[Math.max(0, Math.min(3, x.lv[x.lv.length - 1]))]++; });
   var out = { ok: true, topic: c.topic, max: c.max, total: students.length, submitted: students.filter(function (x) { return x.done; }).length, dist: dist, students: students.slice(-60) };
   cache.put('cls', JSON.stringify(out), 3);
+  out.token = chk.token;
   return out;
 }
 
@@ -148,8 +137,8 @@ function tutorTurn(sid, alias, text) {
   lock.waitLock(10000);
   try {
     var sh = sheet_('대화록');
-    sh.appendRow([now, sid, alias, turn, '학생', text, level, move]);
-    sh.appendRow([now, sid, alias, turn, '튜터', reply, '', '']);
+    row_(sh, [now, sid, alias, turn, '학생', text, level, move]);
+    row_(sh, [now, sid, alias, turn, '튜터', reply, '', '']);
   } finally { lock.releaseLock(); }
   return { ok: true, reply: reply, done: move === 'wrap', turn: turn };
 }
@@ -175,7 +164,7 @@ function submitTranscript(sid, alias, finalText) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    sheet_('제출').appendRow([new Date(), sid, alias, levels.length, levels.length ? levels[levels.length - 1] : '', levels.join(' → '), a.understanding.level, finalText, summary]);
+    row_(sheet_('제출'), [new Date(), sid, alias, levels.length, levels.length ? levels[levels.length - 1] : '', levels.join(' → '), a.understanding.level, finalText, summary]);
   } finally { lock.releaseLock(); }
   return { ok: true };
 }
@@ -269,17 +258,34 @@ function classClient_() {
     });
     first = false;
   }
+  // PIN이 맞으면 서버가 화면용 표(token)를 줍니다. 그 뒤로는 표로 묻기 때문에, 누가 PIN을 틀려 잠겨도 이 화면은 계속 움직입니다.
+  // 묻기는 한 줄만 돕니다(엔터와 클릭이 겹쳐도 두 번 돌지 않게).
+  var timer = 0, busy = false;
+  function next(ms) { clearTimeout(timer); timer = setTimeout(tick, ms); }
   function tick() {
+    if (busy) return;
+    busy = true;
     google.script.run.withSuccessHandler(function (d) {
-      if (!d.ok) { $('#err').textContent = d.msg; $('#gate').hidden = false; $('#stage').hidden = true; return; }
-      $('#gate').hidden = true; $('#stage').hidden = false; draw(d); setTimeout(tick, 5000);
-    }).withFailureHandler(function () { setTimeout(tick, 8000); }).getClass(pin);
+      busy = false;
+      if (!d.ok) {
+        pin = ''; try { sessionStorage.removeItem('class-tok'); } catch (e) {}
+        $('#err').textContent = d.msg; $('#gate').hidden = false; $('#stage').hidden = true; return;
+      }
+      if (d.token) { pin = d.token; try { sessionStorage.setItem('class-tok', d.token); } catch (e) {} }
+      $('#gate').hidden = true; $('#stage').hidden = false; draw(d); next(5000);
+    }).withFailureHandler(function () { busy = false; next(8000); }).getClass(pin);
   }
-  $('#go').onclick = function () { pin = $('#pin').value; $('#err').textContent = ''; tick(); };
+  try { pin = sessionStorage.getItem('class-tok') || ''; } catch (e) {}
+  if (pin) tick();
+  $('#go').onclick = function () {
+    var v = $('#pin').value.trim();
+    if (!/^\d{4}$/.test(v)) { $('#err').textContent = 'PIN은 숫자 4자리입니다.'; return; }
+    pin = v; $('#err').textContent = ''; tick();
+  };
   $('#pin').onkeydown = function (e) { if (e.key === 'Enter') $('#go').onclick(); };
 }
 
 var CLASS_HTML = '<div class="gate" id="gate"><div class="live">LIVE · <span class="ko">교실 이해도</span></div><h1>교수 화면 PIN</h1><input id="pin" maxlength="4" inputmode="numeric" placeholder="0000"><button id="go">열기</button><p id="err"></p></div>' +
   '<div class="stage" id="stage" hidden><div class="top"><div><div class="live">LIVE · <span class="ko">교실 이해도</span></div><h1 id="tp">…</h1></div><div class="num"><span id="n">0</span><small id="sb">명 참여</small></div></div>' +
   '<div class="dist" id="dist"></div><div class="grid" id="grid"></div></div>' +
-  '<script>(' + classClient_.toString() + ')();</script>';
+  '<script>(' + classClient_.toString() + ')();</script>' + STAGE_JS;

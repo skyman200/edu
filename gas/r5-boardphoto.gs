@@ -93,7 +93,7 @@ function processPhotos() {
       var f = files.next();
       if (done.indexOf(f.getId()) >= 0 || f.getMimeType().indexOf('image/') !== 0) continue;
       n++;
-      try { handlePhoto_(f); } catch (e) { sheet_('기록').appendRow([new Date(), f.getName(), '', '', '실패: ' + e.message, '']); }
+      try { handlePhoto_(f); } catch (e) { row_(sheet_('기록'), [new Date(), f.getName(), '', '', '실패: ' + e.message, '']); }
       done.push(f.getId());
       p.setProperty('DONE', JSON.stringify(done.slice(-500)));
     }
@@ -110,7 +110,7 @@ function handlePhoto_(f) {
   });
   var kind = KIND_LABEL[a.kind.choice] || '기타', conf = Math.round((a.kind.confidence || 0) * 100) / 100, owner = Session.getEffectiveUser().getEmail();
   if (a.unreadable.p > 0.6 || a.kind.choice === 'other') {
-    sheet_('기록').appendRow([new Date(), name, kind, conf, '다시 찍기 필요', '']);
+    row_(sheet_('기록'), [new Date(), name, kind, conf, '다시 찍기 필요', '']);
     mail_(owner, '[칠판 노트] ' + name + ': 다시 찍어 주세요', '사진이 흐리거나 칠판이 잘려 노트를 만들 수 없었습니다. 글씨가 한 줄에 크게 보이도록 가까이서 다시 찍어 올려 주세요.');
     return;
   }
@@ -120,7 +120,7 @@ function handlePhoto_(f) {
   try { if (!f.getSize || f.getSize() <= 8000000) photo = f.getBlob(); } catch (err) {}
   writeDoc_(doc, notes, photo);
   DriveApp.getFileById(doc.getId()).moveTo(DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('NOTES')));
-  sheet_('기록').appendRow([new Date(), name, kind, conf, '완료', doc.getUrl()]);
+  row_(sheet_('기록'), [new Date(), name, kind, conf, '완료', doc.getUrl()]);
   var extra = a.kind.choice === 'assignment' || a.kind.choice === 'schedule' ? '\n\n※ ' + kind + '로 보입니다. 날짜와 내용을 직접 확인한 뒤 학생에게 알려 주세요.' : '';
   mail_(owner, '[칠판 노트] ' + title, '칠판 사진 ' + name + '으로 노트를 만들었습니다.\n' + doc.getUrl() + extra);
 }

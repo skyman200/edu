@@ -59,7 +59,8 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.ok(env.sheet('설정') && env.sheet('응답'));
   assert.ok(env.call('doGet', { parameter: {} }).html.includes('submitAnswer'));
   assert.ok(env.call('doGet', { parameter: { v: 'board' } }).html.includes('getBoard'));
-  assert.deepEqual(env.call('getQuestion'), { q: 'AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', open: true });
+  const gq = env.call('getQuestion');
+  assert.deepEqual([gq.q, gq.open, gq.round], ['AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', true, env.sheet('응답').getSheetId()]);
   const r = env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다', 'sid1');
   assert.deepEqual([r.ok, r.cat], [true, '부정행위']);
   const jevReq = env.log.requests.filter((x) => x.url.endsWith('/api/jev') && !x.body.check).at(-1).body;
@@ -81,7 +82,7 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.equal(env.rows('응답').length, 0);
   env.call('submitAnswer', '새 질문에 대한 첫 생각', 's9');
   assert.equal(env.rows('응답').length, 1, 'new answers land in the fresh sheet');
-  assert.ok([...env.ctx.SpreadsheetApp.getActive().sheets.keys()].some((n) => /^응답_\d{4}_\d{4}$/.test(n)), 'the old answers are archived, not deleted');
+  assert.ok([...env.ctx.SpreadsheetApp.getActive().sheets.keys()].some((n) => /^응답_\d{4}_\d{6}$/.test(n)), 'the old answers are archived, not deleted');
   // too short, closed, throttled
   assert.equal(env.call('submitAnswer', '가', 's2').ok, false);
   env.sheet('설정').getRange('B3').setValue('X');
@@ -335,9 +336,9 @@ test('r3 class screen: PIN-gated, shows aliases and levels, never conversation t
   let level = 1;
   const env = boot('r3-tutor.gs', { jev: (s, q) => ({ ...defaultAnswers(q), understanding: score(level), move: choice('probe') }), ai: () => '왜 그렇게 생각하나요?' });
   env.setup();
-  const pin = env.call('pin_');
+  const pin = env.call('pin_', 'class');
   assert.match(pin, /^\d{4}$/);
-  assert.equal(env.call('pin_'), pin, 'the PIN stays the same');
+  assert.equal(env.call('pin_', 'class'), pin, 'the PIN stays the same');
   assert.ok(env.log.alerts.at(-1).includes(pin), 'setup tells the professor the PIN');
   env.call('tutorTurn', 'sidaaaa1', '파랑고래', '빛을 먹어요');
   level = 3;
@@ -353,12 +354,27 @@ test('r3 class screen: PIN-gated, shows aliases and levels, never conversation t
   assert.ok(!JSON.stringify(r).includes('에너지예요'), 'no conversation text leaves the server');
   const doc = env.call('doGet', { parameter: { v: 'class' } });
   assert.ok(doc.html.includes('교수 화면 PIN') && doc.xframe === 'ALLOWALL');
+  assert.ok(!env.rows('설정').flat().includes(pin), 'the PIN is not written into the sheet');
+  // the right PIN hands out a screen token; with it the screen keeps working even when someone else locks the PIN out
+  const tok = r.token;
+  assert.match(tok, /^t[0-9a-f]{24,}$/);
+  for (let k = 0; k < 10; k++) env.call('getClass', pin === '0000' ? '1111' : '0000');
+  assert.equal(env.call('getClass', pin).locked, true, 'ten wrong PINs lock new PIN entries');
+  assert.equal(env.call('getClass', tok).ok, true, 'an open screen keeps its token');
+  assert.equal(env.call('getClass', 't' + 'a'.repeat(32)).expired, true, 'an unknown token asks for the PIN again without counting');
+  env.cache.delete('pinfail:class');
   const pg = runPage(env, env.ctx.CLASS_HTML);
+  pg.set('#pin', '12');
+  pg.click('#go');
+  assert.equal(pg.el('#err').textContent, 'PIN은 숫자 4자리입니다.');
+  assert.deepEqual(pg.calls, [], 'a malformed PIN is not sent (and does not count toward the lockout)');
   pg.set('#pin', pin);
   pg.click('#go');
   assert.equal(pg.el('#n').textContent, '2');
   assert.equal(pg.el('#grid').children.length, 2);
   assert.equal(pg.el('#gate').hidden, true);
+  pg.click('#go');
+  assert.equal(pg.timers.length, 1, 'one polling loop, however often the button is pressed');
 });
 
 test('r6 report screen: totals and rankings for the big screen, never urgent rows or complaints', () => {
@@ -399,7 +415,7 @@ test('one-step start: pasting the code and running start() prepares everything, 
   for (const [f, trig] of Object.entries(expectTriggers)) {
     const env = createEnv();
     env.props.delete('CLASS_CODE');
-    env.run("var EMBEDDED_CODE = 'TESTCODE';\n" + COMMON + '\n' + readGs(f), f);
+    env.run(COMMON + '\n' + readGs(f) + "\n\nvar EMBEDDED_CODE = 'TESTCODE';\n", f);
     assert.match(env.run('start.toString()').slice(0, 20), /function start/);
     env.ctx.start();
     assert.ok(env.log.alerts.at(-1).startsWith('준비 끝'), f + ': ' + env.log.alerts.at(-1));
@@ -418,10 +434,92 @@ test('one-step start: pasting the code and running start() prepares everything, 
   assert.ok(/^function start\(/m.exec(COMMON) && COMMON.indexOf('function start') < COMMON.search(/function (?!start)\w+\(/), 'start is the first function, so the editor selects it by default');
 });
 
+test('r1 big screen edits: PIN-gated question change, optional archive, brute force locked out', () => {
+  const env = boot('r1-board.gs');
+  env.setup();
+  const pin = env.call('pin_', 'board');
+  assert.ok(env.log.alerts.at(-1).includes(pin), 'setup tells the professor the PIN');
+  env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다', 's1');
+  const wrong = pin === '0000' ? '1111' : '0000';
+  assert.equal(env.call('setBoard', wrong, '새 질문', '가, 나', true, true).ok, false);
+  assert.equal(env.call('setBoard', pin, '가', '', true, false).msg, '질문을 두 글자 이상 적어 주세요.');
+  assert.ok(env.call('setBoard', pin, '오늘 수업에서 가장 헷갈린 것은?', '용어', true, false).msg.includes('두 개 이상'));
+  const r = env.call('setBoard', pin, '오늘 수업에서 가장 헷갈린 것은?', '용어\n개념, 개념\n기타\n예시', false, true);
+  assert.equal(r.ok, true);
+  assert.match(r.token, /^t[0-9a-f]{24,}$/, 'the screen gets a token so the PIN is typed once');
+  assert.equal(env.call('setBoard', r.token, '오늘 수업에서 가장 헷갈린 것은?', '용어\n개념\n예시', false, false).ok, true, 'the token works like the PIN');
+  assert.equal(r.archived, true, 'old answers are kept in an archive sheet');
+  assert.deepEqual(r.board.cats, ['용어', '개념', '예시', '기타'], 'duplicates and a typed 기타 are dropped');
+  assert.equal(r.board.q, '오늘 수업에서 가장 헷갈린 것은?');
+  assert.equal(r.board.open, false);
+  assert.equal(r.board.total, 0, 'the screen starts empty');
+  assert.ok([...env.ctx.SpreadsheetApp.getActive().sheets.keys()].some((n) => n.startsWith('응답_')));
+  assert.equal(env.call('submitAnswer', '닫힌 뒤', 's2').ok, false, 'closing from the screen stops answers');
+  const kept = env.call('setBoard', pin, '같은 질문 유지', '', true, false);
+  assert.equal(kept.archived, false);
+  assert.deepEqual(kept.board.cats, [], 'empty groups mean one column');
+  env.call('submitAnswer', '하나로 모입니다', 's3');
+  env.cache.clear();
+  assert.equal(env.call('getBoard').items[0].c, '');
+  const t2 = env.call('setBoard', pin, '같은 질문 유지', '', true, false).token;
+  for (let k = 0; k < 10; k++) env.call('setBoard', wrong, '틀린 PIN', '', true, false);
+  assert.equal(env.call('setBoard', pin, '맞는 PIN이지만 잠김', '', true, false).ok, false, 'after ten wrong PINs even the right one waits');
+  assert.equal(env.call('setBoard', t2, '표가 있는 화면은 계속', '', true, false).ok, true, 'a screen that already has a token is not locked out');
+});
+
+test('r1 safety: student text never runs as a formula, archives never collide, answers keep their id, web callers cannot archive', () => {
+  const env = boot('r1-board.gs');
+  env.setup();
+  const pin = env.call('pin_', 'board');
+  assert.ok(!env.rows('설정').flat().includes(pin), 'the PIN is not in the sheet, so no formula can read it');
+  for (const t of ['=설정!B5', "='설정'!B1&\" 걱정\"", '+1+1 같아요', '@멘션', '-걱정입니다']) assert.equal(env.call('submitAnswer', t, 's' + t.length).ok, true);
+  const shown = env.call('getBoard').items.map((x) => x.t);
+  assert.deepEqual(shown, ['=설정!B5', "='설정'!B1&\" 걱정\"", '+1+1 같아요', '@멘션', '-걱정입니다'], 'stored and shown as typed text');
+  assert.ok(!JSON.stringify(env.rows('응답')).includes('#FORMULA'), 'no cell was evaluated');
+  const ok = env.call('setBoard', pin, '=1+1 질문', '=A, B', true, false);
+  assert.equal(ok.board.q, '=1+1 질문');
+  assert.deepEqual(ok.board.cats, ['=A', 'B', '기타']);
+  // ids survive a deleted row; numbers follow the order in the round
+  env.cache.clear();
+  const before = env.call('getBoard').items;
+  assert.deepEqual(before.map((x) => x.no), [1, 2, 3, 4, 5]);
+  assert.equal(new Set(before.map((x) => x.i)).size, 5);
+  env.sheet('응답').rows.splice(2, 1);
+  env.cache.clear();
+  const after = env.call('getBoard').items;
+  assert.deepEqual(after.map((x) => x.i), before.filter((_, k) => k !== 1).map((x) => x.i), 'deleting a row in the sheet does not shift the other answers');
+  assert.equal(env.call('submitAnswer', '하나 더', 'zz').no, 5);
+  // two archives in the same second get different names; the round id changes
+  const round = env.call('getBoard').round;
+  env.call('setBoard', pin, '새 질문 하나', '', true, true);
+  env.call('submitAnswer', '두 번째 판', 'yy');
+  const again = env.call('setBoard', pin, '새 질문 둘', '', true, true);
+  assert.equal(again.archived, true);
+  assert.equal([...env.active.sheets.keys()].filter((n) => n.startsWith('응답_')).length, 2);
+  assert.notEqual(again.board.round, round);
+  assert.ok(again.board.rev > 0);
+  // a phone that still shows the old round cannot drop its answer into the new one
+  const oldRound = again.board.round;
+  env.call('setBoard', pin, '새 질문 셋', '', true, true);
+  env.call('submitAnswer', '셋째 판 첫 답', 'ww');
+  env.call('setBoard', pin, '새 질문 넷', '', true, true);
+  const stale = env.call('submitAnswer', '예전 화면에서 보냄', 'vv', env.call('getBoard').round - 1);
+  assert.deepEqual([stale.ok, stale.stale], [false, true]);
+  assert.equal(env.call('submitAnswer', '지금 화면에서 보냄', 'uu', env.call('getQuestion').round).ok, true);
+  assert.notEqual(oldRound, env.call('getQuestion').round);
+  // the menu-only archive refuses web callers (google.script.run has no sheet UI)
+  env.call('submitAnswer', '세 번째 판', 'xx');
+  env.ctx.SpreadsheetApp.getUi = () => { throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); };
+  assert.throws(() => env.call('newRound'), /시트 메뉴에서만/);
+  assert.throws(() => env.call('showUrls'), /시트 메뉴에서만/);
+  env.cache.clear();
+  assert.equal(env.call('getBoard').total, 2, 'nothing was archived');
+});
+
 test('design guard: pages and mails stay flat and in the lab style (no gradients, glow, blur, big radii, emoji); mail text is escaped', () => {
   const env = boot('r1-board.gs');
   env.setup();
-  const pages = [env.ctx.PAGE_CSS, env.ctx.BOARD_CSS];
+  const pages = [env.ctx.PAGE_CSS, env.ctx.BOARD_CSS, env.ctx.ASK_CSS, env.ctx.STAGE_CSS];
   for (const f of ['r2-assistant', 'r3-tutor', 'r4-future']) pages.push(readGs(f + '.gs'));
   for (const css of pages) {
     assert.ok(!/gradient|box-shadow|backdrop|blur\(|filter:|color-mix/i.test(css), 'no decorative effects');
@@ -464,24 +562,42 @@ test('web pages: each browser script runs against the real server functions', ()
   assert.deepEqual(ask.calls, ['getQuestion', 'submitAnswer']);
   assert.ok(ask.texts('#m')[0].includes('보냈습니다') && ask.texts('#m')[0].includes('부정행위'));
   assert.equal(ask.el('#t').value, '');
+  assert.ok(ask.texts('#m')[0].includes('No.001'), 'the student sees the number the big screen shows');
+  assert.equal(ask.el('#mine').hidden, false);
+  assert.equal(ask.el('#ml').children.length, 1);
+  assert.match(ask.el('#ml').children[0].textContent, /^001시험 때 몰래 쓸까 봐 걱정입니다→ 부정행위 · \d\d:\d\d$/, 'my sent thought stays as a numbered slip with its group');
   r1.cache.clear();
   const board = runPage(r1, r1.ctx.BOARD_HTML);
   assert.deepEqual(board.calls, ['getBoard']);
   assert.equal(board.el('#c').textContent, '1');
   assert.equal(board.el('#g').children.length, 5, 'four groups plus the catch-all');
-  assert.equal(board.el('#sh').children.length, 5, 'one share-bar segment per group');
-  assert.deepEqual(board.el('#sh').children.map((x) => x.style.flexGrow), ['1', '0', '0', '0', '0'].sort().length ? board.el('#sh').children.map((x) => x.style.flexGrow) : []);
-  assert.equal(board.el('#sh').children.reduce((n, x) => n + Number(x.style.flexGrow), 0), 1, 'segment sizes add up to the number of answers');
+  assert.equal(board.el('#labs').children.length, 5, 'one label per group');
+  const counts = () => board.el('#g').children.map((c) => c.children[1].textContent);
+  const slips = (k) => board.el('#g').children[k].children[2].children.filter((x) => x.className.includes('slip')).map((x) => x.children[0].textContent);
+  assert.deepEqual(counts(), ['1', '0', '0', '0', '0']);
+  assert.deepEqual(slips(0), ['시험 때 몰래 쓸까 봐 걱정입니다'], 'each answer is one slip in its group');
+  assert.equal(board.el('#g').children[0].children[2].children.find((x) => x.className.includes('slip')).children[1].textContent, '001', 'each slip carries its number');
+  assert.equal(board.el('#labs').children[0].className.includes('lead'), true, 'the single largest group is marked');
+  assert.equal(board.el('#wait').hidden, true);
+  // the next poll adds only the new answer, on top of its group
+  ask.set('#t', '과제를 AI가 대신 써 오면 구분이 안 돼요');
+  ask.click('#b');
+  r1.cache.clear();
+  board.timers.shift()[0]();
+  assert.deepEqual(slips(0), ['과제를 AI가 대신 써 오면 구분이 안 돼요', '시험 때 몰래 쓸까 봐 걱정입니다'], 'newest on top');
+  assert.deepEqual(counts(), ['2', '0', '0', '0', '0']);
+  assert.equal(board.el('#c').textContent, '2');
   const waiting = boot('r1-board.gs');
   waiting.setup();
   const w = runPage(waiting, waiting.ctx.BOARD_HTML);
-  assert.ok(w.el('#g').children[0].textContent.includes('기다리고'), 'an empty board shows a waiting message, not empty columns');
+  assert.equal(w.el('#wait').hidden, false, 'an empty board shows the waiting line');
+  assert.equal(w.el('#labs').children.length, 5, 'the groups are already visible before the first answer');
   assert.equal(w.el('#c').textContent, '0');
   const doc = r1.call('doGet', { parameter: { v: 'board' } });
   assert.equal(doc.xframe, 'ALLOWALL', 'the page can be embedded in PowerPoint web viewers');
   assert.ok(doc.html.includes('qrcode.js') && !doc.html.includes('<main>'), 'raw board has no narrow main wrapper');
-  assert.ok(r1.call('doGet', { parameter: {} }).html.includes('<main>'));
-  assert.equal(board.timers.length, 1, 'the board polls again');
+  assert.ok(r1.call('doGet', { parameter: {} }).html.includes('<main class="ask">'));
+  assert.equal(board.timers.length, 1, 'the board keeps polling');
   // recipe 2
   const r2 = boot('r2-assistant.gs', { jev: (s, q) => ({ ...defaultAnswers(q), answerable: noul(0.95) }), ai: () => '바로 답하면 이렇게 됩니다' });
   r2.setup();

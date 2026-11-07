@@ -59,6 +59,16 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
 .lnk .lb{grid-column:1/-1;font-weight:700;font-size:14px}.lnk input{font-size:12.5px}
 .pptbox{margin:12px 0;padding:10px 14px;border:1px solid var(--line2);background:#fff}.pptbox summary{cursor:pointer;font-weight:700}.pptbox p{margin:8px 0}
 .lnk .qr{grid-column:1/-1;width:150px}.lnk .qr svg{display:block;width:150px;height:150px;border:1px solid var(--line)}
+.rh{font-size:16px;color:var(--ink);margin:16px 0 4px}
+.rl{border-bottom:1px solid var(--line);margin:8px 0 18px}
+.rs{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.rs .nl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rs .nm{font-weight:700;overflow-wrap:anywhere}
+.rs .meta{font-size:13px;color:var(--mute);overflow-wrap:anywhere}.rs .meta a{color:var(--ink2)}
+.rs .act{display:flex;gap:6px;flex-wrap:wrap}
+.rs button{padding:5px 11px;font-size:13px}
+.rs input{padding:5px 8px;max-width:360px}
+@media(max-width:560px){.rs{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -125,8 +135,9 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   <section id="s6">
     <div class="k">6 · 가져가기</div>
     <h2>가져가기: 강의 자료와 내 결과물 키트 (PDF)</h2>
-    <p class="sub">모든 레시피의 "와 포인트", 시작 순서, <b>프롬프트 기록</b>(이 코드가 어떤 말로 만들어졌는지), 예제 프롬프트, 막혔을 때 처방, 코드 전문을 한 권으로 묶습니다. 위에서 웹 앱 주소를 만들었다면 그 주소와 QR도 들어갑니다. 성함과 소속은 적지 않아도 됩니다. 적으면 표지와 모든 쪽 아래에 들어갑니다.</p>
-    <div class="row"><input id="kitName" style="max-width:220px" placeholder="성함 (선택)" autocomplete="off"><input id="kitOrg" style="max-width:300px" placeholder="소속 (선택)" autocomplete="off"><button id="kitGo">맞춤 키트 PDF 만들기</button></div>
+    <p class="sub">모든 레시피의 "와 포인트", 시작 순서, <b>프롬프트 기록</b>(이 코드가 어떤 말로 만들어졌는지), 예제 프롬프트, 막혔을 때 처방, 코드 전문을 한 권으로 묶습니다. 위에서 만든 <b>내 결과물</b>은 이름, 웹 앱 주소와 QR, 내가 AI에게 한 말, 고친 코드까지 함께 들어갑니다. 성함과 소속은 적지 않아도 됩니다. 적으면 표지와 모든 쪽 아래에 들어갑니다.</p>
+    <div id="resBox"></div>
+    <div class="row"><input id="kitName" style="max-width:220px" placeholder="성함 (선택)" autocomplete="off"><input id="kitOrg" style="max-width:300px" placeholder="소속 (선택)" autocomplete="off"><button id="kitGo">내 결과물 PDF로 저장 (0개 포함)</button></div>
     <div class="row" style="margin-top:4px"><a class="btn" href="ai-class-slides.pdf" download="부산외대_AI특강_prof.kimcook.pdf">강의 자료 PDF 바로 받기 (59쪽 · 9MB)</a><span class="sub" style="margin:0">오늘 강의 슬라이드입니다. 안의 OPEN 버튼을 누르면 실습실로 바로 열립니다.</span></div>
     <p class="sub">누르면 새 탭에서 인쇄 창이 열립니다. 대상을 "PDF로 저장"으로 두고 저장하세요. 파일 이름은 자동으로 채워집니다. 수업 코드는 키트에 들어가지 않습니다.</p>
   </section>
@@ -145,7 +156,8 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   var AI_URL = API + '/api/ai', JEV_URL = API + '/api/jev';
   var NET = 'AI ONE 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고, 교내망에서 막혔다면 휴대폰 데이터로 시도해 보세요.';
   function lsGet(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
-  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  var FULL = '브라우저 저장 공간이 가득 차 저장하지 못했습니다. 다른 결과물을 지우고 다시 하세요.';
   var aiCode = lsGet('acl-aicode', '');
   var cur = 0, original = '', history = [], lastSig = '', fixCount = 0, ctl = null;
 
@@ -218,10 +230,11 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   function mineKey() { return 'acl-gas-mine-' + DATA.recipes[cur].id; }
   function fmtT(t) { var d = new Date(t); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   function saveMine(quiet) {
-    var code = $('#src').value, req = $('#req').value;
-    if (code === original && !req.trim()) { try { localStorage.removeItem(mineKey()); } catch (e) {} showSave(); return; }
-    lsSet(mineKey(), { code: code, req: req, v: VER, t: Date.now() });
-    showSave(); if (!quiet) toast('이 레시피의 내 코드를 저장했습니다.');
+    var rid = DATA.recipes[cur].id, code = cleanCode($('#src').value), req = $('#req').value, prompts = draftPrompts(rid);
+    if (code === cleanCode(original) && !req.trim() && !prompts.length) { try { localStorage.removeItem(mineKey()); } catch (e) {} syncResult(rid); showSave(); return; }
+    var ok = lsSet(mineKey(), { code: code, req: req, v: VER, t: Date.now(), prompts: prompts });
+    if (ok) syncResult(rid);
+    showSave(); if (!quiet) toast(ok ? '이 레시피의 내 코드를 저장했습니다.' : FULL);
   }
   function showSave() {
     var m = lsGet(mineKey(), null), b = $('#loadMine'), box = $('#saveInfo');
@@ -230,6 +243,132 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   }
   var saveTimer = null;
   function autosave() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { saveMine(true); }, 700); }
+
+  // ---------- 내 결과물: 만든 것을 쌓아 두고 PDF로 가져갑니다(이 브라우저의 acl-gas-results) ----------
+  var RES_KEY = 'acl-gas-results', MAX_PROMPTS = 30, tabSmall = [];
+  function loadResults() {
+    var a = lsGet(RES_KEY, []);
+    return Array.isArray(a) ? a.filter(function (x) { return x && typeof x.id === 'string' && typeof x.r === 'string' && typeof x.title === 'string'; }) : [];
+  }
+  function saveResults(a) { var ok = lsSet(RES_KEY, a); renderResults(); return ok; }
+  // 수업 코드는 결과물·초안에 남기지 않습니다: 'var EMBEDDED_CODE = …;' 선언 줄을 통째로 지우고, 현재 수업 코드 값도 바꿉니다.
+  // 코드(cleanCode)는 선언 줄만 지웁니다. 값까지 바꾸면 코드 속 다른 글자(주소 등)가 수업 코드와 겹칠 때 코드가 망가집니다. 프롬프트(scrub)는 값도 바꿉니다.
+  var EMB = /^[ \t]*(?:\/\/ 수업 코드\(지우지 마세요\)\r?\n)?[ \t]*var\s+EMBEDDED_CODE\s*=.*;[ \t]*\r?\n?/gm;
+  function stripEmbedded(s) { return String(s == null ? '' : s).replace(EMB, ''); }
+  function cleanCode(s) { return stripEmbedded(s).replace(/\s+$/, '') + '\n'; }
+  function scrub(s) { s = stripEmbedded(s); return aiCode && aiCode.length >= 4 ? s.split(aiCode).join('(수업 코드)') : s; }
+  function recipeIndex(rid) { for (var i = 0; i < DATA.recipes.length; i++) if (DATA.recipes[i].id === rid) return i; return -1; }
+  function latestUrl(rid) {
+    var best = null;
+    loadResults().forEach(function (x) { if (x.r === rid && x.url && (!best || x.u >= best.u)) best = x; });
+    return best ? best.url : '';
+  }
+  function draftPrompts(rid) { var m = lsGet('acl-gas-mine-' + rid, null); return m && Array.isArray(m.prompts) ? m.prompts : []; }
+  function setPrompts(rid, list) {
+    var k = 'acl-gas-mine-' + rid, m = lsGet(k, null), here = DATA.recipes[cur].id === rid;
+    if (!m || typeof m !== 'object') m = { code: here ? cleanCode($('#src').value) : fullCode(DATA.recipes[recipeIndex(rid)]), req: here ? $('#req').value : '', v: VER, t: Date.now() };
+    m.prompts = list.slice(-MAX_PROMPTS); lsSet(k, m);
+  }
+  function pushPrompt(rid, text) {
+    text = scrub(text).trim().slice(0, 600); if (!text) return;
+    setPrompts(rid, draftPrompts(rid).concat(text));
+    syncResult(rid);
+  }
+  // 지금 편집기 상태(코드·초안 프롬프트)를 결과물에 담을 값으로 바꿉니다. 처음 코드와 같으면 코드는 ''입니다.
+  function currentCode() { var c = cleanCode($('#src').value); return c === cleanCode(original) ? '' : c; }
+  function wzUrl() { var i = document.getElementById('wzUrl'); return i ? i.value.trim().replace(/\/+$/, '') : ''; }
+  // 배포한 레시피는 URL 단계에서 결과물이 먼저 만들어집니다. 그 뒤 고친 코드와 프롬프트도 같은 주소의 결과물에 이어서 담습니다.
+  function syncResult(rid) {
+    if (DATA.recipes[cur].id !== rid) return false;
+    var u = wzUrl(); if (!u) return false;
+    var all = loadResults(), hit = null;
+    all.forEach(function (x) { if (x.r === rid && x.url === u) hit = x; });
+    if (!hit) return false;
+    hit.code = currentCode(); hit.prompts = draftPrompts(rid).map(scrub).slice(-MAX_PROMPTS); hit.u = Date.now();
+    return saveResults(all);
+  }
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function nextTitle(all, r) {
+    var n = all.filter(function (x) { return x.r === r.id; }).length + 1;
+    var used = function (t) { return all.some(function (x) { return x.title === t; }); };
+    while (used(r.name + ' ' + n)) n++;
+    return r.name + ' ' + n;
+  }
+  // 지금 편집기의 코드와 이 레시피에서 AI에게 한 말을 결과물로 남깁니다. 같은 주소가 있으면 그 결과물을 갱신합니다.
+  function saveResult(r, url) {
+    var all = loadResults(), now = Date.now(), hit = null;
+    var code = currentCode(), prompts = draftPrompts(r.id).map(scrub);
+    if (url) all.forEach(function (x) { if (x.r === r.id && x.url === url) hit = x; });
+    if (hit) { hit.code = code; hit.prompts = prompts; hit.u = now; return { item: hit, fresh: false, total: all.length, ok: saveResults(all) }; }
+    hit = { id: newId(), r: r.id, title: nextTitle(all, r), url: url || '', code: code, prompts: prompts, t: now, u: now };
+    all.push(hit);
+    return { item: hit, fresh: true, total: all.length, ok: saveResults(all) };
+  }
+  // 지금 작업 중인 코드·프롬프트가 어느 결과물에도 담겨 있지 않은지 확인합니다.
+  function unsaved(rid, code, prompts) {
+    var mine = loadResults().filter(function (x) { return x.r === rid; });
+    if (code && !mine.some(function (x) { return x.code === code; })) return true;
+    return prompts.some(function (p) { return !mine.some(function (x) { return Array.isArray(x.prompts) && x.prompts.indexOf(p) >= 0; }); });
+  }
+  function hasUnsavedWork() { var rid = DATA.recipes[cur].id; return unsaved(rid, currentCode(), draftPrompts(rid).map(scrub)); }
+  // 다른 레시피의 결과물을 열면 그 레시피에 저장된 초안이 바뀝니다. 그 초안이 결과물에 없는지 봅니다.
+  function draftUnsaved(rid) {
+    var i = recipeIndex(rid), m = lsGet('acl-gas-mine-' + rid, null);
+    if (i < 0 || !m || typeof m !== 'object') return false;
+    var code = m.code ? cleanCode(m.code) : '';
+    if (code === cleanCode(fullCode(DATA.recipes[i]))) code = '';
+    return unsaved(rid, code, (Array.isArray(m.prompts) ? m.prompts : []).map(scrub));
+  }
+  function openResult(x, ri) {
+    clearTimeout(saveTimer); saveMine(true);
+    var here = DATA.recipes[cur].id;
+    syncResult(here);
+    if ((x.r === here ? hasUnsavedWork() : draftUnsaved(x.r)) && !confirm('지금 작업 중인 코드와 프롬프트가 결과물에 저장되지 않았습니다. 그래도 열까요?')) return;
+    pick(ri, x.url);
+    setPrompts(x.r, Array.isArray(x.prompts) ? x.prompts : []);
+    setSrc(x.code || original, true);
+    $('#s1').scrollIntoView({ behavior: 'smooth' }); toast('결과물을 열었습니다. 코드는 아래 3번 칸에 있습니다.');
+  }
+  function resultRow(x) {
+    var ri = recipeIndex(x.r), row = el('div', 'rs'), main = el('div'), nl = el('div', 'nl'), nm = el('span', 'nm', x.title), rn = el('button', 'g', '이름 바꾸기');
+    rn.onclick = function () {
+      var inp = el('input'), done = false; inp.value = x.title; inp.maxLength = 60;
+      var finish = function (ok) {
+        if (done) return; done = true;
+        var t = inp.value.trim().slice(0, 60);
+        if (ok && t && t !== x.title) { var all = loadResults(); all.forEach(function (y) { if (y.id === x.id) y.title = t; }); if (!saveResults(all)) toast(FULL); } else renderResults();
+      };
+      inp.onkeydown = function (e) { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); };
+      inp.onblur = function () { finish(true); };
+      nl.replaceChild(inp, nm); rn.hidden = true; inp.focus(); inp.select();
+    };
+    nl.appendChild(nm); nl.appendChild(rn); main.appendChild(nl);
+    main.appendChild(el('div', 'meta', (ri >= 0 ? DATA.recipes[ri].name : x.r) + (typeof x.t === 'number' ? ' · ' + fmtT(x.t) : '')));
+    if (x.url) {
+      var um = el('div', 'meta');
+      if (EXEC.test(x.url)) { var a = el('a', '', x.url); a.href = x.url; a.target = '_blank'; a.rel = 'noopener'; um.appendChild(a); } else um.textContent = x.url;
+      main.appendChild(um);
+    }
+    var act = el('div', 'act'), op = el('button', 'g', '열기'), dl = el('button', 'g', '지우기');
+    op.disabled = ri < 0; op.onclick = function () { openResult(x, ri); };
+    dl.onclick = function () {
+      if (!confirm('"' + x.title + '" 결과물을 목록에서 지울까요?\n이 브라우저의 목록에서만 사라지고, 구글에 배포한 웹 앱은 그대로 남습니다.')) return;
+      toast(saveResults(loadResults().filter(function (y) { return y.id !== x.id; })) ? '지웠습니다.' : FULL);
+    };
+    act.appendChild(op); act.appendChild(dl); row.appendChild(main); row.appendChild(act);
+    return row;
+  }
+  function renderResults() {
+    var all = loadResults(), box = clear($('#resBox')), cnt = {};
+    all.forEach(function (x) { cnt[x.r] = (cnt[x.r] || 0) + 1; });
+    DATA.recipes.forEach(function (r, i) { tabSmall[i].textContent = r.tag + (cnt[r.id] ? ' · ' + cnt[r.id] + '개' : ''); });
+    $('#kitGo').textContent = '내 결과물 PDF로 저장 (' + all.length + '개 포함)';
+    box.appendChild(el('h3', 'rh', '내 결과물 ' + all.length + '개'));
+    if (!all.length) { box.appendChild(el('p', 'sub', "아직 결과물이 없습니다. 웹 앱 주소를 붙여 넣거나 '내 결과물로 저장'을 누르면 여기에 쌓입니다.")); return; }
+    var list = el('div', 'rl');
+    all.slice().reverse().forEach(function (x) { list.appendChild(resultRow(x)); });
+    box.appendChild(list);
+  }
 
   function qrSvg(text) {
     if (typeof qrcode !== 'function') return null;
@@ -282,9 +421,10 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     return det;
   }
   var EXEC = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec\/?$/;
-  function codeForEditor() { return (aiCode ? 'var EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n\n' : '') + $('#src').value; }
+  // 수업 코드 줄은 맨 아래에 붙입니다. 맨 위에 붙이면 편집기 오류의 '줄 N'이 웹 도구의 코드와 어긋납니다.
+  function codeForEditor() { var c = stripEmbedded($('#src').value).replace(/\s+$/, ''); return c + (aiCode ? '\n\n// 수업 코드(지우지 마세요)\nvar EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n' : '\n'); }
   function step(ol, title) { var li = el('li'); li.appendChild(el('b', 't', title)); ol.appendChild(li); return li; }
-  function renderWizard(r) {
+  function renderWizard(r, prefill) {
     var info = clear($('#info')), card = el('div', 'card');
     card.appendChild(el('h2', '', r.name)); card.appendChild(el('p', 'sub', r.short));
     var ol = el('ol', 'wz'), w = r.web || {}, li, row;
@@ -309,13 +449,14 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
       row = el('div', 'row'); var inp = el('input'); inp.placeholder = 'https://script.google.com/macros/s/…/exec'; inp.style.maxWidth = '520px'; inp.id = 'wzUrl';
       var go = el('button', '', '주소와 QR 만들기'); row.appendChild(inp); row.appendChild(go); li.appendChild(row);
       var res = el('div'); li.appendChild(res);
-      inp.value = lsGet('acl-gas-url-' + r.id, '');
-      var show = function () {
+      inp.value = prefill != null ? prefill : latestUrl(r.id);
+      var show = function (register) {
         var u = inp.value.trim().replace(/\/+$/, ''); clear(res);
         if (!u) return;
         if (/\/dev$/.test(u)) { say(res, '끝이 /dev 인 주소는 나만 열 수 있는 시험용입니다. 배포 → 새 배포로 만든 /exec 주소를 붙여 넣으세요.', 'warn'); return; }
         if (!EXEC.test(u)) { say(res, '웹 앱 URL이 아닙니다. 주소가 https://script.google.com/…/exec 로 끝나야 합니다.', 'err'); return; }
-        lsSet('acl-gas-url-' + r.id, u);
+        var saved = register === true ? saveResult(r, u) : null;
+        if (saved) toast(!saved.ok ? FULL : saved.fresh ? '내 결과물로 저장했습니다 (' + saved.total + '개째)' : '내 결과물을 갱신했습니다.');
         (w.links || [{ label: '학생용 주소', suffix: '' }]).forEach(function (L) {
           var url = u + L.suffix, box = el('div', 'lnk'); box.appendChild(el('div', 'lb', L.label));
           var f = el('input'); f.readOnly = true; f.value = url; f.onclick = function () { f.select(); }; box.appendChild(f);
@@ -326,20 +467,27 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
           res.appendChild(box);
         });
         if (w.ppt) res.appendChild(pptBox(u, w.ppt));
-        var clr = el('button', 'g', '이 주소 지우기'); clr.style.marginTop = '8px'; clr.onclick = function () { try { localStorage.removeItem('acl-gas-url-' + r.id); } catch (e) {} inp.value = ''; clear(res); toast('저장된 주소를 지웠습니다.'); }; res.appendChild(clr);
+        var clr = el('button', 'g', '이 주소 지우기'); clr.style.marginTop = '8px'; clr.onclick = function () { inp.value = ''; clear(res); toast('입력칸을 비웠습니다. 내 결과물 목록은 그대로입니다.'); }; res.appendChild(clr);
+        var rec = saved ? (saved.ok ? saved.item : null) : loadResults().filter(function (x) { return x.r === r.id && x.url === u; })[0];
+        if (rec) res.appendChild(el('div', 'sub', '내 결과물에 담겨 있습니다: ' + rec.title + ' · 아래 6번에서 PDF로 가져갈 수 있습니다.'));
         res.appendChild(el('div', 'sub', '코드를 고친 뒤에는 편집기에서 배포 → 배포 관리 → 연필 → 버전 "새 버전" → 배포를 해야 학생 화면에 반영됩니다. 주소는 그대로입니다.'));
       };
-      go.onclick = show; inp.onkeydown = function (e) { if (e.key === 'Enter') show(); };
-      if (inp.value) show();
+      go.onclick = function () { show(true); }; inp.onkeydown = function (e) { if (e.key === 'Enter') show(true); };
+      if (inp.value) show(false);
     }
     (w.after || []).forEach(function (t, i) { var l = step(ol, i === 0 ? (w.deploy ? '내 수업에 맞게 고칩니다' : '써 봅니다') : '다음 단계'); l.appendChild(el('p', 'how', t)); });
+    if (!w.deploy) {
+      li = step(ol, '마음에 들면 내 결과물로 담아 둡니다');
+      li.appendChild(el('p', 'how', '지금 코드와 이 레시피에서 AI에게 한 말을 "내 결과물"에 저장합니다. 여러 번 저장하면 하나씩 쌓이고, 아래 6번에서 PDF로 가져갈 수 있습니다.'));
+      row = el('div', 'row'); var sv = el('button', '', '내 결과물로 저장'); sv.onclick = function () { var s = saveResult(r, ''); toast(s.ok ? '내 결과물로 저장했습니다 (' + s.total + '개째)' : FULL); }; row.appendChild(sv); li.appendChild(row);
+    }
     card.appendChild(ol);
     var det = el('details'); det.appendChild(el('summary', '', '이 레시피가 하는 일, Jev 판정 목록'));
     var jv = el('div'); jv.style.marginTop = '8px'; r.jev.forEach(function (t) { jv.appendChild(el('span', 'jev', t)); }); det.appendChild(jv);
     card.appendChild(det);
     info.appendChild(card);
   }
-  function pick(i) {
+  function pick(i, url) {
     cur = i; var r = DATA.recipes[i];
     Array.prototype.forEach.call($('#tabs').children, function (b, j) { b.classList.toggle('on', j === i); });
     original = fullCode(r); history = []; $('#undo').disabled = true; lastSig = ''; fixCount = 0;
@@ -348,14 +496,14 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     $('#req').value = mine && mine.req ? mine.req : '';
     if (mine && mine.v === VER && mine.code && mine.code !== original) { $('#src').value = mine.code; srcInfo(); }
     showSave();
-    renderWizard(r);
+    renderWizard(r, url);
     var ex = clear($('#examples'));
     r.examples.forEach(function (t) { var b = el('button', 'ex', t); b.onclick = function () { $('#req').value = t; $('#req').focus(); }; ex.appendChild(b); });
     $('#req').placeholder = r.code ? '이 레시피에서 바꾸고 싶은 점을 적어 보세요' : '하고 싶은 일을 자세히 적어 보세요';
     var sel = $('#jpre'); Array.prototype.forEach.call(sel.options, function (o, j) { if (j === i) sel.selectedIndex = j; }); jevPreset(i);
   }
   DATA.recipes.forEach(function (r, i) {
-    var b = el('button', 'tab', r.name); b.appendChild(el('small', '', r.tag)); b.onclick = function () { pick(i); };
+    var b = el('button', 'tab', r.name), sm = el('small', '', r.tag); tabSmall.push(sm); b.appendChild(sm); b.onclick = function () { pick(i); };
     $('#tabs').appendChild(b);
     var o = el('option', '', 'Jev 예: ' + r.jevPreset.label); o.value = i; $('#jpre').appendChild(o);
   });
@@ -367,12 +515,12 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   $('#make').onclick = async function () {
     var req = $('#req').value.trim(); if (req.length < 8) { toast('하고 싶은 일을 조금 더 자세히 적어 주세요.'); return; }
     if (!needCode()) return;
-    var code = $('#src').value, r = DATA.recipes[cur];
+    var code = cleanCode($('#src').value), r = DATA.recipes[cur], rid = r.id;
     if (code.length > 100000) { say($('#makeOut'), '코드가 너무 깁니다(10만 자 초과). 필요한 부분만 남기고 다시 시도하세요.', 'err'); return; }
     ctl = new AbortController(); busy(true, $('#make'), $('#stop')); $('#makeState').textContent = '만드는 중…'; say($('#makeOut'), '');
     try {
       var res = await aiCall('gas-make', D.buildMakePrompt({ request: req, title: r.name, hasBase: !!r.code }), [{ name: '기준 코드', text: code }], function (t) { $('#makeState').textContent = '만드는 중… ' + t.length.toLocaleString() + '자'; }, ctl.signal);
-      applyAi(res, $('#makeOut'), code);
+      if (applyAi(res, $('#makeOut'), code)) pushPrompt(rid, req);
     } catch (e) { say($('#makeOut'), e.name === 'AbortError' ? '멈췄습니다.' : e.message, 'err'); }
     finally { busy(false, $('#make'), $('#stop')); $('#makeState').textContent = ''; ctl = null; }
   };
@@ -403,7 +551,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   }
   $('#extCopy').onclick = function () {
     var req = $('#req').value.trim(); if (req.length < 8) { toast('하고 싶은 일을 먼저 적어 주세요.'); return; }
-    copy(D.buildExternalPrompt({ request: req, title: DATA.recipes[cur].name, code: $('#src').value }), '프롬프트를 복사했습니다. ChatGPT, Gemini, Claude에 붙여 넣으세요.');
+    copy(D.buildExternalPrompt({ request: req, title: DATA.recipes[cur].name, code: cleanCode($('#src').value) }), '프롬프트를 복사했습니다. ChatGPT, Gemini, Claude에 붙여 넣으세요.');
   };
 
   // ---------- 코드 도구 ----------
@@ -458,13 +606,13 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     if (!needCode()) return;
     var skipAi = rd.notes.length && rd.notes.every(function (n) { return !n.ai; });
     if (skipAi) { $('#fixOut').appendChild(el('div', 'msg ok', '코드를 고칠 문제가 아니라 위 처방대로 하면 풀립니다. 그래도 코드가 틀렸다고 생각하면 오류 문구에 설명을 덧붙여 다시 눌러 주세요.')); return; }
-    var code = $('#src').value; if (code.length > 100000) { $('#fixOut').appendChild(el('div', 'msg err', '코드가 너무 깁니다(10만 자 초과).')); return; }
-    var sig = D.signature(errText), again = sig && sig === lastSig, ex = again ? 'gas-fix2' : 'gas-fix';
+    var code = cleanCode($('#src').value); if (code.length > 100000) { $('#fixOut').appendChild(el('div', 'msg err', '코드가 너무 깁니다(10만 자 초과).')); return; }
+    var rid = DATA.recipes[cur].id, sig = D.signature(errText), again = sig && sig === lastSig, ex = again ? 'gas-fix2' : 'gas-fix';
     ctl = new AbortController(); busy(true, $('#fix'), $('#fixStop')); $('#fixState').textContent = again ? '같은 오류라 더 강한 모델로 처음부터 따져 보는 중…' : '고치는 중…';
     var out = el('div'); $('#fixOut').appendChild(out);
     try {
       var res = await aiCall(ex, D.buildFixPrompt({ error: errText, notes: rd.notes, lines: rd.p.lines, attempt: again ? fixCount : 0 }), [{ name: '현재 코드', text: code }], function (t) { $('#fixState').textContent = '고치는 중… ' + t.length.toLocaleString() + '자'; }, ctl.signal);
-      if (applyAi(res, out, code)) { lastSig = sig; fixCount = again ? fixCount + 1 : 1; out.appendChild(el('div', 'sub', '코드를 복사해 Apps Script 편집기에 다시 붙여 넣고 실행해 보세요. 같은 오류가 또 나면 새 오류 문구를 붙여 넣고 다시 누르세요. 웹 앱이라면 배포 관리에서 새 버전으로 다시 배포해야 반영됩니다.')); }
+      if (applyAi(res, out, code)) { pushPrompt(rid, '오류 고치기: ' + errText.trim().replace(/\s+/g, ' ').slice(0, 300)); lastSig = sig; fixCount = again ? fixCount + 1 : 1; out.appendChild(el('div', 'sub', '코드를 복사해 Apps Script 편집기에 다시 붙여 넣고 실행해 보세요. 같은 오류가 또 나면 새 오류 문구를 붙여 넣고 다시 누르세요. 웹 앱이라면 배포 관리에서 새 버전으로 다시 배포해야 반영됩니다.')); }
     } catch (e) { out.appendChild(el('div', 'msg err', e.name === 'AbortError' ? '멈췄습니다.' : e.message)); }
     finally { busy(false, $('#fix'), $('#fixStop')); $('#fixState').textContent = ''; ctl = null; }
   };
@@ -509,7 +657,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     var lastH = 0, send = function () { var h = document.querySelector('.wrap').offsetHeight + 4; if (h !== lastH) { lastH = h; parent.postMessage({ type: 'gas-height', h: h }, location.origin); } };
     if (window.ResizeObserver) new ResizeObserver(send).observe(document.body); setInterval(send, 700);
   }
-  codeUi(); pick(0);
+  codeUi(); pick(0); renderResults();
   var h = decodeURIComponent(location.hash.slice(1)); var m = /^r([1-6])$/.exec(h); if (m) pick(Number(m[1]) - 1);
   var kn = $('#kitName'), ko = $('#kitOrg');
   kn.value = lsGet('acl-kit-name', ''); ko.value = lsGet('acl-kit-org', '');

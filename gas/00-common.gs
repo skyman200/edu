@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.07-d';
+var CODE_VERSION = 'v2026.11.07-e';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    post_  : 수업 서버(kimcook-edu.pages.dev)로 보내는 공통 통로. 수업 코드는 스크립트 속성에만 저장됩니다.
@@ -101,6 +101,10 @@ function sheet_(name, header) {
   return sh;
 }
 
+// 학생이 쓴 글을 시트에 넣을 때: = + - @ 로 시작하면 시트가 수식으로 계산하므로, 앞에 ' 를 붙여 글자 그대로 둡니다.
+function cell_(v) { return typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v; }
+function row_(sh, arr) { sh.appendRow(arr.map(cell_)); }
+
 // key 하나당 sec초 안에 max번까지만 true. 학생이 버튼을 마구 눌러도 수업의 AI 한도를 지키려는 장치입니다.
 function throttle_(key, max, sec) {
   var cache = CacheService.getScriptCache(), n = Number(cache.get('t:' + key) || 0);
@@ -167,6 +171,92 @@ function page_(title, body, opts) {
     .setTitle(title).addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
+
+// 교수용 PIN: 4자리 숫자를 스크립트 속성에 둡니다(시트에는 적지 않아 학생 답이나 화면에 섞여 나올 수 없습니다). 없으면 만듭니다.
+// 교수는 시트 메뉴의 "주소와 PIN 보기"에서 확인합니다. name: 'board'(반응판) 'class'(튜터 교수 화면)
+function pin_(name) {
+  var p = PropertiesService.getScriptProperties(), k = 'PIN_' + name, v = String(p.getProperty(k) || '');
+  if (!/^\d{4}$/.test(v)) { v = String(1000 + Math.floor(Math.random() * 9000)); p.setProperty(k, v); }
+  return v;
+}
+
+// 교수 확인. cred는 PIN 4자리, 또는 PIN이 맞았을 때 내준 화면용 표(6시간 유효)입니다.
+// 표를 가진 화면은 계속 쓸 수 있고, PIN은 10분 동안 10번 틀리면 새로 넣는 PIN을 받지 않습니다(무작위 대입 방지). 세는 일은 잠금 안에서 합니다.
+function auth_(cred, name) {
+  cred = String(cred || '').trim();
+  var cache = CacheService.getScriptCache();
+  if (/^t[0-9a-f]{24,}$/.test(cred)) return cache.get('tok:' + name + ':' + cred) ? { ok: true, token: cred } : { ok: false, expired: true, msg: '화면을 연 지 오래되었습니다. PIN을 다시 넣어 주세요.' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var key = 'pinfail:' + name, fails = Number(cache.get(key) || 0);
+    if (fails >= 10) return { ok: false, locked: true, msg: 'PIN을 여러 번 틀렸습니다. 10분 뒤에 다시 하세요.' };
+    if (/^\d{4}$/.test(cred) && cred === pin_(name)) {
+      var t = 't' + Utilities.getUuid().replace(/-/g, '');
+      cache.put('tok:' + name + ':' + t, '1', 21600);
+      return { ok: true, token: t };
+    }
+    cache.put(key, String(fails + 1), 600);
+    return { ok: false, msg: 'PIN이 맞지 않습니다.' };
+  } finally { lock.releaseLock(); }
+}
+
+// 시트 메뉴(편집기)에서만 돌아야 하는 함수의 맨 앞에 둡니다. 웹 앱 화면에서 google.script.run 으로 부르면 멈춥니다.
+function menuOnly_() {
+  try { SpreadsheetApp.getUi(); } catch (e) { throw new Error('시트 메뉴에서만 실행할 수 있습니다.'); }
+}
+
+// 강의장 큰 화면 공통 도구: 오른쪽 아래 버튼 줄(전체화면 F), 마우스를 멈추면 버튼과 커서를 숨김, 전체화면 동안 화면 꺼짐 방지.
+// 다른 화면은 window.stage.add(이름, 단축키, 함수)로 버튼을 더합니다.
+var STAGE_CSS = [
+  '.kit{position:fixed;right:clamp(10px,1.4vw,26px);bottom:clamp(10px,1.4vw,26px);z-index:30;display:flex;gap:6px;transition:opacity .45s ease}',
+  'body.idle .kit{opacity:0;pointer-events:none}body.idle{cursor:none}',
+  '.kit button{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--fg);border-radius:2px;background:var(--bg);color:var(--fg);font:600 13px/1 Pretendard,sans-serif;cursor:pointer}',
+  '.kit button:hover{background:var(--fg);color:var(--bg)}',
+  '.kit kbd{font:700 10px/1 Montserrat,sans-serif;letter-spacing:.08em;opacity:.55}',
+  '.stoast{position:fixed;left:50%;bottom:clamp(60px,9vh,110px);z-index:31;max-width:min(640px,86vw);padding:12px 16px;border:1px solid var(--fg);background:var(--bg);color:var(--fg);font:500 14px/1.45 Pretendard,sans-serif;transform:translate(-50%,12px);opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}',
+  '.stoast.on{opacity:1;transform:translate(-50%,0)}',
+  '@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}'
+].join('');
+
+function stageKit_() {
+  if (typeof document === 'undefined' || !document.body || !document.addEventListener) return;
+  var bar = document.createElement('div'), keys = {}, idle = 0, lock = null, tt = 0;
+  bar.className = 'kit'; document.body.appendChild(bar);
+  var note = document.createElement('div'); note.className = 'stoast'; document.body.appendChild(note);
+  function toast(t) { note.textContent = t; note.className = 'stoast on'; clearTimeout(tt); tt = setTimeout(function () { note.className = 'stoast'; }, 4200); }
+  function wake() { document.body.classList.remove('idle'); clearTimeout(idle); idle = setTimeout(function () { document.body.classList.add('idle'); }, 2600); }
+  ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(function (e) { document.addEventListener(e, wake, { passive: true }); });
+  wake();
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function hint() { toast('이 창에서는 전체화면 버튼이 막혀 있습니다. 키보드로 하세요: 윈도우 F11, 맥 Control + Command + F'); }
+  function fs() {
+    if (isFs()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    var d = document.documentElement, req = d.requestFullscreen || d.webkitRequestFullscreen;
+    if (!req || document.fullscreenEnabled === false) { hint(); return; }
+    try { var p = req.call(d); if (p && p.catch) p.catch(hint); } catch (e) { hint(); }
+  }
+  function add(label, key, fn) {
+    var b = document.createElement('button'), k = document.createElement('kbd');
+    b.type = 'button'; b.appendChild(document.createTextNode(label)); k.textContent = key; b.appendChild(k);
+    b.onclick = function () { fn(); b.blur(); };
+    bar.insertBefore(b, bar.firstChild); keys[key.toLowerCase()] = fn;
+    return { el: b, label: function (t) { b.firstChild.textContent = t; } };
+  }
+  var fsb = add('전체화면', 'F', fs);
+  document.addEventListener('fullscreenchange', function () {
+    fsb.label(isFs() ? '전체화면 끄기' : '전체화면');
+    try { if (isFs() && navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { lock = l; }, function () {}); else if (lock) { lock.release(); lock = null; } } catch (e) {}
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target && e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    var f = keys[String(e.key || '').toLowerCase()];
+    if (f) { e.preventDefault(); f(); }
+  });
+  window.stage = { add: add, toast: toast };
+}
+var STAGE_JS = '<script>(' + stageKit_.toString() + ')();</script>';
 
 // 메일을 보냅니다. 글자판(text)을 그대로 두고, 같은 내용을 실습실과 같은 말씨의 HTML로도 함께 보냅니다.
 // "[제목]" 한 줄은 작은 소제목이 됩니다.

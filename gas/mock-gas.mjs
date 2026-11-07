@@ -39,6 +39,9 @@ class Sheet {
     const row = this.rows[r - 1];
     while (row.length < c) row.push('');
     // a text-formatted cell keeps its string; otherwise sheets turn a yyyy-mm-dd string into a date, like the real thing
+    // a leading ' keeps the rest as plain text; any other text starting with = + - @ is a formula, and reads back as its result
+    if (typeof x === 'string' && x.startsWith("'")) x = x.slice(1);
+    else if (typeof x === 'string' && /^[=+\-@]/.test(x) && !/^[+-]?\d+(\.\d+)?$/.test(x)) x = '#FORMULA(' + x + ')';
     row[c - 1] = !this.formats.has(`${r},${c}`) && typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) ? new Date(x + 'T00:00:00+09:00') : x;
   }
   getRange(r, c, nr = 1, nc = 1) {
@@ -55,10 +58,17 @@ class Sheet {
 }
 
 class Spreadsheet {
-  constructor(id) { this.id = id; this.sheets = new Map(); }
+  constructor(id) { this.id = id; this.sheets = new Map(); this.nextSheetId = 100; }
   getId() { return this.id; }
   getSheetByName(n) { return this.sheets.get(n) || null; }
-  insertSheet(n) { const s = new Sheet(n); s.setName = (nn) => { this.sheets.delete(s.name); s.name = nn; this.sheets.set(nn, s); return s; }; this.sheets.set(n, s); return s; }
+  insertSheet(n) {
+    // like Sheets: a name that is already taken is an error, and every sheet gets its own id
+    if (this.sheets.has(n)) throw new Error('A sheet with the name "' + n + '" already exists.');
+    const s = new Sheet(n), id = this.nextSheetId++;
+    s.getSheetId = () => id;
+    s.setName = (nn) => { if (this.sheets.has(nn) && this.sheets.get(nn) !== s) throw new Error('A sheet with the name "' + nn + '" already exists.'); this.sheets.delete(s.name); s.name = nn; this.sheets.set(nn, s); return s; };
+    this.sheets.set(n, s); return s;
+  }
 }
 
 const items = () => { const it = {}; for (const m of ['setTitle', 'setBounds', 'setLabels', 'setRequired']) it[m] = () => it; return it; };
@@ -114,7 +124,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
   const ctx = {
     Logger: { log: (m) => { log.logged.push(String(m)); } },
     console, Date, Math, JSON, Object, Array, String, Number, Buffer, URLSearchParams,
-    SpreadsheetApp: { getActive: () => active, getActiveSpreadsheet: () => active, openById: (id) => { if (id !== active.id) throw new Error('no such spreadsheet'); return active; }, getUi: () => ui },
+    SpreadsheetApp: { getActive: () => active, getActiveSpreadsheet: () => active, openById: (id) => { if (id !== active.id) throw new Error('no such spreadsheet'); return active; }, getUi: () => ui, flush: () => {} },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => { props.set(k, String(v)); } }) },
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => { cache.set(k, v); }, remove: (k) => { cache.delete(k); } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
@@ -124,8 +134,8 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
       base64Encode: (b) => Buffer.from(b).toString('base64'),
       formatDate: (d, tz, fmt) => {
         const k = new Date(d.getTime() + 9 * 3600e3), p = (n) => String(n).padStart(2, '0');
-        const map = { yyyy: k.getUTCFullYear(), MM: p(k.getUTCMonth() + 1), dd: p(k.getUTCDate()), HH: p(k.getUTCHours()), mm: p(k.getUTCMinutes()) };
-        return fmt.replace(/yyyy|MM|dd|HH|mm/g, (t) => map[t]);
+        const map = { yyyy: k.getUTCFullYear(), MM: p(k.getUTCMonth() + 1), dd: p(k.getUTCDate()), HH: p(k.getUTCHours()), mm: p(k.getUTCMinutes()), ss: p(k.getUTCSeconds()) };
+        return fmt.replace(/yyyy|MM|dd|HH|mm|ss/g, (t) => map[t]);
       },
     },
     UrlFetchApp: {
@@ -186,8 +196,10 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
 // Runs the browser script of a served page against a stub DOM. google.script.run calls are executed synchronously on the
 // server functions of `env`, so the page logic is exercised end to end (a call to a function that does not exist throws).
 export function runPage(env, html, { values = {} } = {}) {
-  const script = /<script>([\s\S]*)<\/script>/.exec(html)[1];
+  // every inline <script> block, in order (src-only scripts are skipped, as they load third-party code)
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join(';\n');
   const els = new Map(), calls = [], timers = [], store = new Map();
+  let tid = 0;
   const el = (sel) => {
     if (!els.has(sel)) {
       const e = { sel, innerHTML: '', value: values[sel] ?? '', hidden: false, disabled: false, className: '', style: {}, children: [], onclick: null, oninput: null };
@@ -215,9 +227,21 @@ export function runPage(env, html, { values = {} } = {}) {
   });
   const sandbox = {
     google: { script: { run: run() } },
-    document: { querySelector: el, createElement: () => ({ textContent: '', className: '', style: {}, children: [], appendChild(c) { this.children.push(c); return c; }, scrollIntoView() {} }) },
+    document: { querySelector: el, createTextNode: (t) => ({ textContent: String(t), children: [] }), createElement: () => {
+      const e = { className: '', style: { setProperty() {} }, children: [], scrollIntoView() {} };
+      let own = '';
+      // like the DOM: reading joins the children's text, assigning drops the children
+      Object.defineProperty(e, 'textContent', { get: () => own + e.children.map((c) => c.textContent).join(''), set: (v) => { own = String(v); e.children.length = 0; } });
+      e.appendChild = (c) => { e.children.push(c); return c; };
+      e.insertBefore = (c, ref) => { const k = ref ? e.children.indexOf(ref) : -1; if (k < 0) e.children.push(c); else e.children.splice(k, 0, c); return c; };
+      e.removeChild = (c) => { const k = e.children.indexOf(c); if (k >= 0) e.children.splice(k, 1); return c; };
+      Object.defineProperty(e, 'firstChild', { get: () => e.children[0] || null });
+      return e;
+    } },
     localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) },
-    location: { search: '' }, setTimeout: (f, ms) => { timers.push([f, ms]); return timers.length; }, Math, console,
+    location: { search: '' }, Math, console,
+    setTimeout: (f, ms) => { const t = [f, ms]; t.id = ++tid; timers.push(t); return t.id; },
+    clearTimeout: (id) => { const k = timers.findIndex((t) => t.id === id); if (k >= 0) timers.splice(k, 1); },
   };
   vm.runInNewContext(script, sandbox, { filename: 'page.js' });
   return {

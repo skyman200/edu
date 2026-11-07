@@ -61,7 +61,7 @@ function onSurveySubmit(e) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    sheet_('분석').appendRow([new Date(), sat, mood, topic, suggest, urgent, good, want]);
+    row_(sheet_('분석'), [new Date(), sat, mood, topic, suggest, urgent, good, want]);
   } finally { lock.releaseLock(); }
   if (urgent) mail_(mailTo_(), '[수업 설문] 긴급으로 보이는 응답', '좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want + '\n\n※ Jev가 긴급으로 판정했습니다. 직접 읽고 판단하세요.');
   var every = Math.max(3, Number(ss_().getSheetByName('설정').getRange('B1').getValue()) || 10);
@@ -106,7 +106,7 @@ function sendDigest(quiet) {
 // 강의장 결과 화면: 설문 응답이 들어올 때마다 만족도 게이지, 감정 분포, 주제 순위가 움직입니다.
 // 긴급 표시와 아쉬웠던 점은 화면에 내보내지 않습니다(메일과 시트에서만 봅니다).
 function doGet() {
-  return page_('수업 반응', REPORT_HTML, { raw: true, css: REPORT_CSS });
+  return page_('수업 반응', REPORT_HTML, { raw: true, css: REPORT_CSS + STAGE_CSS });
 }
 
 function getReport() {
@@ -235,4 +235,4 @@ var REPORT_HTML = '<div class="stage"><div><div class="live">LIVE · <span class
   '<section><h2>DISTRIBUTION</h2><div class="hist" id="hist"></div><div class="mood" id="mood"></div><div class="mlab"><span>매우 부정</span><span>중립</span><span>매우 긍정</span></div></section>' +
   '<section><h2>TOPICS</h2><div class="tp" id="tp"></div></section></div>' +
   '<div class="quote"><small>VOICE</small><span id="qt"></span></div></div>' +
-  '<script>(' + reportClient_.toString() + ')();</script>';
+  '<script>(' + reportClient_.toString() + ')();</script>' + STAGE_JS;

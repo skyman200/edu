@@ -84,7 +84,7 @@ function ask(question, sid) {
   var id = Utilities.getUuid().replace(/-/g, '').slice(0, 6).toUpperCase();
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
-  try { sheet_('질문기록').appendRow([new Date(), id, q, a.kind.choice, Math.round(a.answerable.p * 100) / 100, auto ? '자동답변' : '교수님께', auto ? answer : '']); } finally { lock.releaseLock(); }
+  try { row_(sheet_('질문기록'), [new Date(), id, q, a.kind.choice, Math.round(a.answerable.p * 100) / 100, auto ? '자동답변' : '교수님께', auto ? answer : '']); } finally { lock.releaseLock(); }
   var kind = { content: '수업 내용', task: '과제·평가', schedule: '일정·행정', personal: '개인 사정', other: '기타' }[a.kind.choice] || '기타', pct = Math.round(a.answerable.p * 100);
   return auto ? { ok: true, auto: true, answer: answer, p: pct, kind: kind } : { ok: true, auto: false, id: id, p: pct, kind: kind };
 }

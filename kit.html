@@ -32,6 +32,7 @@ p{margin:0 0 6pt}
 .cover .for{margin-top:14mm;padding-top:6mm;border-top:3px solid var(--ink)}
 .cover .for b{display:block;font-size:20pt;letter-spacing:-.02em}
 .cover .for span{color:var(--ink2);font-size:12pt}
+.cover .cnt{margin-top:6mm;font-size:13pt;font-weight:700}
 .cover .qrrow{display:flex;gap:6mm;align-items:center}
 .cover .qr svg{width:30mm;height:30mm;border:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:9.5pt;margin:4pt 0 8pt}
@@ -49,6 +50,12 @@ li{margin:0 0 3pt}
 .url svg{flex:none;width:26mm;height:26mm}
 .url code{display:block;font-size:7.5pt;word-break:break-all}
 .url b{font-size:9.5pt}
+.rb{margin:0 0 12pt;padding:8pt 10pt;border:1px solid var(--line);break-inside:avoid;page-break-inside:avoid}
+.rb .rt{display:block;font-size:13pt;font-weight:800;letter-spacing:-.02em}
+.rb .rm{margin:0 0 6pt;color:var(--ink2);font-size:9pt}
+.rb .pn{margin:6pt 0 3pt;font:700 8pt/1.3 Montserrat,Pretendard,sans-serif;letter-spacing:.2em;color:var(--ink2)}
+.rb ol{margin:0 0 4pt}
+.rb li{white-space:pre-wrap;overflow-wrap:anywhere}
 pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;font:6.6pt/1.45 Menlo,Consolas,"D2Coding",monospace;white-space:pre-wrap;word-break:break-all}
 @page{size:A4;margin:14mm 16mm 18mm}
 @media print{
@@ -61,7 +68,7 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
 <body>
 <div class="bar"><div class="in">
   <h1>AI 수업 자동화 키트 (PDF)</h1>
-  <p>성함과 소속을 적으면 표지와 모든 쪽 아래에 들어갑니다. 적지 않아도 만들어집니다. 웹 도구에서 만든 내 주소와 QR이 있으면 함께 들어갑니다.</p>
+  <p>성함과 소속을 적으면 표지와 모든 쪽 아래에 들어갑니다. 적지 않아도 만들어집니다. 웹 도구에서 만든 내 결과물이 있으면 주소와 QR, 내가 AI에게 한 말, 코드가 함께 들어갑니다.</p>
   <div class="row"><input type="text" id="nm" placeholder="성함 (선택, 예: 김서연)"><input type="text" id="org" placeholder="소속 (선택, 예: 부산외대 경영학과)"></div>
   <div class="row" id="picks"></div>
   <div class="row"><label><input type="checkbox" id="withCode" checked> 코드 전문 포함(쪽수가 늘어납니다)</label><button id="save">PDF로 저장</button><span class="note" id="hint">누르면 인쇄 창이 열립니다. 대상을 "PDF로 저장"으로 두고 저장하세요. 파일 이름은 자동으로 채워집니다.</span></div>
@@ -90,10 +97,34 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
   var nm = $('#nm'), org = $('#org'), withCode = $('#withCode');
   nm.value = Q.get('name') != null ? Q.get('name') : lsGet('acl-kit-name', '');
   org.value = Q.get('org') != null ? Q.get('org') : lsGet('acl-kit-org', '');
-  var chosen = Q.get('r') ? Q.get('r').split(',') : lsGet('acl-kit-recipes', null);
+  // 수업 코드는 PDF에 넣지 않습니다: EMBEDDED_CODE 선언 줄을 지우고, 저장된 수업 코드 값도 바꿉니다.
+  var AICODE = lsGet('acl-aicode', '');
+  function scrub(s) {
+    s = String(s == null ? '' : s).replace(/^\s*var\s+EMBEDDED_CODE\s*=.*;[ \t]*\r?\n?/gm, '');
+    return typeof AICODE === 'string' && AICODE.length >= 4 ? s.split(AICODE).join('(수업 코드)') : s;
+  }
+  function loadResults() {
+    var a = lsGet('acl-gas-results', []);
+    if (!Array.isArray(a)) return [];
+    return a.filter(function (x) { return x && typeof x.r === 'string' && typeof x.title === 'string' && DATA.recipes.some(function (r) { return r.id === x.r; }); }).map(function (x) {
+      return { r: x.r, title: x.title, url: typeof x.url === 'string' ? x.url : '', code: typeof x.code === 'string' ? scrub(x.code) : '',
+        prompts: Array.isArray(x.prompts) ? x.prompts.filter(function (p) { return typeof p === 'string' && p; }).map(scrub).filter(Boolean) : [], t: Number(x.t) || 0, u: Number(x.u) || Number(x.t) || 0 };
+    }).sort(function (a, b) { return a.t - b.t; });
+  }
+  var RES = loadResults();
+  var saved = lsGet('acl-kit-recipes', null);
+  // 기본 선택 = (저장해 둔 선택, 없으면 전체) + 결과물이 있는 레시피. ?r= 로 지정하면 그대로 따릅니다.
+  var chosen = Q.get('r') ? Q.get('r').split(',') : Array.isArray(saved) ? saved.concat(RES.map(function (x) { return x.r; })) : null;
   var recs = DATA.recipes.filter(function (r) { return r.id !== 'blank'; });
   var blank = DATA.recipes.filter(function (r) { return r.id === 'blank'; })[0];
-  function urlOf(id) { return lsGet('acl-gas-url-' + id, ''); }
+  function urlOf(id) {
+    var best = null;
+    RES.forEach(function (x) { if (x.r === id && x.url && (!best || x.u >= best.u)) best = x; });
+    return best ? best.url : '';
+  }
+  function fmtT(t) { var d = new Date(t); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function recipeName(id) { var r = DATA.recipes.filter(function (x) { return x.id === id; })[0]; return r ? r.name : id; }
+  function linksOf(id) { var r = DATA.recipes.filter(function (x) { return x.id === id; })[0]; return (r && r.web && r.web.links && r.web.links.length) ? r.web.links : [{ label: '학생용 주소', suffix: '' }]; }
   var picks = $('#picks');
   recs.concat([blank]).forEach(function (r) {
     var lab = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.value = r.id; cb.checked = chosen ? chosen.indexOf(r.id) >= 0 : true;
@@ -113,6 +144,26 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
       add(d, 'div', 'r', '→ ' + s.result);
     });
   }
+  function urlCards(parent, id, u) {
+    linksOf(id).forEach(function (L) {
+      var full = u + L.suffix, row = add(parent, 'div', 'url'), q = qr(full), t = add(row, 'div');
+      if (q) row.insertBefore(q, t);
+      add(t, 'b', '', L.label); add(t, 'code', '', full);
+    });
+  }
+  function resultsSection(root, shown, withC) {
+    var s = add(root, 'section', 'sec');
+    add(s, 'div', 'k', 'MY RESULTS'); add(s, 'h2', '', '내가 만든 결과물');
+    add(s, 'p', '', '웹 도구에서 직접 만든 결과물입니다. 주소와 QR로 학생에게 나눠 주고, "내가 AI에게 한 말"은 같은 결과물을 다시 만들 때 그대로 쓸 수 있습니다.');
+    shown.forEach(function (x) {
+      var b = add(s, 'div', 'rb');
+      add(b, 'b', 'rt', x.title);
+      add(b, 'div', 'rm', recipeName(x.r) + (x.t ? ' · 만든 날 ' + fmtT(x.t) : '') + (x.u ? ' · 고친 날 ' + fmtT(x.u) : ''));
+      if (x.url) urlCards(b, x.r, x.url);
+      if (x.prompts.length) { add(b, 'div', 'pn', '내가 AI에게 한 말'); var ol = add(b, 'ol'); x.prompts.forEach(function (p) { add(ol, 'li', '', p); }); }
+      if (x.code && withC) add(b, 'p', '', "코드는 부록 '내 코드'에 있습니다.");
+    });
+  }
   function recipeSection(root, r, no) {
     var s = add(root, 'section', 'sec');
     add(s, 'div', 'k', 'RECIPE ' + String(no).padStart(2, '0'));
@@ -127,12 +178,8 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
       .concat(web.deploy ? ['배포 → 새 배포 → 웹 앱(액세스: 모든 사용자)으로 배포하고 웹 앱 URL을 웹 도구에 붙여 넣으면 주소와 QR이 만들어집니다.'] : [])
       .concat(web.after || []).forEach(function (t) { add(ol, 'li', '', t); });
     if (u) {
-      add(s, 'h3', '', '내 주소 (웹 도구에서 만든 것)');
-      (web.links || [{ label: '학생용 주소', suffix: '' }]).forEach(function (L) {
-        var full = u + L.suffix, row = add(s, 'div', 'url'), q = qr(full), t = add(row, 'div');
-        if (q) row.insertBefore(q, t);
-        add(t, 'b', '', L.label); add(t, 'code', '', full);
-      });
+      add(s, 'h3', '', '내 주소 (웹 도구에서 만든 가장 최근 결과물)');
+      urlCards(s, r.id, u);
     }
     add(s, 'h3', '', '2 · 프롬프트 기록: 이 코드는 이렇게 만들어졌습니다');
     stories(s, r);
@@ -144,7 +191,8 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
     var root = $('#doc'); root.textContent = '';
     var W = who(), ids = selected(), list = DATA.recipes.filter(function (r) { return ids.indexOf(r.id) >= 0; });
     lsSet('acl-kit-name', nm.value.trim()); lsSet('acl-kit-org', org.value.trim()); lsSet('acl-kit-recipes', ids);
-    document.title = 'AI수업키트_' + (W.n ? W.n + '교수' : '맞춤');
+    var shown = RES.filter(function (x) { return ids.indexOf(x.r) >= 0; });
+    document.title = 'AI수업키트_' + (W.n ? W.n + '교수' : '맞춤') + (shown.length ? '_결과물' + shown.length + '개' : '');
     var cssStr = function (x) { return '"' + x.replace(/["\\]/g, ' ').replace(/[\r\n]+/g, ' ') + '"'; };
     $('#pg').textContent = '@page{@bottom-left{content:' + cssStr('PROF.KIMCOOK · AI CLASS LAB' + (W.line ? '  ·  ' + W.line + ' 맞춤 키트' : '')) + ';font:700 7pt Montserrat,Pretendard,sans-serif;letter-spacing:.14em;color:#8e8e8e;vertical-align:top;padding-top:6mm}@bottom-right{content:counter(page) " / " counter(pages);font:700 7pt Montserrat,sans-serif;color:#8e8e8e;vertical-align:top;padding-top:6mm}}';
 
@@ -155,6 +203,7 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
     var f = add(top, 'div', 'for');
     if (W.n || W.o) { add(f, 'span', '', 'PREPARED FOR'); add(f, 'b', '', W.n ? W.n + ' 교수님' : W.o); if (W.n && W.o) add(f, 'span', '', W.o); }
     else add(f, 'span', '', '교수님 맞춤 키트 (성함과 소속을 적으면 이 자리에 들어갑니다)');
+    if (shown.length) add(top, 'p', 'cnt', '내가 만든 결과물 ' + shown.length + '개');
     var bot = add(c, 'div', 'qrrow'), q0 = qr(SITE), qb = add(bot, 'div', 'qr'); if (q0) qb.appendChild(q0);
     var tx = add(bot, 'div'); add(tx, 'b', '', '웹 도구'); add(tx, 'p', '', SITE); add(tx, 'p', '', '코드 복사는 이 PDF가 아니라 웹 도구의 "코드 복사" 버튼으로 하세요. PDF에서 복사하면 줄바꿈이 깨질 수 있습니다.');
 
@@ -170,6 +219,8 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
       '(선택) 반응판과 설문 결과 화면은 웹 도구의 "파워포인트에서도 쓰기"로 슬라이드 파일을 받아 수업 중간에 열 수 있습니다.'].forEach(function (t) { add(ol, 'li', '', t); });
     add(s1, 'h3', '', '프롬프트 공식: 여섯 가지만 말하면 됩니다');
     var pt = add(s1, 'table'); DATA.promptRule.forEach(function (x) { var tr = add(pt, 'tr'); add(tr, 'th', '', x[0]); add(tr, 'td', '', x[1]); });
+
+    if (shown.length) resultsSection(root, shown, withCode.checked);
 
     var n = 0;
     list.filter(function (r) { return r.id !== 'blank'; }).forEach(function (r) { recipeSection(root, r, ++n); });
@@ -192,6 +243,17 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
       add(ap, 'p', '', '모든 결과물 코드 앞에는 공통 도우미(Jev·AI 호출, 시트 도우미, 화면 틀)가 필요합니다. 웹 도구의 복사 버튼은 둘을 합쳐서 복사합니다.');
       add(ap, 'h3', '', '공통 도우미 (모든 결과물 앞에 붙습니다)'); add(ap, 'pre', '', DATA.common.code);
       list.forEach(function (r) { if (r.code) { add(ap, 'h3', '', r.name); add(ap, 'pre', '', r.code); } });
+      var mine = shown.filter(function (x) { return x.code; });
+      if (mine.length) {
+        var mc = add(root, 'section', 'sec'); add(mc, 'div', 'k', 'APPENDIX'); add(mc, 'h2', '', '내 코드');
+        add(mc, 'p', '', '내 결과물의 코드입니다. 코드 복사는 이 PDF가 아니라 웹 도구의 "코드 복사" 버튼으로 하세요. 결과물은 웹 도구에서 "열기"로 다시 불러올 수 있습니다.');
+        mine.forEach(function (x) {
+          var body = x.code, cm = DATA.common.code;
+          add(mc, 'h3', '', x.title + ' · ' + recipeName(x.r));
+          if (body.indexOf(cm) === 0 && body.slice(cm.length).trim()) { body = body.slice(cm.length).replace(/^\n/, ''); add(mc, 'p', '', '맨 앞의 공통 도우미는 위 "코드 전문"의 공통 도우미와 같아서 생략했습니다. 웹 도구의 코드 복사 버튼은 둘을 합쳐 줍니다.'); }
+          add(mc, 'pre', '', body);
+        });
+      }
     }
   }
   nm.oninput = org.oninput = render; withCode.onchange = render;
