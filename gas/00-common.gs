@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.08-a';
+var CODE_VERSION = 'v2026.11.08-b';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    post_  : 수업 서버(kimcook-edu.pages.dev)로 보내는 공통 통로. 수업 코드는 스크립트 속성에만 저장됩니다.
@@ -146,7 +146,7 @@ var FONT_LINK = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orionc
 
 // 실습실 본 페이지와 같은 말씨: 종이색 바탕, 잉크색 글씨, 1px 선, 각진 모서리, 빨강 한 가지 포인트.
 var PAGE_CSS = [
-  ':root{--ink:#1a1a1a;--ink2:#4a4a4a;--mut:#8e8e8e;--paper:#f2f2f2;--sheet:#f8f8f8;--line:#d2d2d2;--line2:#bcbcbc;--red:#e54536}',
+  ':root{--ink:#1a1a1a;--ink2:#4a4a4a;--mut:#8e8e8e;--paper:#ffffff;--sheet:#f2f2f0;--line:#d2d2d2;--line2:#bcbcbc;--red:#e54536}',
   '*{box-sizing:border-box}',
   '.ko{letter-spacing:.04em}',
   'body{margin:0;word-break:keep-all;background:var(--paper);color:var(--ink);font:17px/1.65 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}',

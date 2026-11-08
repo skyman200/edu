@@ -183,7 +183,7 @@ function getBoard() {
 // 학생 폰 화면. 큰 화면과 같은 말씨: 종이 바탕 위의 흰 종이 한 장(슬립)에 생각을 적어 보냅니다.
 // 보내면 그 종이가 위로 날아가고, 아래 '내가 보낸 생각'에 번호와 묶음이 찍힌 종이로 남습니다. 큰 화면의 칸에도 같은 번호가 붙습니다.
 var ASK_CSS = [
-  ':root{--bg:#efede8;--ink:#141414;--mut:#77736b;--hair:rgba(20,20,20,.16);--slip:#fff;--red:#e54536;--e:cubic-bezier(.2,.8,.2,1)}',
+  ':root{--bg:#ffffff;--ink:#111111;--mut:#6e6e6e;--hair:rgba(17,17,17,.14);--slip:#fff;--tile:#f2f2f0;--red:#e54536;--e:cubic-bezier(.2,.8,.2,1)}',
   '*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}',
   'body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:16px/1.5 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all}',
   '.ask{max-width:560px;margin:0 auto;padding:clamp(18px,5vw,40px) clamp(18px,5vw,28px) 80px}',
@@ -212,7 +212,7 @@ var ASK_CSS = [
   '.mine{margin-top:34px}.mine[hidden]{display:none}',
   '.mine h2{display:flex;justify-content:space-between;margin:0 0 10px;padding-top:10px;border-top:1px solid var(--ink);font:700 11px/1 Montserrat,Pretendard,sans-serif;letter-spacing:.2em}',
   '.mine h2 span:first-child{font-family:Pretendard,sans-serif;font-size:13px;letter-spacing:-.01em}.mine h2 span:last-child{letter-spacing:.04em}',
-  '.sent{display:flex;margin:0 0 3px;background:var(--slip);font-size:16px;line-height:1.45}',
+  '.sent{display:flex;margin:0 0 3px;background:var(--tile);font-size:16px;line-height:1.45}',
   '.sent .no{flex:none;display:flex;align-items:center;padding:12px 12px;border-right:1px solid var(--hair);font:700 11px/1 Montserrat,sans-serif;letter-spacing:.06em;color:var(--mut);font-variant-numeric:tabular-nums}',
   '.sent p{flex:1;margin:0;padding:11px 14px;overflow-wrap:anywhere}',
   '.sent small{display:block;margin-top:3px;font-size:12px;font-weight:700;color:var(--mut)}.sent:first-child small{color:var(--red)}',
@@ -315,7 +315,7 @@ var ASK_HTML = '<main class="ask"><div class="bar"><span>LIVE BOARD</span><span 
 // 새 답은 먼저 화면 위쪽에 크게 한 단어씩 나타나고, 묶음이 정해지면 줄어들며 그 막대의 맨 위 칸으로 들어갑니다.
 // 답이 많아 칸이 얇아지면 글 대신 선으로 쌓고, 막대 위에 가장 최근 답 한 줄을 남깁니다. 강조색(빨강)은 가장 많은 묶음의 숫자에만 씁니다.
 var BOARD_CSS = [
-  ':root{--bg:#efede8;--fg:#141414;--ink:#141414;--mut:#77736b;--hair:rgba(20,20,20,.16);--slip:#ffffff;--bar:#bdb9b0;--red:#e54536;--e:cubic-bezier(.2,.8,.2,1)}',
+  ':root{--bg:#ffffff;--fg:#111111;--ink:#111111;--mut:#6e6e6e;--hair:rgba(17,17,17,.14);--slip:#f1f1ef;--bar:#cfcfcb;--red:#e54536;--e:cubic-bezier(.2,.8,.2,1)}',
   'body.dark{--bg:#121212;--fg:#efede8;--ink:#efede8;--mut:#8f8b83;--hair:rgba(239,237,232,.18);--slip:#232322;--bar:#5d5b56}',
   '*{box-sizing:border-box}html,body{height:100%}',
   'body{margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font:16px/1.5 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;transition:background-color .6s,color .6s}',
