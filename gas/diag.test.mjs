@@ -52,15 +52,10 @@ test('diagnose: common failures, specific beats generic', () => {
   for (const r of D.RULES) assert.ok(r.title && r.cause && /[가-힣]/.test(r.fix), r.id);
 });
 
-test('excerpt and extractCode', () => {
+test('excerpt', () => {
   const code = Array.from({ length: 30 }, (_, i) => 'line' + (i + 1)).join('\n');
   assert.deepEqual(D.excerpt(code, [5, 20], 1).map((x) => x.n), [4, 5, 6, 0, 19, 20, 21]);
   assert.deepEqual(D.excerpt(code, [99], 2), []);
-  const md = '설명\n```javascript\nfunction a() {}\n```\n```js\nfunction bigger() {\n  return 1;\n}\n```\n```html\n<div></div>\n```';
-  assert.deepEqual(D.extractCode(md), { code: 'function bigger() {\n  return 1;\n}', truncated: false });
-  assert.deepEqual(D.extractCode('```javascript\nfunction a() {\n  var x'), { code: 'function a() {\n  var x', truncated: true });
-  assert.equal(D.extractCode('코드를 만들지 못했어요').code, '');
-  assert.equal(D.extractCode('').code, '');
 });
 
 test('staticCheck: syntax, brackets, helpers, duplicates, keys', () => {
@@ -101,12 +96,128 @@ test('lineDiff', () => {
 test('prompts', () => {
   const mk = D.buildMakePrompt({ request: '  퀴즈를 5문항으로  ', title: '칠판', hasBase: true });
   assert.ok(mk.includes('고쳐') && mk.includes('퀴즈를 5문항으로') && mk.includes('```javascript'));
+  assert.ok(mk.includes('<<<<<<< 찾기') && mk.includes('>>>>>>> 바꾸기'));
+  assert.ok(mk.includes('바꾸거나 새로 만든 함수만') && mk.includes('// 삭제: 함수이름') && !mk.includes('수정한 전체 코드'), 'AI ONE gets function-level patches');
   const ex = D.buildExternalPrompt({ request: '요청', title: 'T', code: 'function a(){}\n' });
   assert.ok(ex.includes('[기준 코드]\n```javascript\nfunction a(){}\n```') && !ex.includes('첨부한'));
+  assert.ok(ex.includes('수정한 전체 코드') && !ex.includes('바꾸거나 새로 만든 함수만'), 'external AIs still return the whole file');
   const fx = D.buildFixPrompt({ error: "TypeError: Cannot read properties of null (reading 'getRange') (줄 12)", notes: D.diagnose("reading 'getRange' of null"), attempt: 0 });
   assert.ok(fx.includes('[오류가 난 줄] 12') && !fx.includes('이미 한 번 고쳤는데'));
+  assert.ok(fx.includes('고친 함수만') && !fx.includes('고친 전체 코드'));
   assert.ok(D.buildFixPrompt({ error: 'x', attempt: 1 }).includes('이미 한 번 고쳤는데'));
   assert.ok(D.buildFixPrompt({ error: 'x'.repeat(5000), attempt: 0 }).length < 3500);
+});
+
+const blk = (o, n, ind = '') => ind + '<<<<<<< 찾기\n' + o + '\n' + ind + '=======\n' + n + '\n' + ind + '>>>>>>> 바꾸기\n';
+const unchanged = (base, patch) => { const r = D.applyPatch(base, patch); assert.ok(r.failed.length || r.incomplete, 'must be refused: ' + patch.slice(0, 60)); assert.equal(r.code, base, 'a refused patch leaves the code as it was'); return r; };
+
+test('applyPatch: replaces, adds and deletes functions by name', () => {
+  const base = [
+    "// header", "var CFG = { a: 1 };", "const NAME = 'x';", "",
+    "// 시작", "function start() {", "  var s = '}{';", "  return /[})]/.test(s) ? 1 : 2; // }", "}", "",
+    "async function later(a = {}) {", "  return `${a}}`;", "}", "", "function gone() { return 0; }", "",
+  ].join('\n');
+  const r = D.applyPatch(base, ["function start() {", "  return 42;", "}", "const NAME = 'y';", "// 새 함수", "function extra_() { return 3; }", "// 삭제: gone", ""].join('\n'));
+  assert.deepEqual([r.replaced, r.added, r.removed, r.failed, r.incomplete], [['start', 'NAME'], ['extra_'], ['gone'], [], false]);
+  assert.ok(r.code.includes('// 시작\nfunction start() {\n  return 42;\n}\n'), 'the comment above a replaced function stays');
+  assert.ok(r.code.includes("const NAME = 'y';") && !r.code.includes("'x'") && r.code.includes('var CFG = { a: 1 };'));
+  assert.ok(r.code.includes('async function later(a = {})') && !r.code.includes('gone()'));
+  assert.ok(r.code.trimEnd().endsWith('// 새 함수\nfunction extra_() { return 3; }'));
+  new Function(r.code);
+  assert.equal(D.applyPatch(base, '').count, 0);
+  assert.equal(D.applyPatch(base, 'function broken() {\n  var x = {').incomplete, true);
+  assert.equal(D.applyPatch('', 'function a() {}').code.trim(), 'function a() {}');
+  assert.equal(D.applyPatch(base, 'function start() { return 1; }\nfunction start() { return 2; }').code.includes('return 2'), true, 'a later duplicate wins');
+});
+
+test('applyPatch: search/replace blocks edit a few lines inside a big function', () => {
+  const base = 'function a() {\n  var x = 1;\n  if (x) {\n    y();\n  }\n}\nfunction b() { y(); }\n';
+  const ok = D.applyPatch(base, blk('  var x = 1;', '  var x = 2;\n  z();'));
+  assert.deepEqual([ok.edited, ok.failed, ok.incomplete], [1, [], false]);
+  assert.equal(ok.code, 'function a() {\n  var x = 2;\n  z();\n  if (x) {\n    y();\n  }\n}\nfunction b() { y(); }\n');
+  // the anchor has a different indentation than the base: found by trimmed lines, the new lines take the base indentation
+  const loose = D.applyPatch('function f() {\n    if (a) {\n        go();\n    }\n}\n', blk('if (a) {\n    go();\n}', 'if (a) {\n    go2();\n}'));
+  assert.equal(loose.failed.length, 0);
+  assert.equal(loose.code, 'function f() {\n    if (a) {\n        go2();\n    }\n}\n');
+  const both = D.applyPatch(base, blk('  var x = 1;', '  var x = 5;') + 'function b() { return 9; }\n');
+  assert.deepEqual([both.edited, both.replaced], [1, ['b']]);
+  assert.equal(D.applyPatch(base, blk('y();', 'q();')).failed[0].why.slice(0, 8), '같은 글이 여러');
+  assert.equal(D.applyPatch(base, blk('nothing here', 'x')).failed.length, 1);
+  // indented marker lines are still blocks
+  assert.equal(D.applyPatch(base, blk('  var x = 1;', '  var x = 3;', '    ')).edited, 1);
+});
+
+test('applyPatch refuses anything it cannot place safely and then changes nothing', () => {
+  const base = "var HTML = '<a>';\n\nfunction f() { return HTML; }\nfunction g() {\n  var url = webUrl_() || set();\n  return url;\n}\n";
+  // an unfinished or tangled marker block
+  unchanged(base, '<<<<<<< 찾기\nvar x\n=======\nvar x = 3');
+  unchanged(base, blk('var url = webUrl_() || set();', 'NEW1').replace('>>>>>>> 바꾸기\n', '') + blk('return url;', 'NEW2'));
+  // an anchor that is missing or ambiguous anywhere in the answer fails the whole answer, even if other parts are fine
+  unchanged(base, blk('return url;', 'return 1;') + blk('not there', 'x') + 'function h_() {}\n');
+  // loose text next to the code, a bare statement, a class
+  unchanged(base, 'function h_() {}\nconsole.log(1);\n');
+  unchanged(base, 'class A { m() {} }\n');
+  // delete of a name that does not exist
+  assert.match(unchanged(base, '// 삭제: nothing_\nfunction h_() {}\n').failed[0].why, /기준 코드에 없습니다/);
+  // an unfinished function
+  unchanged(base, 'function h_() {\n  var a = [');
+  // a base whose braces do not match cannot take function patches, but marker blocks still work on it
+  const broken = 'function a() {\n  if (x) {\n    y();\n}\nfunction b() { return 1; }\n';
+  unchanged(broken, 'function c_() {}\n');
+  assert.equal(D.applyPatch(broken, blk('    y();', '    z();')).edited, 1);
+  // a multi-line var: a comment between the lines must not cut the declaration
+  const r = D.applyPatch(base, "var HTML = '<c>' +\n  // note\n  '<d>';\n");
+  assert.deepEqual(r.replaced, ['HTML']);
+  assert.equal(r.code, "var HTML = '<c>' +\n  // note\n  '<d>';\n\nfunction f() { return HTML; }\nfunction g() {\n  var url = webUrl_() || set();\n  return url;\n}\n");
+});
+
+test('applyPatch: scanning survives nested templates, regexes and strings; new constants go before their first user; comments are kept clean', () => {
+  const base = "function list_(xs) { return `<ul>${xs.map((x) => `<li>${x}</li>`).join('')}</ul>`; }\nfunction later_() { return 1; }\nvar ASK = '<b>' + 'x';\nfunction re_() { return /\\/\\*|[\"'`]/.test(s) ? 1 : a / b; }\nfunction tail_() { return 2; }\n";
+  const u = D.scanUnits(base);
+  assert.deepEqual(u.map((x) => x.name), ['list_', 'later_', 'ASK', 're_', 'tail_']);
+  assert.ok(!u.some((x) => x.incomplete));
+  const r = D.applyPatch(base, "function later_() { return 11; }\n// 지금은 안 쓰는 값\nconst NOTICE = 'n';\nvar ASK = '<main>' + NOTICE;\n/*\n  도우미\n*/\nfunction helper_() { return 5; }\n");
+  assert.deepEqual([r.replaced, r.added.sort(), r.failed], [['later_', 'ASK'], ['NOTICE', 'helper_'], []]);
+  assert.ok(r.code.indexOf("const NOTICE = 'n';") < r.code.indexOf("var ASK = '<main>' + NOTICE;"), 'the constant is defined before the declaration that reads it');
+  assert.ok(r.code.includes('/*\n  도우미\n*/\nfunction helper_()'), 'a block comment above a new function is kept whole');
+  new Function(r.code);
+  // the delete directive inside a replaced function body is just a comment, not an instruction
+  const sneaky = D.applyPatch(base, "function later_() {\n  // 제거: tail_ 호출은 뺐습니다\n  return 1;\n}\n");
+  assert.deepEqual([sneaky.removed, sneaky.failed], [[], []]);
+  assert.ok(sneaky.code.includes('function tail_()'));
+});
+
+test('applyPatch on the real recipes: every unit round-trips and a patched function splices cleanly', () => {
+  const common = fs.readFileSync(path.join(here, '00-common.gs'), 'utf8');
+  for (const f of fs.readdirSync(here).filter((x) => /^r\d.*\.gs$/.test(x))) {
+    const base = common + '\n' + fs.readFileSync(path.join(here, f), 'utf8');
+    const units = D.scanUnits(base);
+    assert.equal(units.filter((u) => u.kind === 'function').length, (base.match(/^(?:async\s+)?function\s+\w+/gm) || []).length, f);
+    assert.equal(units.filter((u) => u.kind === 'var').length, (base.match(/^(?:const|let|var)\s+\w+/gm) || []).length, f);
+    assert.ok(!units.some((u) => u.incomplete), f);
+    for (const u of units) {
+      const text = base.slice(u.start, u.end);
+      if (u.kind === 'function') new Function(text);
+      const same = D.applyPatch(base, text);
+      assert.deepEqual([same.replaced, same.failed, same.code], [[u.name], [], base], f + ' ' + u.name + ': replacing a unit by itself changes nothing');
+    }
+    const t = units.filter((u) => u.kind === 'function')[3];
+    const mine = base.slice(t.start, t.end).replace('{', '{ var patched_ = 1;');
+    const r = D.applyPatch(base, D.extractPatch('```javascript\n' + mine + '\n```').code);
+    assert.deepEqual([r.replaced, r.added, r.removed], [[t.name], [], []], f);
+    const d = D.lineDiff(base, r.code);
+    assert.ok(d.added <= 2 && d.removed <= 2, f + ' only the patched function changes');
+    new Function(r.code);
+  }
+});
+
+test('extractPatch: joins every code block, takes marker blocks in any fence, flags an unclosed one', () => {
+  assert.deepEqual(D.extractPatch('설명\n```javascript\nfunction a() {}\n```\n그리고\n```js\nfunction b() {}\n```'), { code: 'function a() {}\n\nfunction b() {}', truncated: false });
+  assert.equal(D.extractPatch('```javascript\nfunction a() {}\n```\n```javascript\nfunction b() {').truncated, true);
+  assert.equal(D.extractPatch('```json\n{"a":1}\n```').code, '');
+  assert.equal(D.extractPatch('').code, '');
+  assert.equal(D.extractPatch('```javascript\nfunction n_() {}\n```\n```diff\n' + blk('a', 'b') + '```').code.includes('<<<<<<< 찾기'), true, 'a marker block in a diff fence is not dropped');
+  assert.equal(D.extractPatch('```html\n<div></div>\n```').code, '');
 });
 
 test('recipes: bundle up to date, Jev presets pass the real validator, sources really ask those questions, helpers + recipe pass staticCheck', () => {

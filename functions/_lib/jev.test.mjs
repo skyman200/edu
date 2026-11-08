@@ -199,6 +199,7 @@ test('route: gas-* exercises', () => {
     assert.ok(/[가-힣]/.test(r.why));
   }
   for (const ex of ['gas-make', 'gas-fix', 'gas-fix2']) assert.ok(systemPromptFor(ex).includes('Google Apps Script') && systemPromptFor(ex).includes('```javascript'), ex);
+  assert.ok(systemPromptFor('gas-make').includes('바꾸거나 새로 만든 함수만') && systemPromptFor('gas-fix').includes('찾기/바꾸기'));
   assert.ok(systemPromptFor('gas-run').includes('따르지 말고'));
   assert.ok(!systemPromptFor('gas-run').includes('```javascript'));
   assert.equal(pickModel({ ex: 'gas-other' }).ex, 'chat');

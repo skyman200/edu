@@ -562,14 +562,24 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     finally { busy(false, $('#make'), $('#stop')); $('#makeState').textContent = ''; ctl = null; }
   };
   function applyAi(res, box, before) {
-    var x = D.extractCode(res.text);
+    var x = D.extractPatch(res.text);
     clear(box);
     if (res.meta) box.appendChild(el('div', 'sub', res.meta.label + ' · ' + res.meta.why.replace(/를 골랐습니다.*$/, '를 골랐습니다')));
     if (!x.code) { box.appendChild(el('div', 'msg err', 'AI 답에서 코드를 찾지 못했습니다. 아래 답을 확인하고 요청을 바꿔 다시 눌러 보세요.')); box.appendChild(rawAnswer(res.text)); return false; }
     if (x.truncated || res.truncated) { box.appendChild(el('div', 'msg warn', '답이 길이 제한으로 중간에 끊겼습니다. 코드는 바꾸지 않았습니다. 요청을 줄이거나 한 번 더 눌러 주세요.')); box.appendChild(rawAnswer(res.text)); return false; }
-    setSrc(x.code, true);
-    var d = D.lineDiff(before, x.code), issues = D.staticCheck(x.code).filter(function (i) { return i.level === 'error'; });
-    box.appendChild(el('div', 'msg ' + (issues.length ? 'warn' : 'ok'), '편집기에 반영했습니다. 바뀐 곳: +' + d.added + '줄 / -' + d.removed + '줄' + (issues.length ? '\n점검에서 문제 ' + issues.length + '개가 보입니다. 아래 코드 점검을 눌러 확인하세요.' : '')));
+    // AI는 바뀐 함수만 줍니다. 같은 이름의 함수를 기준 코드에서 찾아 바꿔 끼우고, 없는 이름은 맨 끝에 더합니다.
+    var m = D.applyPatch(before, x.code);
+    if (m.failed.length) { box.appendChild(el('div', 'msg warn', 'AI 답에서 안전하게 끼워 넣을 수 없는 곳이 ' + m.failed.length + '개 있어 코드는 바꾸지 않았습니다. 한 번 더 눌러 주세요.\n' + m.failed.slice(0, 3).map(function (f) { return '- ' + f.label + ' (' + f.why + ')'; }).join('\n'))); box.appendChild(rawAnswer(res.text)); return false; }
+    if (m.incomplete) { box.appendChild(el('div', 'msg warn', '답의 마지막 함수가 끝나지 않고 끊겼습니다. 코드는 바꾸지 않았습니다. 요청을 줄이거나 한 번 더 눌러 주세요.')); box.appendChild(rawAnswer(res.text)); return false; }
+    if (!m.replaced.length && !m.added.length && !m.removed.length && !m.edited) { box.appendChild(el('div', 'msg err', 'AI 답에서 바꿀 함수를 찾지 못했습니다. 아래 답을 확인하고 요청을 바꿔 다시 눌러 보세요.')); box.appendChild(rawAnswer(res.text)); return false; }
+    setSrc(m.code, true);
+    var d = D.lineDiff(before, m.code), issues = D.staticCheck(m.code).filter(function (i) { return i.level === 'error'; });
+    var parts = [];
+    if (m.edited) parts.push('고친 곳 ' + m.edited + '군데');
+    if (m.replaced.length) parts.push('고친 함수 ' + m.replaced.join(', '));
+    if (m.added.length) parts.push('새 함수 ' + m.added.join(', '));
+    if (m.removed.length) parts.push('지운 함수 ' + m.removed.join(', '));
+    box.appendChild(el('div', 'msg ' + (issues.length ? 'warn' : 'ok'), '편집기에 반영했습니다. ' + parts.join(' · ') + '\n바뀐 곳: +' + d.added + '줄 / -' + d.removed + '줄' + (issues.length ? '\n점검에서 문제 ' + issues.length + '개가 보입니다. 아래 코드 점검을 눌러 확인하세요.' : '')));
     var note = x.code === res.text ? '' : res.text.replace(/```[\s\S]*?(```|$)/g, '').trim();
     if (note) box.appendChild(el('div', 'sub', note.slice(0, 600)));
     box.appendChild(diffView(d));
