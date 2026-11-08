@@ -1,7 +1,7 @@
 /* ===== 레시피 1. 실시간 교실 반응판 =====
    사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    질문과 묶음은 강의장 큰 화면에서 바로 바꿀 수 있습니다(교수 PIN 필요). [설정] 시트에서 바꿔도 됩니다.
-   답은 [응답] 시트에 쌓이고, Jev가 묶음을 고릅니다. */
+   답은 [응답] 시트에 쌓입니다. 학생이 폰에서 묶음 칩을 고르면 그 묶음으로, 안 고르면 Jev가 묶음을 고릅니다. */
 var BOARD_HEAD = ['시간', '응답', '묶음', '확신도', '상태', '번호'];
 
 function onOpen() {
@@ -89,18 +89,19 @@ function doGet(e) {
 function rev_() { return Number(PropertiesService.getScriptProperties().getProperty('BOARD_REV') || 0); }
 function round_() { var sh = ss_().getSheetByName('응답'); return sh ? sh.getSheetId() : 0; }
 
-// 학생 폰이 12초마다 묻습니다. 사람이 많아도 시트를 매번 읽지 않게 5초 동안 기억합니다.
+// 학생 폰이 12초마다 묻습니다. cats는 폰에 칩으로 보이는 묶음입니다(두 개 미만이면 묶지 않는 질문이라 빈 목록). 사람이 많아도 시트를 매번 읽지 않게 5초 동안 기억합니다.
 // round: 지금 [응답] 시트. 보관 뒤에는 바뀌므로, 폰은 이전 질문에 쓴 답을 새 판에 보내지 않습니다.
 // 읽는 사이 질문이 바뀌었으면(rev) 기억하지 않습니다.
 function getQuestion() {
   var cache = CacheService.getScriptCache(), hit = cache.get('q');
   if (hit) return JSON.parse(hit);
-  var rev = rev_(), c = cfg_(), out = { q: c.q, open: c.open, round: round_() };
+  var rev = rev_(), c = cfg_(), out = { q: c.q, open: c.open, round: round_(), cats: c.cats.length >= 2 ? c.cats : [] };
   if (rev_() === rev) cache.put('q', JSON.stringify(out), 5);
   return out;
 }
 
-function submitAnswer(text, sid, round) {
+// pick: 학생이 칩으로 고른 묶음(없으면 빈 값). 지금 묶음 목록에 있는 이름이나 '기타'일 때만 받고, 그러면 묶음은 Jev로 고르지 않습니다(스팸 판정만 합니다).
+function submitAnswer(text, sid, round, pick) {
   var c = cfg_();
   if (!c.open) return { ok: false, msg: '지금은 답을 받지 않습니다.' };
   text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 140);
@@ -108,7 +109,15 @@ function submitAnswer(text, sid, round) {
   sid = String(sid || 'x').slice(0, 40);
   if (!throttle_('s:' + sid, 6, 600) || !throttle_('all', 90, 60)) return { ok: false, msg: '잠시 뒤에 다시 보내 주세요.' };
   var cat = '', conf = '', status = '표시';
-  if (c.cats.length >= 2) {
+  pick = String(pick || '').trim();
+  var picked = c.cats.length >= 2 && (pick === '기타' || c.cats.indexOf(pick) >= 0);
+  if (picked) {
+    cat = pick; conf = '직접';
+    try {
+      var chk = jev_({ 질문: c.q, 응답: text }, { bad: { type: 'noul', instructions: '응답이 질문과 무관한 광고, 욕설, 장난, 개인정보 노출인가?' } });
+      if (chk.bad.p > 0.8) status = '숨김';
+    } catch (err) {}
+  } else if (c.cats.length >= 2) {
     try {
       var crit = {};
       c.cats.forEach(function (name, i) { crit['c' + i] = name; });
@@ -137,6 +146,22 @@ function submitAnswer(text, sid, round) {
     no = sh.getLastRow() - 1;
   } finally { lock.releaseLock(); }
   return { ok: true, cat: cat, no: no };
+}
+
+// 큰 화면의 "AI로 묶음 만들기": 질문을 보고 묶음 후보를 줄 단위로 돌려줍니다. 저장은 하지 않고, 교수가 고쳐서 바꾸기를 눌러야 반영됩니다.
+function suggestCats(cred, q) {
+  var chk = auth_(cred, 'board');
+  if (!chk.ok) return chk;
+  q = String(q || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  if (q.length < 2) return { ok: false, msg: '질문을 먼저 적어 주세요.', token: chk.token };
+  if (!throttle_('suggest', 12, 60)) return { ok: false, msg: '잠시 뒤에 다시 눌러 주세요.', token: chk.token };
+  var text;
+  try {
+    text = ai_('수업 중 학생들에게 던질 질문입니다.\n질문: ' + q + '\n\n학생들의 짧은 답을 모아 보기 좋게 나눌 묶음 이름을 4~6개 만드세요. 규칙:\n- 한 줄에 하나, 이름만 씁니다. 번호, 기호, 설명을 붙이지 않습니다.\n- 이름은 공백 포함 12자 이내입니다.\n- 서로 겹치지 않게, 이 질문에 나올 만한 답을 고르게 덮도록 합니다.\n- "기타"는 쓰지 않습니다(따로 붙습니다).');
+  } catch (err) { return { ok: false, msg: 'AI가 묶음을 만들지 못했습니다. ' + String(err && err.message || err).slice(0, 160), token: chk.token }; }
+  var list = cats_(text.split('\n').map(function (x) { return x.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, ''); }).join('\n'));
+  if (list.length < 2) return { ok: false, msg: 'AI 답에서 묶음을 찾지 못했습니다. 다시 눌러 주세요.', token: chk.token };
+  return { ok: true, cats: list.join('\n'), token: chk.token };
 }
 
 // 큰 화면에서 질문과 묶음을 바로 바꿉니다. cred는 교수 PIN, 또는 한 번 맞힌 뒤 받은 화면용 표입니다.
@@ -202,6 +227,9 @@ var ASK_CSS = [
   '.ch span:last-child{font-family:Pretendard,sans-serif;letter-spacing:.02em;font-weight:500;font-size:12px}',
   'textarea{display:block;width:100%;min-height:8.5em;margin:0;padding:10px 16px 14px;border:0;background:transparent;color:var(--ink);font:500 19px/1.5 Pretendard,sans-serif;resize:none;outline:none}',
   'textarea::placeholder{color:#a8a49c}',
+  '.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}.chips[hidden]{display:none}.chips p{flex:none;width:100%;margin:0 0 2px;font:600 12px/1.3 Pretendard,sans-serif;color:var(--mut)}',
+  '.chips button{padding:8px 12px;border:1px solid var(--ink);border-radius:2px;background:transparent;color:var(--ink);font:600 14px/1.2 Pretendard,sans-serif;cursor:pointer}',
+  '.chips button.on{background:var(--ink);color:#fff}.chips button:disabled{opacity:.4;cursor:default}',
   '.cf{display:flex;align-items:center;gap:12px;padding:0 16px 14px}',
   '.meter{position:relative;flex:1;height:1px;background:var(--hair)}.meter i{position:absolute;left:0;top:-1px;width:100%;height:3px;background:var(--ink);transform-origin:0 50%;transform:scaleX(0);transition:transform .25s var(--e)}.meter.full i{background:var(--red)}',
   '.cnt{font:600 12px/1 Montserrat,sans-serif;letter-spacing:.04em;color:var(--mut);font-variant-numeric:tabular-nums}',
@@ -221,7 +249,7 @@ var ASK_CSS = [
 
 function askClient_() {
   var $ = function (s) { return document.querySelector(s); };
-  var live = typeof requestAnimationFrame === 'function', sid, cq = null, round = 0, sending = false, open = true, lt = 0, mine = { q: '', round: 0, list: [] };
+  var live = typeof requestAnimationFrame === 'function', sid, cq = null, round = 0, sending = false, open = true, lt = 0, pick = '', chipKey = '', chipBtns = [], mine = { q: '', round: 0, list: [] };
   try { sid = localStorage.getItem('sid'); if (!sid) { sid = Math.random().toString(36).slice(2, 12); localStorage.setItem('sid', sid); } } catch (e) { sid = Math.random().toString(36).slice(2, 12); }
   try { mine = JSON.parse(localStorage.getItem('board-mine') || '') || mine; } catch (e) {}
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -255,17 +283,43 @@ function askClient_() {
       e.appendChild(p); list.appendChild(e);
     });
   }
+  // 묶음 칩: 누르면 그 묶음으로 보내고, 한 번 더 누르면 풉니다. 아무것도 안 고르면 AI가 묶음을 고릅니다.
+  function drawChips(cats) {
+    var key = cats.join('|');
+    if (key === chipKey) return;
+    var keep = pick && (pick === '기타' || cats.indexOf(pick) >= 0) ? pick : '';
+    if (pick && !keep) note('묶음이 바뀌어 고른 묶음을 풀었습니다.');
+    chipKey = key; pick = keep;
+    var box = $('#chips'); box.textContent = ''; chipBtns = [];
+    box.hidden = !cats.length;
+    if (!cats.length) return;
+    box.appendChild(mk('p', '', '묶음을 골라 보낼 수 있어요 (안 골라도 됩니다)'));
+    cats.concat(['기타']).forEach(function (name) {
+      var b = mk('button', '', name); b.type = 'button';
+      b.onclick = function () {
+        pick = pick === name ? '' : name;
+        chipBtns.forEach(function (x) { cls(x, 'on', x.textContent === pick); });
+      };
+      cls(b, 'on', name === pick); b.disabled = !open; chipBtns.push(b); box.appendChild(b);
+    });
+  }
+  function clearPick() {
+    pick = '';
+    chipBtns.forEach(function (x) { cls(x, 'on', false); });
+  }
   function save() { try { localStorage.setItem('board-mine', JSON.stringify(mine)); } catch (e) {} }
   function setOpen(o) {
     open = o;
     var st = $('#st'); st.textContent = o ? '받는 중' : '마감'; st.className = o ? '' : 'shut';
     cls($('#card'), 'shut', !o);
+    chipBtns.forEach(function (x) { x.disabled = !o; });
     if (!sending) $('#b').disabled = !o;
   }
   function load() {
     google.script.run.withSuccessHandler(function (r) {
       if (cq !== null && r.q !== cq) { note('질문이 바뀌었습니다. 새 질문에 답해 주세요.'); }
-      if (r.q !== cq) words($('#q'), r.q);
+      if (r.q !== cq) { words($('#q'), r.q); if (cq !== null) clearPick(); }
+      drawChips(r.cats || []);
       if (mine.q !== r.q || mine.round !== r.round) { mine = { q: r.q, round: r.round, list: [] }; save(); }
       if (r.q !== cq || r.round !== round) drawMine(false);
       round = r.round;
@@ -290,14 +344,14 @@ function askClient_() {
       $('#m').textContent = '';
       toast('생각을 보냈어요' + (r.no ? ' · No.' + pad(r.no) : '') + (r.cat ? ' · 「' + r.cat + '」 쪽으로 모였어요.' : '. 큰 화면을 보세요.'));
       var card = $('#card');
-      function reset() { $('#t').value = ''; count(); drawMine(true); }
+      function reset() { $('#t').value = ''; clearPick(); count(); drawMine(true); }
       if (!live) { reset(); return; }
       cls(card, 'go', true);
       setTimeout(function () {
         reset(); cls(card, 'go', false); cls(card, 'come', true);
         requestAnimationFrame(function () { requestAnimationFrame(function () { cls(card, 'come', false); }); });
       }, 520);
-    }).withFailureHandler(function (e) { sending = false; $('#b').disabled = !open; fail('생각 보내기를 못했어요. ' + e.message); }).submitAnswer(t, sid, round);
+    }).withFailureHandler(function (e) { sending = false; $('#b').disabled = !open; fail('생각 보내기를 못했어요. ' + e.message); }).submitAnswer(t, sid, round, pick);
   };
   count(); drawMine(false); load();
 }
@@ -305,7 +359,7 @@ function askClient_() {
 var ASK_HTML = '<main class="ask"><div class="bar"><span>LIVE BOARD</span><span id="st">받는 중</span></div>' +
   '<p class="qk">Q.</p><h1 id="q">…</h1>' +
   '<div class="card" id="card"><div class="ch"><span>MY THOUGHT</span><span>이름 없이 보냅니다</span></div>' +
-  '<textarea id="t" maxlength="140" placeholder="한두 문장으로 적어 주세요"></textarea>' +
+  '<textarea id="t" maxlength="140" placeholder="한두 문장으로 적어 주세요"></textarea><div class="chips" id="chips" hidden></div>' +
   '<div class="cf"><div class="meter" id="meter"><i id="mt"></i></div><span class="cnt" id="n">0 / 140</span></div></div>' +
   '<button id="b">보내기<i>→</i></button><div id="m"></div>' +
   '<section class="mine" id="mine" hidden><h2><span>내가 보낸 생각</span><span id="mc">0개</span></h2><div id="ml"></div></section></main>' +
@@ -599,6 +653,23 @@ function boardClient_() {
       }).withFailureHandler(function (e) { b.disabled = false; m.textContent = e.message; m.className = 'msg err'; fail('질문 바꾸기를 못했어요. ' + e.message); })
         .setBoard(cred, $('#eq').value, $('#ec').value, $('#eo').checked, $('#ef').checked);
     };
+    // AI로 묶음 만들기: 질문을 보고 후보를 묶음 칸에 채웁니다. 저장은 "바꾸기"를 눌러야 됩니다.
+    $('#eg').onclick = function () {
+      var b = $('#eg'), m = $('#em'), pin = $('#ep').value.trim(), cred = pin || tok();
+      if (!cred) { m.textContent = '교수 PIN은 시트 메뉴 반응판 → 주소와 교수 PIN 보기에 있습니다.'; m.className = 'msg err'; fail('묶음 만들기를 못했어요. 교수 PIN 4자리를 넣어 주세요.'); return; }
+      if (pin && !/^\d{4}$/.test(pin)) { m.textContent = ''; fail('묶음 만들기를 못했어요. PIN은 숫자 4자리입니다.'); return; }
+      b.disabled = true; $('#es').disabled = true; m.textContent = 'AI가 묶음을 만드는 중…'; m.className = 'msg';
+      google.script.run.withSuccessHandler(function (r) {
+        b.disabled = false; $('#es').disabled = false;
+        if (r.expired) { keep(''); $('#epl').hidden = false; }
+        if (r.token) keep(r.token);
+        if (!r.ok) { m.textContent = r.msg; m.className = 'msg err'; fail('묶음 만들기를 못했어요. ' + r.msg); return; }
+        if (ed.classList && !ed.classList.contains('on')) return; // 그 사이 창을 닫았으면 채우지 않습니다
+        $('#ec').value = r.cats; m.textContent = '묶음을 채웠어요. 고친 뒤 "바꾸기"를 누르면 학생 폰에 보입니다.'; m.className = 'msg';
+        toast('AI가 묶음을 만들었어요. 확인하고 바꾸기를 눌러 주세요.');
+      }).withFailureHandler(function (e) { b.disabled = false; $('#es').disabled = false; m.textContent = e.message; m.className = 'msg err'; fail('묶음 만들기를 못했어요. ' + e.message); })
+        .suggestCats(cred, $('#eq').value);
+    };
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     return function () { if (ed.classList.contains('on')) close(); else open(); };
   }
@@ -633,6 +704,7 @@ var BOARD_HTML = '<div class="stage"><header class="top" id="top"><div class="he
   '<aside class="edit" id="ed"><h2>질문 바꾸기</h2>' +
   '<label>질문<textarea id="eq" rows="3" maxlength="160"></textarea></label>' +
   '<label>묶음<small>한 줄에 하나, 10개까지. 비우면 묶지 않고 한 막대에 모읍니다. 맞지 않는 답은 \'기타\'로 갑니다.</small><textarea id="ec" rows="6"></textarea></label>' +
+  '<div style="margin:-6px 0 16px"><button type="button" class="g" id="eg">AI로 묶음 만들기</button></div>' +
   '<label class="ck"><input type="checkbox" id="eo">답 받는 중</label>' +
   '<label class="ck"><input type="checkbox" id="ef">지금까지 응답은 시트에 보관하고 화면을 비웁니다</label>' +
   '<label id="epl">교수 PIN<small>시트 메뉴 반응판 → 주소와 교수 PIN 보기. 한 번 맞으면 이 창을 닫을 때까지 다시 묻지 않습니다.</small><input type="password" id="ep" inputmode="numeric" maxlength="4" autocomplete="off"></label>' +

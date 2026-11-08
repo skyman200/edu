@@ -488,6 +488,47 @@ test('r1 big screen edits: PIN-gated question change, optional archive, brute fo
   assert.equal(env.call('setBoard', t2, '표가 있는 화면은 계속', '', true, false).ok, true, 'a screen that already has a token is not locked out');
 });
 
+test('r1 groups on the student phone: chips from the question, a picked group skips the Jev classifier, AI suggests groups for the professor', () => {
+  let jevCalls = [];
+  const env = boot('r1-board.gs', { jev: (st, q) => { jevCalls.push(Object.keys(q)); return { ...defaultAnswers(q), bad: noul(String(st).includes('광고') ? 0.95 : 0.05) }; }, ai: ({ messages }) => '1. 부정행위\n- 평가 방법\n  학습 효과 저하 \n기타\n업무 부담\n부정행위' });
+  env.setup();
+  assert.deepEqual(env.call('getQuestion').cats, ['부정행위', '평가 방법', '학습 효과 저하', '업무 부담']);
+  // a picked group is stored as chosen; only the spam filter runs
+  const p = env.call('submitAnswer', '직접 골랐어요', 's1', undefined, '평가 방법');
+  assert.deepEqual([p.ok, p.cat], [true, '평가 방법']);
+  assert.deepEqual(jevCalls, [['bad']], 'no classifier call for a picked group');
+  assert.deepEqual(env.rows('응답')[0].slice(2, 5), ['평가 방법', '직접', '표시']);
+  assert.equal(env.call('submitAnswer', '기타로 보냅니다', 's1', undefined, '기타').cat, '기타');
+  // a name that is not in the list is ignored and Jev classifies as before
+  jevCalls = [];
+  const ign = env.call('submitAnswer', '없는 묶음을 눌렀다고 해요', 's1', undefined, '지어낸 묶음');
+  assert.equal(ign.cat, '부정행위');
+  assert.deepEqual(jevCalls, [['cat', 'bad']]);
+  // a picked answer that is spam is still hidden
+  env.call('submitAnswer', '광고 광고 광고', 's2', undefined, '업무 부담');
+  assert.equal(env.rows('응답').at(-1)[4], '숨김');
+  // no groups: no chips, a pick means nothing
+  const pin = env.call('pin_', 'board');
+  env.call('setBoard', pin, '그룹 없는 질문', '', true, false);
+  env.cache.clear();
+  assert.deepEqual(env.call('getQuestion').cats, []);
+  assert.equal(env.call('submitAnswer', '묶음 없이 보냄', 's3', undefined, '평가 방법').cat, '');
+  // AI suggestion: PIN-gated, cleaned to one name per line, never saved by itself
+  assert.equal(env.call('suggestCats', pin === '0000' ? '1111' : '0000', '오늘 가장 어려웠던 점은?').ok, false);
+  assert.equal(env.call('suggestCats', pin, '가').msg, '질문을 먼저 적어 주세요.');
+  const sug = env.call('suggestCats', pin, '오늘 가장 어려웠던 점은?');
+  assert.deepEqual([sug.ok, sug.cats], [true, '부정행위\n평가 방법\n학습 효과 저하\n업무 부담'], 'numbers and bullets stripped, 기타 and duplicates dropped');
+  assert.match(sug.token, /^t[0-9a-f]{24,}$/);
+  assert.equal(env.call('getBoard').q, '그룹 없는 질문', 'suggesting does not change the board');
+  assert.equal(env.call('suggestCats', sug.token, '오늘 가장 어려웠던 점은?').ok, true, 'the screen token works');
+  const dead = boot('r1-board.gs', { ai: () => { throw new Error('AI ONE 401: 수업 코드가 맞지 않습니다'); } });
+  dead.setup();
+  assert.match(dead.call('suggestCats', dead.call('pin_', 'board'), '질문입니다').msg, /수업 코드가 맞지 않습니다/, 'the reason reaches the professor');
+  const bad = boot('r1-board.gs', { ai: () => '하나만' });
+  bad.setup();
+  assert.match(bad.call('suggestCats', bad.call('pin_', 'board'), '질문입니다').msg, /묶음을 찾지 못했습니다/);
+});
+
 test('r1 safety: student text never runs as a formula, archives never collide, answers keep their id, web callers cannot archive', () => {
   const env = boot('r1-board.gs');
   env.setup();
@@ -607,9 +648,20 @@ test('web pages: each browser script runs against the real server functions', ()
   assert.equal(ask.el('#toast').children.at(-1).textContent, '닫기', 'the failure toast has a close button');
   ask.el('#toast').children.at(-1).onclick();
   assert.ok(!ask.el('#toast').className.includes('on'), 'closing hides it');
+  const chipBox = ask.el('#chips');
+  assert.equal(chipBox.hidden, false);
+  assert.deepEqual(chipBox.children.slice(1).map((c) => c.textContent), ['부정행위', '평가 방법', '학습 효과 저하', '업무 부담', '기타']);
+  const chip = (name) => chipBox.children.find((c) => c.textContent === name);
+  chip('평가 방법').onclick();
+  assert.ok(chip('평가 방법').className.includes('on'));
+  chip('평가 방법').onclick();
+  assert.ok(!chip('평가 방법').className.includes('on'), 'a second press lets go');
+  chip('부정행위').onclick();
   ask.set('#t', '시험 때 몰래 쓸까 봐 걱정입니다');
   ask.click('#b');
   assert.deepEqual(ask.calls, ['getQuestion', 'submitAnswer']);
+  assert.equal(r1.rows('응답')[0][3], '직접', 'the chosen chip travelled with the answer');
+  assert.ok(!chip('부정행위').className.includes('on'), 'the chip is let go after sending');
   assert.equal(toastOf(ask), '완료 생각을 보냈어요 · No.001 · 「부정행위」 쪽으로 모였어요.', 'the student sees the number the big screen shows');
   assert.equal(ask.el('#toast').className, 'toast on run');
   const hide = ask.timers.find((t) => t[1] === 3000);
