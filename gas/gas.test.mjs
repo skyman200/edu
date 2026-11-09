@@ -1,10 +1,15 @@
 // Runs every recipe under node against an in-memory Apps Script (mock-gas.mjs): `node gas/gas.test.mjs`
 // The fake server uses the real /api/jev and /api/ai validators, so a request the classroom server would reject fails here.
 import assert from 'node:assert/strict';
-import { createEnv, readGs, choice, noul, score, defaultAnswers, runPage } from './mock-gas.mjs';
+import { createEnv, readGs as readGs0, choice, noul, score, defaultAnswers, runPage } from './mock-gas.mjs';
+import { soloCommon, soloRecipe } from './build.mjs';
+
+// SOLO=1 node gas/gas.test.mjs runs the same recipes as the solo build (Gemini key, no class server); tests about the class server are skipped there.
+const SOLO = !!process.env.SOLO;
+const readGs = (n) => (SOLO && n === '00-common.gs' ? soloCommon(readGs0(n), readGs0('solo.gs')) : SOLO ? soloRecipe(readGs0(n)) : readGs0(n));
 
 const tests = [];
-const test = (name, fn) => tests.push([name, fn]);
+const test = (name, fn) => { if (!(SOLO && /^server:/.test(name))) tests.push([name, fn]); };
 const COMMON = readGs('00-common.gs');
 
 function boot(recipe, opts) {
@@ -21,7 +26,7 @@ function boot(recipe, opts) {
   return env;
 }
 
-test('common: setClassCode checks the connection; post_ retries 503 then fails with the server message', () => {
+test('server: common: setClassCode checks the connection; post_ retries 503 then fails with the server message', () => {
   const env = boot('r1-board.gs');
   env.ctx.PropertiesService.getScriptProperties().setProperty('CLASS_CODE', 'old');
   env.call('setClassCode');
@@ -35,7 +40,7 @@ test('common: setClassCode checks the connection; post_ retries 503 then fails w
   assert.throws(() => none.call('ai_', 'x'), /수업 코드가 아직 없습니다/);
 });
 
-test('common: ai_ joins the stream, sends files/images, surfaces stream errors', () => {
+test('server: common: ai_ joins the stream, sends files/images, surfaces stream errors', () => {
   const env = boot('r1-board.gs', { ai: ({ files, images }) => `답:${files.length}:${images.length}` });
   assert.equal(env.call('ai_', 'hi', { files: [{ name: 'f', text: 't' }] }), '답:1:0');
   assert.equal(env.call('ai_', [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }]), '답:0:0');
@@ -63,7 +68,7 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.deepEqual([gq.q, gq.open, gq.round], ['AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', true, env.sheet('응답').getSheetId()]);
   const r = env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다', 'sid1');
   assert.deepEqual([r.ok, r.cat], [true, '부정행위']);
-  const jevReq = env.log.requests.filter((x) => x.url.endsWith('/api/jev') && !x.body.check).at(-1).body;
+  const jevReq = env.log.jevCalls.at(-1);
   assert.deepEqual(Object.keys(jevReq.questions.cat.criteria), ['c0', 'c1', 'c2', 'c3', 'other']);
   assert.equal(env.rows('응답')[0][4], '표시');
   // low confidence falls back to 기타, a flagged answer is stored but hidden from the board
@@ -644,11 +649,11 @@ test('every recipe: menu items exist, the shared helpers are not redefined, page
     env.call('onOpen');
     assert.equal(env.log.menus.length, 1, f);
     for (const [label, fn] of env.log.menus[0].items) assert.equal(typeof env.ctx[fn], 'function', `${f}: ${label} -> ${fn}`);
-    for (const shared of ['post_', 'ai_', 'jev_', 'ss_', 'sheet_', 'throttle_', 'page_', 'setClassCode']) {
+    for (const shared of ['post_', 'ai_', 'jev_', 'ss_', 'sheet_', 'throttle_', 'page_', 'setClassCode', 'setApiKey', 'gemini_', 'ensureKey_']) {
       assert.ok(!new RegExp('function ' + shared + '\\b').test(src), `${f} redefines ${shared}`);
     }
-    assert.ok(!/api[_-]?key|sk-[A-Za-z0-9]{10}/i.test(src), `${f} must not contain keys`);
-    assert.ok(/수업 코드 입력|setClassCode/.test(src), f);
+    assert.ok(!/api[_-]?key|sk-[A-Za-z0-9]{10}|AIza[\w-]{20}/i.test(src.replace(/setApiKey/g, '')), `${f} must not contain keys`);
+    assert.ok((SOLO ? /AI 키 넣기|setApiKey/ : /수업 코드 입력|setClassCode/).test(src), f);
   }
 });
 

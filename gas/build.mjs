@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EXTRA, PROMPT_RULE, TROUBLE } from './story.mjs';
+import { EXTRA, PROMPT_RULE, TROUBLE, SOLO_TROUBLE } from './story.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => fs.readFileSync(path.join(here, f), 'utf8').replace(/\r\n/g, '\n').trimEnd() + '\n';
@@ -42,18 +42,18 @@ export const RECIPES = [
     },
   },
   {
-    id: 'r2', web: { deploy: true, links: [{ label: '학생용 주소 (LMS나 QR로 나눠 주세요)', suffix: '' }], after: ['시트의 [자료] 탭 A열에 강의계획서, 평가 기준, 공지를 붙여 넣으세요. 이 내용에만 근거해 답합니다.'] }, file: 'r2-assistant.gs', name: '24시간 수업 조교', tag: '학생 질문 → 자동 답변 또는 교수님께',
+    id: 'r2', web: { deploy: true, links: [{ label: '학생용 주소 (LMS나 QR로 나눠 주세요)', suffix: '' }], after: ['처음 준비(start)가 내 드라이브에 만든 "수업 조교 자료" 폴더에 강의계획서, 평가 기준, 공지 파일을 넣으세요(구글 문서, PDF, 워드, 한글 hwpx, 파워포인트, 텍스트, 사진). 붙여 넣을 필요가 없습니다. 메뉴 [자료 폴더 보기]에서 조교가 읽은 파일과 읽지 못한 파일을 확인합니다. 이 내용에만 근거해 답합니다.'] }, file: 'r2-assistant.gs', name: '24시간 수업 조교', tag: '학생 질문 → 자동 답변 또는 교수님께',
     short: '강의계획서를 읽고 학생 질문에 답하고, 자료에 없거나 개인 사정이면 교수님께 넘깁니다. 매주 가장 헷갈린 것 TOP5를 메일로 받습니다.',
     jev: ['자료만으로 답할 수 있는지 (확률로)', '성적 이의·개인 사정처럼 교수가 직접 답할 질문인지', '질문의 종류'],
     steps: [
       '새 구글 시트 → Apps Script에 공통 도우미 + 이 코드를 붙여 넣고 저장합니다.',
-      '[24시간 조교] 메뉴 → 처음 준비 → 수업 코드 입력.',
-      '[자료] 시트 A열에 강의계획서, 평가 기준, 공지를 붙여 넣습니다. 이 내용에만 근거해 답합니다.',
+      'start 를 실행하면 내 드라이브에 "수업 조교 자료" 폴더가 만들어집니다.',
+      '강의계획서, 평가 기준, 공지 파일(구글 문서, PDF, 워드, 한글, 파워포인트, 텍스트, 사진)을 그 폴더에 넣습니다. 이 내용에만 근거해 답합니다.',
       '배포 → 새 배포 → 웹 앱(실행 사용자: 나, 액세스: 모든 사용자)으로 학생용 /exec 주소를 받습니다.',
       '메뉴의 매주 월요일 리포트 켜기로 주간 요약 메일을 받습니다.',
     ],
     examples: [
-      '자료를 구글 문서에서 읽어 오게 하고, 영어로 묻는 질문에는 영어로 답하게 해 줘.',
+      '영어로 묻는 질문에는 영어로 답하게 해 줘.',
       '교수님께로 넘어간 질문 중 아직 답하지 않은 것을 매일 저녁 7시에 메일 한 통으로 보내 줘.',
       '시험 기간(2026-12-10 ~ 2026-12-20)에는 자동 답변을 끄고 모든 질문을 교수님께로 보내 줘.',
       '자동 답변이 틀렸다고 학생이 누를 수 있는 버튼을 넣고, 누른 질문은 시트에 빨간색으로 표시해 줘.',
@@ -203,13 +203,28 @@ export const RECIPES = [
   },
 ];
 
+// 혼자 쓰는 판: 공통 도우미의 "수업 서버" 부분(// <<SERVER … // SERVER>>)만 solo.gs 로 바꾸고, 레시피 글의 수업 코드·Jev 말을 내 API 키·AI로 바꿉니다.
+const SERVER_BLOCK = /\/\/ <<SERVER[\s\S]*?\/\/ SERVER>>\n?/;
+const SOLO_WORDS = [["'수업 코드 입력', 'setClassCode'", "'AI 키 넣기', 'setApiKey'"],
+  ['사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas) 또는 함께 받은 PDF 키트의 안내를 따르세요.', '사용법: 함께 받은 PDF 키트의 안내를 따르세요.'],
+  ['사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요.', '사용법: 함께 받은 PDF 키트의 안내를 따르세요.'],
+  // 강사 서버에 올려 둔 QR 그림 도구 대신 공개 CDN(같은 라이브러리)에서 받습니다
+  ['https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js', 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'], ['JEV 판정', 'AI 판정'], ['Jev가', 'AI가'], ['Jev', 'AI']];
+export function soloCommon(common, solo) {
+  if (!SERVER_BLOCK.test(common)) throw new Error('00-common.gs 에 // <<SERVER … // SERVER>> 표시가 없습니다.');
+  return common.replace(SERVER_BLOCK, () => solo.replace(/\s+$/, '') + '\n');
+}
+export function soloRecipe(code) {
+  return SOLO_WORDS.reduce((c, [from, to]) => c.split(from).join(to), code);
+}
+
 export function buildRecipes() {
   const common = read('00-common.gs');
   const out = {
-    common: { code: common, version: (common.match(/CODE_VERSION = '([^']+)'/) || [])[1] }, promptRule: PROMPT_RULE, trouble: TROUBLE,
+    common: { code: common, version: (common.match(/CODE_VERSION = '([^']+)'/) || [])[1] }, solo: { code: soloCommon(common, read('solo.gs')) }, promptRule: PROMPT_RULE, trouble: TROUBLE, soloTrouble: SOLO_TROUBLE,
     recipes: RECIPES.map((r) => ({
       id: r.id, web: r.web, wow: EXTRA[r.id].wow, story: EXTRA[r.id].story, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
-      code: r.file ? read(r.file) : '', jevPreset: r.jevPreset,
+      code: r.file ? read(r.file) : '', soloCode: r.file ? soloRecipe(read(r.file)) : '', jevPreset: r.jevPreset,
     })),
   };
   return '/* 자동 생성 파일: node gas/build.mjs 로 gas/*.gs 에서 만듭니다. 직접 고치지 마세요. */\nwindow.GAS_RECIPES = ' + JSON.stringify(out) + ';\n';

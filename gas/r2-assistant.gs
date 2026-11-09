@@ -1,32 +1,36 @@
 /* ===== 레시피 2. 24시간 수업 조교 =====
-   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
+   사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas) 또는 함께 받은 PDF 키트의 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
+   자료는 파일로 줍니다: start 를 실행하면 내 드라이브에 "수업 조교 자료" 폴더가 생깁니다. 강의계획서, 평가 기준, 공지 파일(구글 문서, PDF, 워드, 한글 hwpx, 파워포인트, 텍스트, 사진)을 그 폴더에 넣기만 하면 조교가 읽습니다.
    Jev가 "자료만으로 답할 수 있나, 교수가 직접 답할 질문인가"를 확률로 판정합니다. 확신이 높으면 AI가 자료를 인용해 답하고,
    아니면 [질문기록] 시트에 쌓여 교수에게 갑니다. 교수가 G열에 답을 적으면 학생이 질문 번호로 확인합니다. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('24시간 조교')
-    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('주소 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl')
+    .addItem('처음 준비', 'setup').addItem('수업 코드 입력', 'setClassCode').addItem('자료 폴더 보기', 'materialInfo').addItem('주소 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl')
     .addItem('매주 월요일 리포트 켜기', 'weeklyOn').addItem('리포트 지금 보내기', 'reportNow').addToUi();
 }
 
 function setup() {
-  var ss = SpreadsheetApp.getActive();
-  PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
+  var ss = SpreadsheetApp.getActive(), p = PropertiesService.getScriptProperties();
+  p.setProperty('SS_ID', ss.getId());
+  var folder = p.getProperty('MATERIAL') ? null : DriveApp.createFolder('수업 조교 자료 (여기에 파일을 넣으세요)');
+  if (folder) p.setProperty('MATERIAL', folder.getId());
   var s = ss.getSheetByName('설정');
   if (!s) {
     s = ss.insertSheet('설정');
     s.getRange('A1:B4').setValues([
       ['조교 이름', '○○○ 수업 조교'],
-      ['자료 문서 주소(선택, 비우면 [자료] 시트 사용)', ''],
+      ['자료 폴더(파일은 여기에 넣으세요. 이 칸은 안내용입니다)', DriveApp.getFolderById(p.getProperty('MATERIAL')).getUrl()],
       ['받는 중(O/X)', 'O'],
       ['자동 답변 최소 확신(0.5~0.95)', 0.8]
     ]);
     s.setColumnWidth(1, 300); s.setColumnWidth(2, 420);
   }
   var m = ss.getSheetByName('자료');
-  if (!m) { m = ss.insertSheet('자료'); m.getRange('A1').setValue('여기 A열에 강의계획서, 평가 기준, 공지 내용을 한 줄씩 붙여 넣으세요.'); m.setColumnWidth(1, 700); }
+  if (!m) { m = ss.insertSheet('자료'); m.getRange('A1').setValue('(선택) 파일이 없을 때: 이 A열에 공지 내용을 한 줄씩 붙여 넣으세요. 폴더의 파일과 함께 읽습니다.'); m.setColumnWidth(1, 700); }
   sheet_('질문기록', ['시간', '번호', '질문', '분류', '답변가능도', '처리', '답변(교수가 직접 쓰면 학생에게 보임)']);
   weeklyOn_();
-  say_('준비 끝! [자료] 시트 A열에 강의계획서와 공지를 붙여 넣고, 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매주 월요일 질문 리포트도 켜졌습니다.');
+  var folderUrl = DriveApp.getFolderById(p.getProperty('MATERIAL')).getUrl();
+  say_('준비 끝! 강의계획서와 공지 파일을 이 폴더에 넣으세요(구글 문서, PDF, 워드, 한글 hwpx, 파워포인트, 텍스트, 사진):\n' + folderUrl + '\n\n그다음 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매주 월요일 질문 리포트도 켜졌습니다.');
 }
 
 function showUrls() {
@@ -37,18 +41,149 @@ function showUrls() {
 
 function cfg_() {
   var v = ss_().getSheetByName('설정').getRange('B1:B4').getValues();
-  return { name: String(v[0][0]) || '수업 조교', doc: String(v[1][0]).trim(), open: String(v[2][0]).trim().toUpperCase() === 'O',
+  return { name: String(v[0][0]) || '수업 조교', open: String(v[2][0]).trim().toUpperCase() === 'O',
     minP: Math.min(0.95, Math.max(0.5, Number(v[3][0]) || 0.8)) };
 }
 
-function material_(c) {
-  var text = '', m = c.doc.match(/[-\w]{25,}/);
-  if (m) text = DocumentApp.openById(m[0]).getBody().getText();
-  else {
-    var sh = ss_().getSheetByName('자료'), n = sh ? sh.getLastRow() : 0;
-    if (n > 1) text = sh.getRange(2, 1, n - 1, 1).getValues().map(function (r) { return r[0]; }).join('\n');
+// ---- 자료 읽기: 폴더의 파일 + [자료] 시트. 읽은 결과는 5분 동안 기억해서 질문마다 파일을 다시 열지 않습니다. ----
+var MAT_MAX = 60000, MAT_FILES = 30, MAT_CACHE = 20000;
+
+function xmlText_(xml, endTag, re) {
+  var dec = function (x) { return x.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&'); };
+  return xml.split(endTag).map(function (para) {
+    var t = '', m;
+    re.lastIndex = 0;
+    while ((m = re.exec(para))) t += dec(m[1].replace(/<[^>]+>/g, ''));
+    return t.trim();
+  }).filter(function (x) { return x; }).join('\n');
+}
+
+// 워드, 파워포인트, 한글(hwpx)은 압축 묶음 안의 글만 꺼냅니다.
+function zipText_(blob, ext) {
+  var parts = Utilities.unzip(blob), byName = {}, names = [];
+  parts.forEach(function (b) { byName[b.getName()] = b; names.push(b.getName()); });
+  var num = function (a, b) { return (parseInt(a.replace(/\D+/g, ''), 10) || 0) - (parseInt(b.replace(/\D+/g, ''), 10) || 0); };
+  var out = [];
+  if (ext === 'docx') {
+    if (!byName['word/document.xml']) throw new Error('워드 파일 안에서 본문을 찾지 못했습니다');
+    return xmlText_(byName['word/document.xml'].getDataAsString('UTF-8'), '</w:p>', /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g);
   }
-  return text.trim().slice(0, 16000);
+  if (ext === 'pptx') {
+    names.filter(function (n) { return /^ppt\/slides\/slide\d+\.xml$/.test(n); }).sort(num).forEach(function (n) {
+      var t = xmlText_(byName[n].getDataAsString('UTF-8'), '</a:p>', /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g);
+      if (t) out.push('[슬라이드 ' + parseInt(n.replace(/\D+/g, ''), 10) + ']\n' + t);
+    });
+    return out.join('\n\n');
+  }
+  names.filter(function (n) { return /^Contents\/section\d+\.xml$/i.test(n); }).sort(num).forEach(function (n) {
+    out.push(xmlText_(byName[n].getDataAsString('UTF-8'), '</hp:p>', /<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g));
+  });
+  return out.join('\n');
+}
+
+// PDF와 사진은 AI가 한 번 글로 옮겨 적고, 그 글을 [자료캐시] 시트에 둡니다(파일이 바뀌면 다시 옮깁니다).
+function transcribed_(f, mime) {
+  var key = f.getId() + ':' + f.getLastUpdated().getTime(), sh = sheet_('자료캐시', ['파일', '수정', '이름', '글']), n = sh.getLastRow() - 1;
+  var rows = n > 0 ? sh.getRange(2, 1, n, 4).getValues() : [];
+  for (var i = 0; i < rows.length; i++) if (rows[i][0] + ':' + rows[i][1] === key) return String(rows[i][3]).replace(/^글:\n/, '');
+  if (f.getSize() > 12 * 1024 * 1024) throw new Error('파일이 너무 큽니다(12MB까지)');
+  var text = ai_('첨부한 문서(또는 사진)에 적힌 글을 빠짐없이 그대로 옮겨 적으세요. 표는 줄마다 칸을 " | "로 나눠 적습니다. 설명이나 요약은 쓰지 말고 글만 쓰세요. 글자가 없으면 "글자 없음"이라고만 쓰세요.',
+    { images: [{ name: f.getName(), url: 'data:' + mime + ';base64,' + Utilities.base64Encode(f.getBlob().getBytes()) }] });
+  if (!text || text === '글자 없음') throw new Error('읽을 수 있는 글자가 없습니다');
+  sh.appendRow([f.getId(), f.getLastUpdated().getTime(), f.getName(), '글:\n' + text.slice(0, 45000)]);
+  return text;
+}
+
+function fileText_(f) {
+  var mime = f.getMimeType(), id = f.getId(), ext = (f.getName().split('.').pop() || '').toLowerCase();
+  if (mime === 'application/vnd.google-apps.document') return DocumentApp.openById(id).getBody().getText();
+  if (mime === 'application/vnd.google-apps.spreadsheet') {
+    return SpreadsheetApp.openById(id).getSheets().map(function (sh) {
+      return '[시트 ' + sh.getName() + ']\n' + sh.getDataRange().getValues().map(function (r) { return r.join(' | '); }).join('\n');
+    }).join('\n\n');
+  }
+  if (mime === 'application/vnd.google-apps.presentation') throw new Error('구글 슬라이드는 파일 → 다운로드 → PDF로 받아 넣으세요');
+  if (/^text\//.test(mime) || mime === 'application/json' || /^(txt|md|csv|tsv)$/.test(ext)) return f.getBlob().getDataAsString('UTF-8');
+  if (/^(docx|pptx|hwpx)$/.test(ext)) return zipText_(f.getBlob(), ext);
+  if (mime === 'application/pdf' || /^image\/(png|jpe?g|webp)$/.test(mime)) return transcribed_(f, mime);
+  if (ext === 'hwp') throw new Error('예전 한글(.hwp)은 읽을 수 없습니다. 한글에서 hwpx나 PDF로 저장해 넣으세요');
+  if (/^(doc|ppt|xls)$/.test(ext)) throw new Error('예전 오피스 형식(.' + ext + ')은 읽을 수 없습니다. 최신 형식이나 PDF로 저장해 넣으세요');
+  if (ext === 'xlsx') throw new Error('엑셀은 구글 시트로 열어 저장한 파일을 넣으세요');
+  throw new Error('읽을 수 없는 형식입니다');
+}
+
+// 돌려주는 값: {text, read:[{name, chars}], skipped:[{name, why}]}
+function materialScan_() {
+  var cache = CacheService.getScriptCache(), cn = Number(cache.get('mat:n') || 0);
+  if (cn) {
+    var all = '';
+    for (var k = 0; k < cn; k++) all += cache.get('mat:' + k) || '\u0000';
+    if (all.indexOf('\u0000') < 0) { try { return JSON.parse(all); } catch (e) {} }
+  }
+  var res = { text: '', read: [], skipped: [] }, parts = [], used = 0;
+  function put(name, text) {
+    text = String(text || '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (!text) { res.skipped.push({ name: name, why: '읽을 수 있는 글이 없습니다' }); return; }
+    var room = MAT_MAX - used;
+    if (room < 300) { res.skipped.push({ name: name, why: '자료가 너무 많아 넣지 못했습니다(전체 ' + MAT_MAX.toLocaleString('ko-KR') + '자까지)' }); return; }
+    var cut = text.slice(0, room);
+    parts.push('[파일: ' + name + ']\n' + cut); used += cut.length + name.length + 8;
+    res.read.push({ name: name, chars: cut.length });
+  }
+  var id = PropertiesService.getScriptProperties().getProperty('MATERIAL'), count = 0;
+  if (id) {
+    var it = DriveApp.getFolderById(id).getFiles(), files = [];
+    while (it.hasNext() && files.length < MAT_FILES) files.push(it.next());
+    files.sort(function (a, b) { return a.getName() < b.getName() ? -1 : 1; });
+    files.forEach(function (f) {
+      try { put(f.getName(), fileText_(f)); } catch (e) { res.skipped.push({ name: f.getName(), why: String(e.message).slice(0, 120) }); }
+      count++;
+    });
+  }
+  var sh = ss_().getSheetByName('자료'), n = sh ? sh.getLastRow() : 0;
+  if (n > 1) put('[자료] 시트', sh.getRange(2, 1, n - 1, 1).getValues().map(function (r) { return r[0]; }).join('\n'));
+  res.text = parts.join('\n\n');
+  var json = JSON.stringify(res), chunks = Math.ceil(json.length / MAT_CACHE);
+  if (chunks <= 20) { for (var c = 0; c < chunks; c++) cache.put('mat:' + c, json.slice(c * MAT_CACHE, (c + 1) * MAT_CACHE), 300); cache.put('mat:n', String(chunks), 300); }
+  return res;
+}
+
+function material_() { return materialScan_().text; }
+
+// 판정(Jev/AI)이 한 번에 읽는 글이 너무 길면 질문과 낱말이 가장 많이 겹치는 문단만 원래 순서대로 고릅니다. 답을 쓰는 AI는 전체 자료를 읽습니다.
+function excerpt_(text, q, budget) {
+  if (text.length <= budget) return text;
+  var grams = {}, ng = 0;
+  String(q).toLowerCase().replace(/[^0-9a-z가-힣]+/g, ' ').split(' ').forEach(function (w) { for (var i = 0; i + 2 <= w.length; i++) { grams[w.slice(i, i + 2)] = 1; ng++; } });
+  var chunks = [], cur = '';
+  text.split('\n').forEach(function (line) {
+    if (/^\[파일: /.test(line)) { if (cur) chunks.push(cur); cur = ''; }
+    cur += (cur ? '\n' : '') + line;
+    if (cur.length > 700) { chunks.push(cur); cur = ''; }
+  });
+  if (cur) chunks.push(cur);
+  var scored = chunks.map(function (c, i) { var t = c.toLowerCase(), sc = 0; for (var g in grams) if (t.indexOf(g) >= 0) sc++; return { c: c, i: i, sc: sc }; });
+  scored.sort(function (a, b) { return b.sc - a.sc || a.i - b.i; });
+  var picked = [], used = 0;
+  scored.forEach(function (x) { if (used + x.c.length + 2 <= budget) { picked.push(x); used += x.c.length + 2; } });
+  picked.sort(function (a, b) { return a.i - b.i; });
+  return picked.map(function (x) { return x.c; }).join('\n');
+}
+
+function materialReset_() {
+  var cache = CacheService.getScriptCache();
+  cache.remove('mat:n');
+}
+
+// 시트 메뉴 "자료 폴더 보기": 조교가 지금 읽는 파일과 읽지 못한 파일을 알려 줍니다.
+function materialInfo() {
+  menuOnly_();
+  materialReset_();
+  var r = materialScan_(), id = PropertiesService.getScriptProperties().getProperty('MATERIAL');
+  var msg = '자료 폴더: ' + (id ? DriveApp.getFolderById(id).getUrl() : '먼저 처음 준비를 실행하세요.') + '\n\n';
+  msg += r.read.length ? '조교가 읽는 자료(' + r.read.length + '개):\n' + r.read.map(function (x) { return '· ' + x.name + ' (' + x.chars.toLocaleString('ko-KR') + '자)'; }).join('\n') : '아직 읽은 자료가 없습니다. 폴더에 파일을 넣으세요.';
+  if (r.skipped.length) msg += '\n\n읽지 못한 파일:\n' + r.skipped.map(function (x) { return '· ' + x.name + ': ' + x.why; }).join('\n');
+  say_(msg);
 }
 
 function doGet() {
@@ -68,9 +203,9 @@ function ask(question, sid) {
   if (q.length < 4) return { ok: false, msg: '질문을 조금 더 자세히 써 주세요.' };
   sid = String(sid || 'x').slice(0, 40);
   if (!throttle_('s:' + sid, 8, 600) || !throttle_('all', 60, 60)) return { ok: false, msg: '잠시 뒤에 다시 질문해 주세요.' };
-  var m = material_(c);
+  var m = material_();
   if (!m) return { ok: false, msg: '아직 수업 자료가 준비되지 않았습니다. 교수님께 알려 주세요.' };
-  var a = jev_({ 자료: m, 질문: q }, {
+  var a = jev_({ 자료: excerpt_(m, q, 14000), 질문: q }, {
     answerable: { type: 'noul', instructions: '자료에 적힌 내용만으로 질문에 정확히 답할 수 있는가? 자료에 근거가 없으면 아니오.' },
     personal: { type: 'noul', instructions: '성적 이의, 건강, 개인 사정, 상담처럼 교수가 직접 답해야 하는 질문인가?' },
     kind: { type: 'choice', instructions: '질문의 종류', criteria: { content: '수업 내용과 개념', task: '과제, 평가, 시험', schedule: '일정, 장소, 출석 같은 행정', personal: '개인 사정, 성적 이의, 상담', other: '기타' } }

@@ -144,14 +144,16 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
   function selected() { return Array.prototype.map.call(picks.querySelectorAll('input:checked'), function (c) { return c.value; }); }
   function who() { var n = nm.value.trim(), o = org.value.trim(); return { n: n, o: o, line: [o, n ? n + ' 교수님' : ''].filter(Boolean).join(' · ') }; }
 
+  // 키트는 혼자 쓰는 판(내 Gemini 키) 기준입니다: 강사 서버의 판정 모델 이름(Jev)은 "AI"로 읽습니다.
+  function S(t) { return String(t).replace(/Jev가/g, 'AI가').replace(/JEV 판정/g, 'AI 판정').replace(/Jev/g, 'AI'); }
   function add(parent, tag, cls, text) { var e = el(tag, cls, text); parent.appendChild(e); return e; }
   function stories(parent, r) {
     add(parent, 'p', '', '아래 프롬프트는 이 코드가 어떤 요구에서 나왔는지를 단계별로 다시 정리한 것입니다. AI는 같은 프롬프트에도 매번 조금 다른 코드를 만듭니다. 그대로 따라 하면 비슷한 코드가 나오고, 마음에 들지 않으면 같은 방식으로 한 단계씩 고쳐 말하면 됩니다.');
     r.story.forEach(function (s, i) {
       var d = add(parent, 'div', 'pr');
-      add(d, 'div', 'n', 'STEP ' + (i + 1) + ' · ' + s.step);
-      add(d, 'div', 'p', s.prompt);
-      add(d, 'div', 'r', '→ ' + s.result);
+      add(d, 'div', 'n', 'STEP ' + (i + 1) + ' · ' + S(s.step));
+      add(d, 'div', 'p', S(s.prompt));
+      add(d, 'div', 'r', '→ ' + S(s.result));
     });
   }
   function urlCards(parent, id, u) {
@@ -179,15 +181,15 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
     var s = add(root, 'section', 'sec');
     add(s, 'div', 'k', 'RECIPE ' + String(no).padStart(2, '0'));
     add(s, 'h2', '', r.name);
-    add(s, 'p', '', r.tag + ' · ' + r.short);
-    var w = add(s, 'div', 'box'); add(w, 'b', '', 'WOW POINT'); w.appendChild(document.createTextNode(r.wow));
+    add(s, 'p', '', r.tag + ' · ' + S(r.short));
+    var w = add(s, 'div', 'box'); add(w, 'b', '', 'WOW POINT'); w.appendChild(document.createTextNode(S(r.wow)));
     var web = r.web || {}, u = urlOf(r.id);
     add(s, 'h3', '', '1 · 시작하기');
     var ol = add(s, 'ol');
-    ['웹 도구(' + SITE + ')에서 수업 코드를 저장하고 "' + r.name + '"을 고릅니다.', '"코드 복사"를 누르고 https://sheets.new 로 새 시트를 엽니다.',
-      '확장 프로그램 → Apps Script에 붙여 넣고 저장한 뒤, 위쪽 함수 선택 칸에서 start 를 골라 ▶ 실행합니다. 승인 화면이 나오면 허용합니다.']
-      .concat(web.deploy ? ['배포 → 새 배포 → 웹 앱(액세스: 모든 사용자)으로 배포하고 웹 앱 URL을 웹 도구에 붙여 넣으면 주소와 QR이 만들어집니다.'] : [])
-      .concat(web.after || []).forEach(function (t) { add(ol, 'li', '', t); });
+    ['https://sheets.new 로 새 구글 시트를 엽니다.', '확장 프로그램 → Apps Script를 열고 기존 글을 모두 지운 뒤, 이 문서 부록의 "공통 도우미"와 "' + r.name + '" 코드를 차례로 붙여 넣고 저장합니다. (웹 도구가 열리면 "코드 복사" 버튼 하나로 끝납니다.)',
+      '위쪽 함수 선택 칸에서 start 를 골라 ▶ 실행합니다. 승인 화면이 나오면 허용하고, AI 키를 묻는 칸이 뜨면 aistudio.google.com/apikey 에서 만든 키(AIza로 시작)를 붙여 넣습니다.']
+      .concat(web.deploy ? ['배포 → 새 배포 → 웹 앱(실행: 나, 액세스: 모든 사용자)으로 배포하고 /exec 로 끝나는 웹 앱 URL을 복사해 시트 메뉴의 "웹 앱 주소 넣기"에 붙여 넣습니다. 학생에게는 이 주소를 LMS나 QR로 나눠 줍니다.'] : [])
+      .concat(web.after || []).forEach(function (t) { add(ol, 'li', '', S(t)); });
     if (u) {
       add(s, 'h3', '', '내 주소 (웹 도구에서 만든 가장 최근 결과물)');
       urlCards(s, r.id, u);
@@ -195,10 +197,10 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
     add(s, 'h3', '', '2 · 프롬프트 기록: 이 코드는 이렇게 만들어졌습니다');
     stories(s, r);
     add(s, 'h3', '', '3 · 고쳐 쓸 때 바로 써 보는 프롬프트');
-    var ul = add(s, 'ul'); r.examples.forEach(function (t) { add(ul, 'li', '', t); });
-    if (r.jev && r.jev.length) { add(s, 'h3', '', 'JEV가 판정하는 것'); var jl = add(s, 'ul'); r.jev.forEach(function (t) { add(jl, 'li', '', t); }); }
+    var ul = add(s, 'ul'); r.examples.forEach(function (t) { add(ul, 'li', '', S(t)); });
+    if (r.jev && r.jev.length) { add(s, 'h3', '', 'AI가 판정하는 것'); var jl = add(s, 'ul'); r.jev.forEach(function (t) { add(jl, 'li', '', S(t)); }); }
   }
-  // 수업용 웹앱 만들기(미션 2): 강사 서버·수업 코드·Jev 없이, 파일 하나(studio.html)와 아무 AI 채팅만으로 혼자 해 보는 순서.
+  // 수업용 웹앱 만들기(미션 2): 강사 서버·수업 코드 없이, 파일 하나(studio.html)와 아무 AI 채팅만으로 혼자 해 보는 순서.
   function vibeSection(root, withC) {
     var S = VIBE_SAMPLES, STUDIO = 'https://kimcook-edu.pages.dev/studio.html';
     var s = add(root, 'section', 'sec');
@@ -251,18 +253,19 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
     else add(f, 'span', '', '교수님 맞춤 키트 (성함과 소속을 적으면 이 자리에 들어갑니다)');
     if (shown.length) add(top, 'p', 'cnt', '내가 만든 결과물 ' + shown.length + '개');
     var bot = add(c, 'div', 'qrrow'), q0 = qr(SITE), qb = add(bot, 'div', 'qr'); if (q0) qb.appendChild(q0);
-    var tx = add(bot, 'div'); add(tx, 'b', '', '웹 도구'); add(tx, 'p', '', SITE); add(tx, 'p', '', '코드 복사는 이 PDF가 아니라 웹 도구의 "코드 복사" 버튼으로 하세요. PDF에서 복사하면 줄바꿈이 깨질 수 있습니다.');
+    var tx = add(bot, 'div'); add(tx, 'b', '', '웹 도구 (선택)'); add(tx, 'p', '', SITE); add(tx, 'p', '', '이 문서만으로도 할 수 있습니다. 웹 도구가 열리면 "혼자 쓰기"에서 코드 복사 버튼 하나로 끝납니다. PDF에서 코드를 복사하면 줄바꿈이 깨질 수 있으니, 깨졌을 때는 AI 채팅에 붙여 넣고 "줄바꿈과 들여쓰기를 정리해서 코드 블록으로 다시 줘"라고 하세요.');
 
     var s1 = add(root, 'section', 'sec');
     add(s1, 'div', 'k', 'OVERVIEW'); add(s1, 'h2', '', '이 키트로 만들 수 있는 것');
-    add(s1, 'p', '', '각 결과물은 프로젝터에 띄웠을 때 한눈에 "여기까지 된다"가 보이도록 만들었습니다. 한 가지는 약 10분, 프롬프트 한 번이면 시작할 수 있습니다.');
+    add(s1, 'p', '', '각 결과물은 프로젝터에 띄웠을 때 한눈에 "여기까지 된다"가 보이도록 만들었습니다. 한 가지는 약 10분이고, 강사도 수업 서버도 필요 없습니다. 이 문서와 내 구글 계정, 무료 AI 키만 있으면 혼자 끝까지 할 수 있습니다.');
     var tb = add(s1, 'table');
-    list.forEach(function (r) { var tr = add(tb, 'tr'); add(tr, 'th', '', r.name); add(tr, 'td', '', r.wow); });
+    list.forEach(function (r) { var tr = add(tb, 'tr'); add(tr, 'th', '', r.name); add(tr, 'td', '', S(r.wow)); });
     add(s1, 'h3', '', '10분 시작 순서 (모든 결과물 공통)');
     var ol = add(s1, 'ol');
-    ['웹 도구를 열고 연수 현장에서 받은 수업 코드를 저장합니다. 코드는 이 문서에 들어 있지 않습니다.', '만들고 싶은 결과물을 하나 고릅니다.', '"코드 복사" → 새 구글 시트 → Apps Script에 붙여 넣기 → 저장.',
-      '위쪽 함수 선택 칸에서 start 를 골라 ▶ 실행, 승인 화면에서 허용.', '학생 화면이나 큰 화면이 필요한 결과물은 배포 → 새 배포 → 웹 앱으로 배포하고, 웹 앱 URL을 웹 도구에 붙여 넣어 주소와 QR을 받습니다.',
-      '(선택) 반응판과 설문 결과 화면은 웹 도구의 "파워포인트에서도 쓰기"로 슬라이드 파일을 받아 수업 중간에 열 수 있습니다.'].forEach(function (t) { add(ol, 'li', '', t); });
+    ['aistudio.google.com/apikey 에서 구글 로그인 후 "API 키 만들기"를 눌러 무료 AI 키(AIza로 시작)를 만들어 복사해 둡니다. 한 번만 하면 됩니다.', '만들고 싶은 결과물을 하나 고릅니다.',
+      'https://sheets.new 로 새 시트 → 확장 프로그램 → Apps Script에 이 문서 부록의 "공통 도우미"와 그 결과물 코드를 붙여 넣고 저장합니다.',
+      '위쪽 함수 선택 칸에서 start 를 골라 ▶ 실행, 승인 화면에서 허용하고, 키를 묻는 칸에 복사한 키를 붙여 넣습니다.', '학생 화면이나 큰 화면이 필요한 결과물은 배포 → 새 배포 → 웹 앱(실행: 나, 액세스: 모든 사용자)으로 배포해 /exec 주소를 받고, 시트 메뉴 "웹 앱 주소 넣기"에 붙여 넣습니다. QR은 주소를 QR 변환 사이트나 휴대폰 카메라 앱으로 만들 수 있습니다.',
+      '마음에 안 드는 곳은 AI 채팅(ChatGPT, Gemini, Claude)에 코드와 함께 한 문장으로 말해 고칩니다. 아래 "고쳐 쓸 때 바로 써 보는 프롬프트"를 쓰세요.'].forEach(function (t) { add(ol, 'li', '', t); });
     add(s1, 'h3', '', '프롬프트 공식: 여섯 가지만 말하면 됩니다');
     var pt = add(s1, 'table'); DATA.promptRule.forEach(function (x) { var tr = add(pt, 'tr'); add(tr, 'th', '', x[0]); add(tr, 'td', '', x[1]); });
 
@@ -277,26 +280,26 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
 
     var t = add(root, 'section', 'sec');
     add(t, 'div', 'k', 'TROUBLESHOOTING'); add(t, 'h2', '', '막혔을 때');
-    var tt = add(t, 'table'); DATA.trouble.forEach(function (x) { var tr = add(tt, 'tr'); add(tr, 'th', '', x[0]); add(tr, 'td', '', x[1]); });
+    var tt = add(t, 'table'); DATA.soloTrouble.forEach(function (x) { var tr = add(tt, 'tr'); add(tr, 'th', '', x[0]); add(tr, 'td', '', x[1]); });
     add(t, 'h3', '', '오류를 고치는 프롬프트 기본형');
-    add(t, 'div', 'box').textContent = '[오류 문구 전체] 이 오류는 아래 코드를 실행하다 났어. 원인을 한 줄로 설명하고, 고친 전체 코드를 줘. 고치지 않은 부분은 그대로 둬.\n[고칠 코드를 이어서 붙여 넣기]';
-    add(t, 'p', '', '웹 도구 4번 칸에 붙여 넣으면 이 프롬프트가 자동으로 채워지고, 자주 나는 오류는 AI 없이 원인과 처방을 바로 보여 줍니다.');
+    add(t, 'div', 'box').textContent = '[오류 문구 전체] 이 오류는 아래 Google Apps Script 코드를 실행하다 났어. 원인을 한 줄로 설명하고, 고친 함수만 ```javascript 블록으로 줘(바뀌지 않은 함수는 쓰지 마). 고치지 않은 부분은 그대로 둬.\n[고칠 코드를 이어서 붙여 넣기]';
+    add(t, 'p', '', 'AI 채팅은 ChatGPT, Gemini, Claude 어느 것이든 됩니다. 받은 함수는 편집기에서 같은 이름의 함수를 지우고 그 자리에 붙여 넣은 뒤, 웹 앱이면 새 버전으로 다시 배포하세요. 웹 도구가 열리면 4번 칸에서 자주 나는 오류의 원인과 처방을 AI 없이 바로 볼 수 있습니다.');
     add(t, 'h3', '', '쓰기 전 지킬 것');
     var rl = add(t, 'ul');
-    ['수업 코드는 다른 사람에게 보내지 마세요. 복사한 코드 맨 위에 들어 있습니다.', '학생에게는 실명 대신 별칭을 쓰게 하고, 이해도 같은 판정은 성적이나 징계에 쓰지 마세요.', '긴급 판정이나 오개념 판정은 참고용입니다. 사람이 읽고 판단하세요.', '학생 글이 AI 서버로 전송된다는 점을 수업 전에 알려 주세요.']
+    ['AI 키는 코드에 직접 적지 말고 "AI 키 넣기"로만 넣으세요. 키를 적은 코드나 화면 캡처를 다른 사람에게 보내지 마세요.', '학생에게는 실명 대신 별칭을 쓰게 하고, 이해도 같은 판정은 성적이나 징계에 쓰지 마세요.', '긴급 판정이나 오개념 판정은 참고용입니다. 사람이 읽고 판단하세요.', '학생 글이 구글 AI(Gemini)로 전송됩니다. 무료 키는 입력이 서비스 개선에 쓰일 수 있으니 이름, 학번, 성적 같은 개인정보는 쓰지 못하게 하고, 수업 전에 알려 주세요.']
       .forEach(function (x) { add(rl, 'li', '', x); });
 
     if (withCode.checked) {
       var ap = add(root, 'section', 'sec'); add(ap, 'div', 'k', 'APPENDIX'); add(ap, 'h2', '', '코드 전문');
-      add(ap, 'p', '', '모든 결과물 코드 앞에는 공통 도우미(Jev·AI 호출, 시트 도우미, 화면 틀)가 필요합니다. 웹 도구의 복사 버튼은 둘을 합쳐서 복사합니다.');
-      add(ap, 'h3', '', '공통 도우미 (모든 결과물 앞에 붙습니다)'); add(ap, 'pre', '', DATA.common.code);
-      list.forEach(function (r) { if (r.code) { add(ap, 'h3', '', r.name); add(ap, 'pre', '', r.code); } });
+      add(ap, 'p', '', '모든 결과물 코드 앞에는 공통 도우미(AI 호출과 판정, AI 키 넣기, 시트 도우미, 화면 틀)가 필요합니다. 편집기에는 공통 도우미를 먼저, 이어서 결과물 코드를 붙여 넣으세요. AI 키는 코드에 들어 있지 않습니다.');
+      add(ap, 'h3', '', '공통 도우미 (모든 결과물 앞에 붙습니다)'); add(ap, 'pre', '', DATA.solo.code);
+      list.forEach(function (r) { if (r.soloCode) { add(ap, 'h3', '', r.name); add(ap, 'pre', '', r.soloCode); } });
       var mine = shown.filter(function (x) { return x.code; });
       if (mine.length) {
         var mc = add(root, 'section', 'sec'); add(mc, 'div', 'k', 'APPENDIX'); add(mc, 'h2', '', '내 코드');
         add(mc, 'p', '', '내 결과물의 코드입니다. 코드 복사는 이 PDF가 아니라 웹 도구의 "코드 복사" 버튼으로 하세요. 결과물은 웹 도구에서 "열기"로 다시 불러올 수 있습니다.');
         mine.forEach(function (x) {
-          var body = x.code, cm = DATA.common.code;
+          var body = x.code, cm = body.indexOf(DATA.solo.code) === 0 ? DATA.solo.code : DATA.common.code;
           add(mc, 'h3', '', x.title + ' · ' + recipeName(x.r));
           if (body.indexOf(cm) === 0 && body.slice(cm.length).trim()) { body = body.slice(cm.length).replace(/^\n/, ''); add(mc, 'p', '', '맨 앞의 공통 도우미는 위 "코드 전문"의 공통 도우미와 같아서 생략했습니다. 웹 도구의 코드 복사 버튼은 둘을 합쳐 줍니다.'); }
           add(mc, 'pre', '', body);

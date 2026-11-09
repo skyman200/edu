@@ -73,10 +73,39 @@ class Spreadsheet {
 
 const items = () => { const it = {}; for (const m of ['setTitle', 'setBounds', 'setLabels', 'setRequired']) it[m] = () => it; return it; };
 
+// Zip files without compression ("stored"), enough for the Office/HWPX text the recipes read. makeZip({name: text}) -> Buffer
+export function makeZip(entries) {
+  const out = [], central = [];
+  let off = 0;
+  for (const [name, text] of Object.entries(entries)) {
+    const n = Buffer.from(name), d = Buffer.from(text), h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt32LE(d.length, 18); h.writeUInt32LE(d.length, 22); h.writeUInt16LE(n.length, 26);
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt32LE(d.length, 20); c.writeUInt32LE(d.length, 24); c.writeUInt16LE(n.length, 28); c.writeUInt32LE(off, 42);
+    out.push(h, n, d); central.push(c, n); off += 30 + n.length + d.length;
+  }
+  const cd = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(Object.keys(entries).length, 8); end.writeUInt16LE(Object.keys(entries).length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...out, cd, end]);
+}
+const unzipStored = (bytes) => {
+  const b = Buffer.from(bytes), res = [];
+  for (let i = 0; i + 30 <= b.length && b.readUInt32LE(i) === 0x04034b50;) {
+    const size = b.readUInt32LE(i + 18), nl = b.readUInt16LE(i + 26), xl = b.readUInt16LE(i + 28), name = b.slice(i + 30, i + 30 + nl).toString(), data = b.slice(i + 30 + nl + xl, i + 30 + nl + xl + size);
+    res.push({ getName: () => name, getDataAsString: () => data.toString('utf8'), getBytes: () => data });
+    i += 30 + nl + xl + size;
+  }
+  return res;
+};
+
+const VALID_KEY = 'AIzaTESTKEY0123456789abcd';
+
 export function createEnv({ jev, ai, fetchExtra } = {}) {
-  const log = { prompts: [], logged: [], alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
+  const log = { jevCalls: [], prompts: [], logged: [], alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
   const active = new Spreadsheet('SS1');
-  const props = new Map([['CLASS_CODE', 'TESTCODE']]);
+  // SOLO=1: the solo build (no class server): a Gemini key instead of a class code, AI calls go to the Gemini REST API
+  const solo = !!process.env.SOLO;
+  const props = new Map(solo ? [['GEMINI_KEY', VALID_KEY]] : [['CLASS_CODE', 'TESTCODE']]);
   const cache = new Map();
   const folders = new Map();
   const docs = new Map();
@@ -99,6 +128,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
       if (log.jevFail) return [log.jevFail, { error: 'Jev down', code: 'upstream', retryAfter: 1 }];
       const v = validateJev(body);
       if (!v.ok) return [v.status, { error: v.message, code: v.code }];
+      log.jevCalls.push({ state: v.state, questions: v.questions });
       const answers = jev ? jev(v.state, v.questions) : defaultAnswers(v.questions);
       return [200, { ok: true, model: 'jev-latest', answers }];
     }
@@ -115,11 +145,66 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     return [404, { error: 'no route' }];
   };
 
+  // Gemini REST stand-in: turns the request back into the same (messages, files, images) / (state, questions) the class-server callbacks take,
+  // so the same tests drive both builds.
+  const gemini = (url, opts) => {
+    const body = JSON.parse(opts.payload);
+    log.requests.push({ url, body });
+    const reply = (status, payload) => response(status, JSON.stringify(payload));
+    if (!url.startsWith('https://generativelanguage.googleapis.com/v1beta/models/') || !url.endsWith(':generateContent')) return reply(404, { error: { message: 'no route' } });
+    if ((opts.headers || {})['x-goog-api-key'] !== VALID_KEY) return reply(400, { error: { message: 'API key not valid. Please pass a valid API key.' } });
+    if (log.jevFail && body.generationConfig && body.generationConfig.responseMimeType) return reply(log.jevFail, { error: { message: 'busy' } });
+    const out = (text) => reply(200, { candidates: [{ content: { parts: [{ text }] } }] });
+    const first = body.contents[0].parts.map((p) => p.text || '').join('\n');
+    if (body.generationConfig && body.generationConfig.responseMimeType === 'application/json') {
+      const q = first.split('[질문]\n')[1].split('\n\n[글]\n');
+      const state = q[1];
+      const questions = {};
+      for (const blk of q[0].split(/\n(?=- )/)) {
+        const m = blk.match(/^- (\S+) \((noul|choice|score)\): ([\s\S]*?)(?:\n  (보기|단계): ([\s\S]*))?$/);
+        const type = m[2], q1 = { type, instructions: m[3] };
+        if (type === 'choice') q1.criteria = Object.fromEntries(m[5].split(' / ').map((x) => { const k = x.indexOf('='); return [x.slice(0, k), x.slice(k + 1)]; }));
+        if (type === 'score') q1.criteria = m[5].split(' / ').map((x) => x.slice(x.indexOf('=') + 1));
+        questions[m[1]] = q1;
+      }
+      const v = validateJev({ state, questions });
+      if (!v.ok) return reply(400, { error: { message: v.message } });
+      log.jevCalls.push({ state, questions });
+      const ans = jev ? jev(state, questions) : defaultAnswers(questions), j = {};
+      for (const [n, a] of Object.entries(ans)) {
+        if (!questions[n]) continue;
+        if (a.type === 'noul') j[n] = { p: a.p };
+        else if (a.type === 'choice') { const rest = Object.keys(questions[n].criteria).filter((k) => k !== a.choice); j[n] = { probs: { [a.choice]: a.confidence, ...Object.fromEntries(rest.map((k) => [k, (1 - a.confidence) / rest.length])) } }; }
+        else j[n] = { probs: { [String(a.level)]: 1 } };
+      }
+      return out(JSON.stringify(j));
+    }
+    const messages = [], files = [], images = [];
+    body.contents.forEach((c, n) => {
+      let text = '';
+      for (const p of c.parts) {
+        if (p.inlineData) images.push({ name: '', url: 'data:' + p.inlineData.mimeType + ';base64,' + p.inlineData.data });
+        else if (n === 0 && /^\[첨부 자료 «/.test(p.text) && /\[첨부 자료 «[^»]*» 끝\]$/.test(p.text)) { const m = p.text.match(/^\[첨부 자료 «([^»]*)» 시작\]\n([\s\S]*)\n\[첨부 자료 «[^»]*» 끝\]$/); files.push({ name: m[1], text: m[2] }); }
+        else text += p.text;
+      }
+      messages.push({ role: c.role === 'model' ? 'assistant' : 'user', content: text });
+    });
+    return out(ai ? ai({ messages, files, images }) : 'OK');
+  };
+
   const mailApp = { sendEmail: (to, subject, body, opts) => log.mails.push({ to, subject, body, html: opts && opts.htmlBody }), getRemainingDailyQuota: () => 100 };
   const fakeFolder = (name) => {
     const id = 'F' + ++seq;
     const f = { id, name, files: [], getId: () => id, getUrl: () => 'https://drive.google.com/drive/folders/' + id, getFiles: () => { let i = 0; return { hasNext: () => i < f.files.length, next: () => f.files[i++] }; } };
     folders.set(id, f);
+    return f;
+  };
+  // a fake Drive file: bytes are a Buffer or a string
+  const addFile = (folderId, { name, mime = 'text/plain', data = '', updated = 1700000000000 }) => {
+    const bytes = Buffer.from(data), id = 'FILE' + ++seq;
+    const f = { getId: () => id, getName: () => name, getMimeType: () => mime, getSize: () => bytes.length, getLastUpdated: () => new Date(updated),
+      getBlob: () => ({ getBytes: () => bytes, getDataAsString: () => bytes.toString('utf8'), getContentType: () => mime }) };
+    folders.get(folderId).files.push(f);
     return f;
   };
   const ctx = {
@@ -132,6 +217,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     Utilities: {
       sleep: () => { log.sleeps++; },
       getUuid: () => crypto.randomUUID(),
+      unzip: (blob) => unzipStored(blob.getBytes()),
       base64Encode: (b) => Buffer.from(b).toString('base64'),
       formatDate: (d, tz, fmt) => {
         const k = new Date(d.getTime() + 9 * 3600e3), p = (n) => String(n).padStart(2, '0');
@@ -141,6 +227,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     },
     UrlFetchApp: {
       fetch: (url, opts = {}) => {
+        if (/^https:\/\/generativelanguage\.googleapis\.com\//.test(url)) return gemini(url, opts);
         if (fetchExtra && !/\/api\/(ai|jev)$/.test(url)) return fetchExtra(url, opts);
         const [status, payload] = server(url, JSON.parse(opts.payload));
         return response(status, typeof payload === 'string' ? payload : JSON.stringify(payload));
@@ -192,7 +279,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  return { ctx, log, active, props, cache, folders, docs, run: (src, file = 'recipe.gs') => vm.runInContext(src, ctx, { filename: file }) };
+  return { ctx, log, active, props, cache, folders, docs, addFile, run: (src, file = 'recipe.gs') => vm.runInContext(src, ctx, { filename: file }) };
 }
 
 // Runs the browser script of a served page against a stub DOM. google.script.run calls are executed synchronously on the

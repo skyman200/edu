@@ -88,9 +88,21 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   </div>
 
   <section id="s0">
-    <div class="k">0 · 수업 코드</div>
+    <div class="k">0 · 어떻게 쓸까요?</div>
+    <div class="row" id="modeRow"><button id="modeSolo" class="g">혼자 쓰기 (내 AI 키 · 강사 없이)</button><button id="modeClass" class="g">연수 현장 (수업 코드)</button></div>
+    <div id="s0solo">
+      <p class="sub">강사도 수업 서버도 필요 없습니다. 내 구글 계정으로 무료 AI 키(Gemini) 하나만 만들면, 만든 도구 안의 AI가 그 키로 일합니다. 키는 내 스크립트 속성에만 저장되고 코드에는 들어가지 않습니다.</p>
+      <ol class="sub" style="margin:0 0 6px 20px">
+        <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 에서 구글 로그인 → <b>API 키 만들기</b>를 누르고 <b>AIza</b>로 시작하는 키를 복사해 둡니다(무료).</li>
+        <li>아래 1번에서 코드를 복사해 시트에 붙여 넣고 <b>start</b>를 실행하면, 키를 붙여 넣는 칸이 뜹니다.</li>
+        <li>무료 키는 입력한 글이 구글의 서비스 개선에 쓰일 수 있습니다. 학생 이름, 학번, 성적 같은 개인정보는 넣지 마세요.</li>
+      </ol>
+      <p class="sub">이 화면의 "AI ONE으로 만들기·고치기"와 Jev 시험대는 연수 현장에서만 켜집니다. 혼자 쓸 때는 "ChatGPT·Gemini에 붙일 프롬프트 복사" 버튼으로 같은 일을 할 수 있습니다.</p>
+    </div>
+    <div id="s0class">
     <p class="sub">강사가 알려 준 수업 코드를 한 번만 넣으세요. 복사하는 코드에 자동으로 들어가서, 구글 시트에서 따로 입력할 필요가 없습니다.</p>
     <div class="row"><input id="code" style="max-width:260px" placeholder="수업 코드" autocomplete="off"><button id="codeSave">저장하고 확인</button><span id="codeState" class="sub" style="margin:0"></span></div>
+    </div>
   </section>
 
   <section id="s1">
@@ -124,7 +136,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     <h2>오류 문구를 그대로 붙여 넣으세요</h2>
     <p class="sub">Apps Script 편집기 아래 "실행 로그"나 팝업의 빨간 글을 복사해 붙여 넣습니다. 자주 나는 오류는 AI 없이 바로 원인과 처방을 보여 주고, 나머지는 AI ONE이 코드를 고쳐 위 편집기에 반영합니다. 같은 오류가 또 나면 더 강한 모델로 다시 따져 봅니다.</p>
     <textarea id="err" class="small" placeholder="예) TypeError: Cannot read properties of null (reading 'getRange') (줄 12, 파일 &quot;코드&quot;)"></textarea>
-    <div class="row"><button id="read" class="g">원인 읽기</button><button id="fix">AI ONE으로 고치기</button><button id="fixStop" class="g" hidden>멈추기</button><span id="fixState" class="sub" style="margin:0"></span></div>
+    <div class="row"><button id="read" class="g">원인 읽기</button><button id="fix">AI ONE으로 고치기</button><button id="fixExt" class="g">ChatGPT·Gemini에 붙일 오류 프롬프트 복사</button><button id="fixStop" class="g" hidden>멈추기</button><span id="fixState" class="sub" style="margin:0"></span></div>
     <div id="fixOut"></div>
   </section>
 
@@ -167,6 +179,10 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
   var FULL = '브라우저 저장 공간이 가득 찼어요. 다른 결과물을 지우고 다시 하세요.';
   var aiCode = lsGet('acl-aicode', '');
+  // 혼자 쓰기(강사 서버·수업 코드 없이 내 Gemini 키)가 기본입니다. 예전에 수업 코드를 저장해 둔 브라우저만 연수 현장 방식으로 시작합니다.
+  var solo = lsGet('acl-gas-mode', aiCode ? 'class' : 'solo') === 'solo';
+  // 혼자 쓰기 화면의 글에서 수업 코드·Jev 말을 내 키·AI 말로 바꿉니다(gas/build.mjs 의 SOLO_WORDS 와 같은 규칙)
+  function S(t) { return solo ? String(t).replace(/수업 코드 입력/g, 'AI 키 넣기').replace(/Jev가/g, 'AI가').replace(/JEV 판정/g, 'AI 판정').replace(/Jev/g, 'AI') : t; }
   var cur = 0, original = '', history = [], lastSig = '', fixCount = 0, ctl = null;
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -223,7 +239,10 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   var qc = new URLSearchParams(location.search).get('c');
   if (qc) { aiCode = qc; lsSet('acl-aicode', qc); history_replace(); }
   function history_replace() { try { window.history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
-  function needCode() { if (aiCode) return true; fail('AI 기능을 쓰지 못했어요. 먼저 맨 위에서 수업 코드를 저장하세요.'); $('#s0').scrollIntoView({ behavior: 'smooth' }); return false; }
+  function needCode() { if (solo || aiCode) return true; fail('AI 기능을 쓰지 못했어요. 먼저 맨 위에서 수업 코드를 저장하세요.'); $('#s0').scrollIntoView({ behavior: 'smooth' }); return false; }
+
+  // AI ONE(수업 서버)을 쓰는 버튼: 혼자 쓰기에서는 막고 대신 쓸 방법을 알려 줍니다.
+  function needAi() { if (!solo) return needCode(); fail('AI ONE은 연수 현장에서만 켜집니다. 혼자 쓸 때는 "ChatGPT·Gemini에 붙일 프롬프트 복사"를 눌러 AI 채팅에 붙여 넣으세요.'); return false; }
 
   // ---------- AI ONE 호출(스트림) ----------
   async function aiCall(ex, content, files, onText, signal) {
@@ -248,7 +267,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   }
 
   // ---------- 레시피 ----------
-  function fullCode(r) { return r.code ? DATA.common.code + '\n' + r.code : DATA.common.code; }
+  function fullCode(r) { var c = solo ? DATA.solo.code : DATA.common.code, body = solo ? r.soloCode : r.code; return body ? c + '\n' + body : c; }
   function setSrc(text, remember) {
     if (remember) { history.push($('#src').value); $('#undo').disabled = false; }
     $('#src').value = text; srcInfo(); if (typeof autosave === 'function' && original) autosave();
@@ -256,7 +275,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   function srcInfo() { var v = $('#src').value; $('#srcInfo').textContent = v.split('\n').length + '줄 · ' + v.length.toLocaleString() + '자'; }
   // ---------- 레시피별 저장: 이 브라우저에 내 코드와 요청문을 레시피마다 따로 보관합니다 ----------
   var VER = (DATA.common && DATA.common.version) || '';
-  function mineKey() { return 'acl-gas-mine-' + DATA.recipes[cur].id; }
+  function mineKey() { return 'acl-gas-mine-' + DATA.recipes[cur].id + (solo ? '-solo' : ''); }
   function fmtT(t) { var d = new Date(t); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   function saveMine(quiet) {
     var rid = DATA.recipes[cur].id, code = cleanCode($('#src').value), req = $('#req').value, prompts = draftPrompts(rid);
@@ -456,24 +475,24 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   function tidyUrl(raw) { return String(raw || '').trim().replace(/[?#][\s\S]*$/, '').replace(/\/+$/, '').replace(/\/u\/\d+(?=\/s\/)/, '').replace(/^https:\/\/script\.google\.com\/a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\//, 'https://script.google.com/macros/s/'); }
   var EXEC = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec\/?$/;
   // 수업 코드 줄은 맨 아래에 붙입니다. 맨 위에 붙이면 편집기 오류의 '줄 N'이 웹 도구의 코드와 어긋납니다.
-  function codeForEditor() { var c = stripEmbedded($('#src').value).replace(/\s+$/, ''); return c + (aiCode ? '\n\n// 수업 코드(지우지 마세요)\nvar EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n' : '\n'); }
+  function codeForEditor() { var c = stripEmbedded($('#src').value).replace(/\s+$/, ''); return c + (aiCode && !solo ? '\n\n// 수업 코드(지우지 마세요)\nvar EMBEDDED_CODE = ' + JSON.stringify(aiCode) + ';\n' : '\n'); }
   function step(ol, title) { var li = el('li'); li.appendChild(el('b', 't', title)); ol.appendChild(li); return li; }
   function renderWizard(r, prefill) {
     var info = clear($('#info')), card = el('div', 'card');
-    card.appendChild(el('h2', '', r.name)); card.appendChild(el('p', 'sub', r.short));
+    card.appendChild(el('h2', '', r.name)); card.appendChild(el('p', 'sub', S(r.short)));
     var ol = el('ol', 'wz'), w = r.web || {}, li, row;
     li = step(ol, '코드를 복사합니다');
-    row = el('div', 'row'); var cp = el('button', 'big', '코드 복사 (수업 코드 포함)'); cp.onclick = function () {
+    row = el('div', 'row'); var cp = el('button', 'big', solo ? '코드 복사' : '코드 복사 (수업 코드 포함)'); cp.onclick = function () {
       if (!needCode()) return;
       copy(codeForEditor(), '코드를 복사했어요. 이제 2번 버튼으로 새 시트를 여세요.');
     }; row.appendChild(cp); li.appendChild(row);
     li.appendChild(el('p', 'how', '코드 버전 ' + (DATA.common.version || '') + ' · 이미 만든 시트라면 코드를 덮어쓴 뒤 배포 → 배포 관리 → 연필 → 새 버전 → 배포까지 해야 반영됩니다. 반응판 화면 오른쪽 아래 번호가 이 버전과 같으면 새 코드입니다.'));
-    li.appendChild(el('p', 'how', '아래 "말로 고치기"로 바꾼 내용도 같이 복사됩니다. 수업 코드는 내 스크립트 안에만 들어가니 이 코드를 다른 사람에게 보내지는 마세요.'));
+    li.appendChild(el('p', 'how', solo ? '아래 "말로 고치기"로 바꾼 내용도 같이 복사됩니다. 이 코드에는 수업 코드도 AI 키도 들어 있지 않아 다른 교수님께 나눠 줘도 됩니다.' : '아래 "말로 고치기"로 바꾼 내용도 같이 복사됩니다. 수업 코드는 내 스크립트 안에만 들어가니 이 코드를 다른 사람에게 보내지는 마세요.'));
     li = step(ol, '새 구글 시트를 엽니다');
     row = el('div', 'row'); var a = el('a', 'btn big', '새 구글 시트 열기'); a.href = 'https://sheets.new'; a.target = '_blank'; a.rel = 'noopener'; row.appendChild(a); li.appendChild(row);
     var how = el('p', 'how'); how.innerHTML = '새 시트가 열리면 위쪽 메뉴에서 <b>확장 프로그램 → Apps Script</b>를 누르세요. 구글 로그인이 필요합니다.'; li.appendChild(how);
     li = step(ol, '붙여 넣고 ▶ 실행을 한 번 누릅니다');
-    how = el('p', 'how'); how.innerHTML = '열린 편집기의 기존 글을 모두 지우고(<kbd>Ctrl</kbd>+<kbd>A</kbd> 후 <kbd>Delete</kbd>, 맥은 <kbd>⌘</kbd>) 붙여 넣은 다음(<kbd>Ctrl</kbd>+<kbd>V</kbd>), <kbd>Ctrl</kbd>+<kbd>S</kbd>로 저장하세요. 위쪽 함수 칸에 <b>start</b>가 보이면 바로 <b>▶ 실행</b>을 누릅니다. 처음 한 번 "권한 검토"가 뜨면 <b>계정 선택 → 고급 → (안전하지 않음)으로 이동 → 허용</b>을 누르세요. 아래쪽 실행 로그에 <b>준비 끝</b>이 보이면 성공입니다.';
+    how = el('p', 'how'); how.innerHTML = '열린 편집기의 기존 글을 모두 지우고(<kbd>Ctrl</kbd>+<kbd>A</kbd> 후 <kbd>Delete</kbd>, 맥은 <kbd>⌘</kbd>) 붙여 넣은 다음(<kbd>Ctrl</kbd>+<kbd>V</kbd>), <kbd>Ctrl</kbd>+<kbd>S</kbd>로 저장하세요. 위쪽 함수 칸에 <b>start</b>가 보이면 바로 <b>▶ 실행</b>을 누릅니다.' + (solo ? ' 처음 실행하면 <b>AI 키</b>를 붙여 넣는 칸이 뜹니다. 위 0번에서 만든 AIza… 키를 붙여 넣으세요.' : '') + ' 처음 한 번 "권한 검토"가 뜨면 <b>계정 선택 → 고급 → (안전하지 않음)으로 이동 → 허용</b>을 누르세요. 아래쪽 실행 로그에 <b>준비 끝</b>이 보이면 성공입니다.';
     li.appendChild(how);
     if (w.deploy) {
       li = step(ol, '웹 앱으로 배포합니다 (학생이 폰으로 열 주소가 생깁니다)');
@@ -511,15 +530,15 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
       go.onclick = function () { if (!inp.value.trim()) { fail('주소와 QR 만들기를 못했어요. 웹 앱 URL을 먼저 붙여 넣으세요.'); return; } show(true); }; inp.onkeydown = function (e) { if (e.key === 'Enter') show(true); };
       if (inp.value) show(false);
     }
-    (w.after || []).forEach(function (t, i) { var l = step(ol, i === 0 ? (w.deploy ? '내 수업에 맞게 고칩니다' : '써 봅니다') : '다음 단계'); l.appendChild(el('p', 'how', t)); });
+    (w.after || []).forEach(function (t, i) { var l = step(ol, i === 0 ? (w.deploy ? '내 수업에 맞게 고칩니다' : '써 봅니다') : '다음 단계'); l.appendChild(el('p', 'how', S(t))); });
     if (!w.deploy) {
       li = step(ol, '마음에 들면 내 결과물로 담아 둡니다');
       li.appendChild(el('p', 'how', '지금 코드와 이 레시피에서 AI에게 한 말을 "내 결과물"에 저장합니다. 여러 번 저장하면 하나씩 쌓이고, 아래 6번에서 PDF로 가져갈 수 있습니다.'));
       row = el('div', 'row'); var sv = el('button', '', '내 결과물로 저장'); sv.onclick = function () { var s = saveResult(r, ''); if (s.ok) toast('내 결과물로 저장했어요 (' + s.total + '개째)'); else fail('내 결과물 저장을 못했어요. ' + FULL); }; row.appendChild(sv); li.appendChild(row);
     }
     card.appendChild(ol);
-    var det = el('details'); det.appendChild(el('summary', '', '이 레시피가 하는 일, Jev 판정 목록'));
-    var jv = el('div'); jv.style.marginTop = '8px'; r.jev.forEach(function (t) { jv.appendChild(el('span', 'jev', t)); }); det.appendChild(jv);
+    var det = el('details'); det.appendChild(el('summary', '', S('이 레시피가 하는 일, Jev 판정 목록')));
+    var jv = el('div'); jv.style.marginTop = '8px'; r.jev.forEach(function (t) { jv.appendChild(el('span', 'jev', S(t))); }); det.appendChild(jv);
     card.appendChild(det);
     info.appendChild(card);
   }
@@ -550,7 +569,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   $('#fixStop').onclick = function () { if (ctl) ctl.abort(); };
   $('#make').onclick = async function () {
     var req = $('#req').value.trim(); if (req.length < 8) { fail('코드 만들기를 못했어요. 하고 싶은 일을 조금 더 자세히 적어 주세요.'); return; }
-    if (!needCode()) return;
+    if (!needAi()) return;
     var code = cleanCode($('#src').value), r = DATA.recipes[cur], rid = r.id;
     if (code.length > 100000) { say($('#makeOut'), '코드가 너무 깁니다(10만 자 초과). 필요한 부분만 남기고 다시 시도하세요.', 'err'); fail('코드 만들기를 못했어요. 코드가 너무 깁니다.'); return; }
     ctl = new AbortController(); busy(true, $('#make'), $('#stop')); $('#makeState').textContent = '만드는 중…'; say($('#makeOut'), '');
@@ -652,7 +671,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   $('#read').onclick = function () { if (showReading($('#err').value)) toast('오류 문구를 읽었어요. 원인과 처방은 아래에 있습니다.'); };
   $('#fix').onclick = async function () {
     var errText = $('#err').value, rd = showReading(errText); if (!rd) return;
-    if (!needCode()) return;
+    if (!needAi()) return;
     var skipAi = rd.notes.length && rd.notes.every(function (n) { return !n.ai; });
     if (skipAi) { $('#fixOut').appendChild(el('div', 'msg ok', '코드를 고칠 문제가 아니라 위 처방대로 하면 풀립니다. 그래도 코드가 틀렸다고 생각하면 오류 문구에 설명을 덧붙여 다시 눌러 주세요.')); toast('오류를 읽었어요. 코드는 그대로 두고 위 처방대로 하면 풀립니다.'); return; }
     var code = cleanCode($('#src').value); if (code.length > 100000) { $('#fixOut').appendChild(el('div', 'msg err', '코드가 너무 깁니다(10만 자 초과).')); fail('오류 고치기를 못했어요. 코드가 너무 깁니다.'); return; }
@@ -665,6 +684,13 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
       else fail('오류 고치기를 못했어요. 아래 안내를 확인하세요.');
     } catch (e) { out.appendChild(el('div', 'msg err', e.name === 'AbortError' ? '멈췄습니다.' : e.message)); if (e.name === 'AbortError') toast('오류 고치기를 멈췄어요.'); else fail('오류 고치기를 못했어요. ' + e.message); }
     finally { busy(false, $('#fix'), $('#fixStop')); $('#fixState').textContent = ''; ctl = null; }
+  };
+
+  // 연수 현장 밖(혼자 쓰기)에서는 AI ONE 대신 내가 쓰는 AI 채팅에 붙여 넣어 고칩니다.
+  $('#fixExt').onclick = function () {
+    var errText = $('#err').value, rd = showReading(errText); if (!rd) return;
+    var code = cleanCode($('#src').value);
+    copy(D.buildFixPrompt({ error: errText, notes: rd.notes, lines: rd.p.lines, attempt: 0 }) + '\n\n[현재 코드]\n```javascript\n' + code + '\n```', '오류 프롬프트와 코드를 복사했어요. ChatGPT, Gemini, Claude에 붙여 넣고, 받은 코드를 위 3번 칸에 넣으세요.');
   };
 
   // ---------- Jev 시험대 ----------
@@ -681,7 +707,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     return wrap;
   }
   $('#jrun').onclick = async function () {
-    if (!needCode()) return;
+    if (!needAi()) return;
     var qs; try { qs = JSON.parse($('#jq').value); } catch (e) { say($('#jout'), '질문(JSON) 모양이 틀렸습니다: ' + e.message, 'err'); fail('Jev에게 묻기를 못했어요. 질문(JSON) 모양이 틀렸습니다.'); return; }
     var st = $('#jstate').value; if (/^\s*[\[{]/.test(st)) { try { st = JSON.parse(st); } catch (e) {} }
     $('#jrun').disabled = true; $('#jstateTxt').textContent = '묻는 중…';
@@ -708,7 +734,14 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     var lastH = 0, send = function () { var h = document.querySelector('.wrap').offsetHeight + 4; if (h !== lastH) { lastH = h; parent.postMessage({ type: 'gas-height', h: h }, location.origin); } };
     if (window.ResizeObserver) new ResizeObserver(send).observe(document.body); setInterval(send, 700);
   }
-  codeUi(); pick(0); renderResults();
+  function applyMode() {
+    $('#s0solo').hidden = !solo; $('#s0class').hidden = solo; $('#s5').hidden = solo;
+    $('#make').hidden = solo; $('#fix').hidden = solo;
+    $('#modeSolo').className = solo ? '' : 'g'; $('#modeClass').className = solo ? 'g' : '';
+  }
+  function setMode(m) { solo = m === 'solo'; lsSet('acl-gas-mode', m); applyMode(); pick(cur); }
+  $('#modeSolo').onclick = function () { setMode('solo'); }; $('#modeClass').onclick = function () { setMode('class'); };
+  applyMode(); codeUi(); pick(0); renderResults();
   var h = decodeURIComponent(location.hash.slice(1)); var m = /^r([1-6])$/.exec(h); if (m) pick(Number(m[1]) - 1);
   var kn = $('#kitName'), ko = $('#kitOrg');
   kn.value = lsGet('acl-kit-name', ''); ko.value = lsGet('acl-kit-org', '');

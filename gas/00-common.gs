@@ -1,13 +1,13 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.08-c';
+var CODE_VERSION = 'v2026.11.09-a';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
-   post_  : 수업 서버(kimcook-edu.pages.dev)로 보내는 공통 통로. 수업 코드는 스크립트 속성에만 저장됩니다.
-   ai_    : 글을 쓰는 AI(Claude)에게 부탁합니다.
-   jev_   : 판정 모델 Jev에게 예/아니오, 여럿 중 하나, 단계 점수를 확률로 묻습니다. 글은 쓰지 않고 고르기만 합니다.
+   ai_    : 글을 쓰는 AI에게 부탁합니다.
+   jev_   : 글을 읽고 예/아니오, 여럿 중 하나, 단계 점수를 확률로 판정합니다(글은 쓰지 않고 고르기만 합니다).
    ss_ sheet_ throttle_ page_ : 시트 찾기, 시트 만들기, 연타 막기, 웹 화면 만들기 */
 // 편집기의 ▶ 실행이 맨 처음 함수를 고르므로 start 를 가장 위에 둡니다: 시트 탭, 메뉴, 자동 실행을 한 번에 준비합니다.
 function start() {
+  if (typeof ensureKey_ === 'function' && !ensureKey_()) return;
   if (typeof setup !== 'function') { say_('이 코드에는 start 단계가 없습니다. 만들어진 함수를 직접 실행하세요.'); return; }
   setup();
   if (typeof onOpen === 'function') onOpen();
@@ -19,6 +19,7 @@ function say_(msg) {
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
 }
 
+// <<SERVER 수업 서버판: 연수 현장의 수업 코드로 AI와 Jev를 부릅니다. 혼자 쓰는 판(내 API 키)은 이 부분만 다르게 바뀝니다.
 var SERVER = 'https://kimcook-edu.pages.dev';
 
 function setClassCode() {
@@ -82,6 +83,7 @@ function ai_(prompt, opts) {
 function jev_(state, questions) {
   return JSON.parse(post_('/api/jev', { state: state, questions: questions })).answers;
 }
+// SERVER>>
 
 function ss_() {
   var p = PropertiesService.getScriptProperties(), id = p.getProperty('SS_ID');
