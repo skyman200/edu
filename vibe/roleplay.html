@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상황 역할극 카드</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --line: #BCBCBC; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 22px 18px 32px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .hint { margin: 0 0 14px; }
+  button { min-height: 52px; padding: 0 18px; font: inherit; font-size: 20px; border: 1px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); cursor: pointer; }
+  button.main { background: var(--ink); color: #fff; }
+  .draw { display: flex; gap: 12px; align-items: center; }
+  .draw button { flex: 1; min-height: 64px; }
+  .left { font-size: 18px; }
+  .card { margin-top: 16px; border: 1px solid var(--ink); background: #fff; padding: 22px; min-height: 200px; }
+  .sit { font-size: clamp(30px, 6vw, 52px); font-weight: 800; }
+  .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; font-size: 24px; }
+  .roles div { border-top: 1px solid var(--line); padding-top: 8px; }
+  b { color: var(--red); }
+  .ph { display: grid; gap: 8px; margin-top: 16px; }
+  .ph button { text-align: left; font-size: 24px; }
+  .timer { margin-top: 18px; text-align: center; }
+  .digits { font-size: clamp(72px, 18vw, 150px); font-weight: 800; line-height: 1; }
+  .digits.end { color: var(--red); }
+  .tb { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+  .big { font-size: 40px; font-weight: 800; text-align: center; display: grid; gap: 14px; justify-items: center; }
+  @media (max-width: 560px) { .roles { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>상황 역할극 카드</h1>
+  <p class="hint">뽑기(Space)로 카드를 뽑고 둘씩 역할을 나눠 3분간 대화하세요. 표현을 누르면 소리가 납니다.</p>
+  <div class="draw"><button class="main" id="draw">뽑기</button><span class="left" id="left"></span></div>
+  <div class="card" id="card"></div>
+  <div class="timer">
+    <div class="digits" id="digits">3:00</div>
+    <div class="tb"><button class="main" id="go">시작</button><button id="stop">멈춤</button><button id="reset">처음으로</button></div>
+  </div>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다
+  const CARDS = [
+    { situation: '카페에서 주문하기', a: '손님', b: '점원', phrases: ['Can I get a latte, please?', 'For here or to go?', 'Anything else?'] },
+    { situation: '길 묻기', a: '길을 잃은 여행객', b: '현지 주민', phrases: ['How do I get to the station?', 'Turn left at the corner.', 'It is five minutes on foot.'] },
+    { situation: '호텔 체크인', a: '투숙객', b: '프런트 직원', phrases: ['I have a reservation under Kim.', 'May I see your passport?', 'Breakfast is from seven.'] },
+    { situation: '식당에서 계산하기', a: '손님', b: '종업원', phrases: ['Could we have the check?', 'Can I pay by card?', 'Keep the change.'] },
+    { situation: '병원 접수', a: '환자', b: '접수 직원', phrases: ['I have a headache.', 'How long have you had it?', 'The doctor will see you shortly.'] },
+    { situation: '옷 가게에서 교환하기', a: '손님', b: '매장 직원', phrases: ['Do you have a bigger size?', 'Do you have the receipt?', 'I would like to exchange it.'] },
+    { situation: '공항 체크인', a: '승객', b: '항공사 직원', phrases: ['I would like to check in.', 'Do you have any bags to check?', 'Here is your boarding pass.'] },
+    { situation: '처음 만난 친구와 인사', a: '신입생 A', b: '신입생 B', phrases: ['Nice to meet you. Your major?', 'Where are you from?', 'Let us study together.'] },
+    { situation: '택시 타기', a: '승객', b: '택시 기사', phrases: ['Please take me to the airport.', 'How long will it take?', 'Could you drop me off here?'] },
+    { situation: '교수님께 면담 요청', a: '학생', b: '교수', phrases: ['Do you have a moment?', 'I have a question.', 'Come to my office on Tuesday.'] }
+  ];
+  const $ = id => document.getElementById(id);
+  const TOTAL = 180;
+  let pool = CARDS.map((c, k) => k), secs = TOTAL, tid = null, actx = null;
+  const fmt = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  function speak(t) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US';
+    const v = speechSynthesis.getVoices().find(v => v.lang.replace('_', '-') === 'en-US');
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  }
+  function ctx() { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); }
+  function beep() {
+    try {
+      ctx();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + 0.6);
+    } catch (e) {}
+  }
+  function paint() { $('digits').textContent = fmt(secs); $('digits').classList.toggle('end', secs === 0); }
+  function stop() { clearInterval(tid); tid = null; }
+  function reset() { stop(); secs = TOTAL; paint(); }
+  function start() {
+    if (tid || secs === 0) return;
+    try { ctx(); } catch (e) {}
+    tid = setInterval(() => {
+      secs--; paint();
+      if (secs <= 0) { stop(); beep(); }
+    }, 1000);
+  }
+  function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; e.textContent = text; return e; }
+  function draw() {
+    const card = $('card'); card.textContent = '';
+    const c = CARDS[pool.splice(Math.floor(Math.random() * pool.length), 1)[0]];
+    reset();
+    const roles = mk('div', 'roles', '');
+    [['A', c.a], ['B', c.b]].forEach(r => { const d = mk('div', '', ''); d.append(mk('b', '', '역할 ' + r[0] + ' '), r[1]); roles.appendChild(d); });
+    const ph = mk('div', 'ph', '');
+    c.phrases.forEach(p => { const b = mk('button', '', p); b.onclick = () => speak(p); ph.appendChild(b); });
+    card.append(mk('div', 'sit', c.situation), roles, ph);
+    update();
+  }
+  function update() { $('left').textContent = '남은 카드 ' + pool.length + '장'; }
+  function finish() {
+    const card = $('card'); card.textContent = '';
+    const d = mk('div', 'big', '카드를 모두 뽑았습니다');
+    const b = mk('button', 'main', '처음부터');
+    b.onclick = () => { pool = CARDS.map((c, k) => k); card.textContent = ''; reset(); update(); };
+    d.append(b); card.appendChild(d);
+  }
+  $('draw').onclick = () => { if (!pool.length) { finish(); return; } draw(); };
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.target.closest('button')) return;
+    e.preventDefault(); $('draw').click();
+  });
+  $('go').onclick = start; $('stop').onclick = stop; $('reset').onclick = reset;
+  update(); paint();
+</script>
+</body>
+</html>

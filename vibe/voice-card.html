@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>발음 듣기 단어 카드</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #8E8E8E; --line: #D2D2D2; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 22px 18px 28px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .hint { color: var(--mute); font-size: 14px; margin: 0 0 14px; }
+  .langs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .langs button { font-size: 15px; padding: 8px 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  .langs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .top { display: flex; justify-content: space-between; font-size: 14px; color: var(--mute); margin-bottom: 8px; }
+  .card { background: #fff; border: 1px solid var(--ink); min-height: 250px; padding: 26px 22px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; cursor: pointer; user-select: none; }
+  .word { font-size: clamp(40px, 11vw, 64px); font-weight: 800; line-height: 1.15; }
+  .read { font-size: 18px; color: var(--mute); margin-top: 8px; }
+  .mean { font-size: 30px; font-weight: 800; }
+  .ex { font-size: 19px; margin-top: 14px; line-height: 1.5; }
+  .tap { font-size: 13px; color: var(--mute); margin-top: 18px; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  button.b { font-size: 17px; padding: 14px 8px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+  button.g { background: #fff; color: var(--ink); }
+  button.r { background: var(--red); border-color: var(--red); }
+  .warn { color: var(--red); font-size: 14px; margin: 10px 0 0; min-height: 1.2em; }
+  .done { font-size: 22px; font-weight: 800; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>발음 듣기 단어 카드</h1>
+  <p class="hint">카드를 누르면 뒤집힙니다. '듣기'를 누르면 원어 발음이 나옵니다. 모르는 카드만 다시 볼 수 있습니다.</p>
+  <div class="langs" id="langs"></div>
+  <div class="top"><span id="pos"></span><span id="left"></span></div>
+  <div class="card" id="card"></div>
+  <div class="row">
+    <button class="b" id="say">듣기</button>
+    <button class="b g" id="slow">느리게</button>
+    <button class="b g" id="sayEx">예문 듣기</button>
+  </div>
+  <div class="row2">
+    <button class="b g" id="no">모른다</button>
+    <button class="b r" id="yes">안다 · 다음</button>
+  </div>
+  <p class="warn" id="warn"></p>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다
+  const SETS = {
+    '영어': { lang: 'en-US', words: [
+      ['schedule', '', '일정; 일정을 잡다', 'Could we schedule a meeting for Monday?'],
+      ['deadline', '', '마감', 'The deadline is this Friday.'],
+      ['proposal', '', '제안서', 'Please review the attached proposal.'],
+      ['agenda', '', '회의 안건', "Let's go over today's agenda."],
+      ['invoice', '', '청구서', 'We will send the invoice tomorrow.'],
+      ['follow up', '', '후속 연락하다', "I'll follow up with you next week."]] },
+    '일본어': { lang: 'ja-JP', words: [
+      ['予約', 'よやく', '예약', 'レストランを予約しました。'],
+      ['会議', 'かいぎ', '회의', '会議は三時からです。'],
+      ['締め切り', 'しめきり', '마감', '締め切りは金曜日です。'],
+      ['確認', 'かくにん', '확인', 'メールを確認してください。'],
+      ['遅刻', 'ちこく', '지각', 'すみません、遅刻しました。'],
+      ['名刺', 'めいし', '명함', '名刺をどうぞ。']] },
+    '중국어': { lang: 'zh-CN', words: [
+      ['会议', 'huìyì', '회의', '会议几点开始？'],
+      ['预订', 'yùdìng', '예약하다', '我想预订一个房间。'],
+      ['名片', 'míngpiàn', '명함', '这是我的名片。'],
+      ['价格', 'jiàgé', '가격', '这个价格可以再便宜一点吗？'],
+      ['合同', 'hétong', '계약서', '请在合同上签字。'],
+      ['发票', 'fāpiào', '영수증', '请给我开一张发票。']] },
+    '스페인어': { lang: 'es-ES', words: [
+      ['reunión', '', '회의', 'La reunión empieza a las tres.'],
+      ['cita', '', '약속, 예약', 'Tengo una cita con el cliente mañana.'],
+      ['factura', '', '청구서', '¿Me puede enviar la factura?'],
+      ['plazo', '', '기한', 'El plazo termina el viernes.'],
+      ['presupuesto', '', '견적, 예산', 'Le envío el presupuesto hoy.'],
+      ['correo', '', '이메일', 'Te escribo un correo esta tarde.']] }
+  };
+  const $ = id => document.getElementById(id);
+  let setName = '영어', deck = [], i = 0, flipped = false, unknown = [];
+  function start(name, onlyUnknown) {
+    setName = name;
+    deck = onlyUnknown ? unknown.slice() : SETS[name].words.map((w, k) => k);
+    unknown = []; i = 0; flipped = false;
+    document.querySelectorAll('#langs button').forEach(b => b.classList.toggle('on', b.dataset.n === name));
+    draw(); checkVoice();
+  }
+  function cur() { return SETS[setName].words[deck[i]]; }
+  function draw() {
+    const c = $('card');
+    if (i >= deck.length) {
+      c.innerHTML = unknown.length
+        ? '<div class="done">모르는 카드 ' + unknown.length + '장</div><div class="tap">눌러서 모르는 카드만 다시 보기</div>'
+        : '<div class="done">모두 안다!</div><div class="tap">눌러서 처음부터</div>';
+      $('pos').textContent = ''; $('left').textContent = '';
+      return;
+    }
+    const w = cur();
+    c.innerHTML = flipped
+      ? '<div class="mean">' + w[2] + '</div><div class="ex">' + w[3] + '</div><div class="tap">다시 누르면 앞면</div>'
+      : '<div class="word" lang="' + SETS[setName].lang + '">' + w[0] + '</div>' + (w[1] ? '<div class="read">' + w[1] + '</div>' : '') + '<div class="tap">눌러서 뜻 보기</div>';
+    $('pos').textContent = (i + 1) + ' / ' + deck.length;
+    $('left').textContent = unknown.length ? '모른다 ' + unknown.length : '';
+  }
+  function voiceFor(lang) {
+    const vs = speechSynthesis.getVoices();
+    return vs.find(v => v.lang.replace('_', '-') === lang) || vs.find(v => v.lang.slice(0, 2) === lang.slice(0, 2));
+  }
+  function checkVoice() {
+    if (!('speechSynthesis' in window)) { $('warn').textContent = '이 브라우저는 소리 읽기를 지원하지 않습니다.'; return; }
+    const ok = voiceFor(SETS[setName].lang);
+    $('warn').textContent = speechSynthesis.getVoices().length && !ok ? '이 기기에 ' + setName + ' 목소리가 없어 다른 목소리로 읽을 수 있습니다.' : '';
+  }
+  function speak(text, rate) {
+    if (!('speechSynthesis' in window) || !text) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = SETS[setName].lang; u.rate = rate || 1;
+    const v = voiceFor(u.lang); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  }
+  $('langs').innerHTML = Object.keys(SETS).map(n => '<button data-n="' + n + '">' + n + '</button>').join('');
+  $('langs').onclick = e => { const b = e.target.closest('button'); if (b) start(b.dataset.n); };
+  $('card').onclick = () => {
+    if (i >= deck.length) { start(setName, unknown.length > 0); return; }
+    flipped = !flipped; draw();
+  };
+  $('say').onclick = () => { if (i < deck.length) speak(cur()[0], 1); };
+  $('slow').onclick = () => { if (i < deck.length) speak(cur()[0], 0.6); };
+  $('sayEx').onclick = () => { if (i < deck.length) speak(cur()[3], 0.9); };
+  $('yes').onclick = () => { if (i < deck.length) { i++; flipped = false; draw(); } };
+  $('no').onclick = () => { if (i < deck.length) { unknown.push(deck[i]); i++; flipped = false; draw(); } };
+  if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = checkVoice;
+  start('영어');
+</script>
+</body>
+</html>

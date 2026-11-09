@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>조 편성기</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #6B6B6B; --line: #BCBCBC; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 20px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .hint { color: var(--mute); font-size: 16px; margin: 0 0 16px; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+  label { font-size: 18px; }
+  input { width: 84px; min-height: 48px; font: inherit; font-size: 20px; padding: 0 8px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); }
+  button { min-height: 48px; font: inherit; font-size: 18px; padding: 0 18px; border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 4px; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); }
+  .msg { min-height: 24px; margin: 8px 0 14px; font-size: 16px; color: var(--red); }
+  .teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .team { border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 12px 14px; animation: in .3s; }
+  .team h2 { font-size: 20px; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--ink); }
+  .team ul { list-style: none; margin: 0; padding: 0; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .team li { padding: 3px 0; }
+  .team li.lead { font-weight: 800; }
+  .team li small { font-size: 13px; font-weight: 400; color: var(--red); margin-left: 6px; }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #back { display: none; }
+  body.present .ctl .in, body.present #copy, body.present #shuffle, body.present .hint { display: none; }
+  body.present #back { display: inline-block; }
+  body.present .team h2 { font-size: 30px; }
+  body.present .team ul { font-size: 36px; }
+  body.present .team li small { font-size: 18px; }
+  body.present .teams { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  @media (prefers-reduced-motion: reduce) { .team { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>조 편성기</h1>
+  <p class="hint">인원과 조 수를 넣고 '편성'을 누르세요. 각 조의 첫 번호가 조장입니다.</p>
+  <div class="ctl">
+    <label class="in">인원 <input id="people" type="number" min="2" value="24"> 명</label>
+    <label class="in">조 수 <input id="count" type="number" min="1" value="6"> 개</label>
+    <button id="make">편성</button>
+    <button class="ghost" id="shuffle">다시 섞기</button>
+    <button class="ghost" id="present">발표 화면</button>
+    <button class="ghost" id="back">돌아가기</button>
+    <button class="ghost" id="copy">복사</button>
+  </div>
+  <div class="msg" id="msg"></div>
+  <div class="teams" id="teams"></div>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다 (라벨 문구)
+  const LABEL = { team: '조', leader: '조장' };
+  const $ = id => document.getElementById(id);
+  let result = [];
+  function deal() {
+    const n = Math.floor(Number($('people').value)), k = Math.floor(Number($('count').value));
+    if (!(n >= 2)) return say('인원은 2명 이상이어야 합니다.');
+    if (!(k >= 1) || k > n) return say('조 수는 1 이상, 인원 이하여야 합니다.');
+    const a = Array.from({ length: n }, (_, i) => i + 1);
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    result = Array.from({ length: k }, () => []);
+    a.forEach((v, i) => result[i % k].push(v));
+    say('');
+    render();
+  }
+  function say(t) { $('msg').textContent = t; }
+  function render() {
+    $('teams').textContent = '';
+    result.forEach((m, i) => {
+      const box = document.createElement('div'); box.className = 'team';
+      const h = document.createElement('h2'); h.textContent = (i + 1) + LABEL.team;
+      const ul = document.createElement('ul');
+      m.forEach((v, j) => {
+        const li = document.createElement('li'); li.textContent = v + '번';
+        if (j === 0) { li.className = 'lead'; const s = document.createElement('small'); s.textContent = LABEL.leader; li.appendChild(s); }
+        ul.appendChild(li);
+      });
+      box.append(h, ul); $('teams').appendChild(box);
+    });
+  }
+  async function copy() {
+    if (!result.length) return say('먼저 편성을 눌러 주세요.');
+    const text = result.map((m, i) => (i + 1) + LABEL.team + ': ' + m.map((v, j) => v + (j === 0 ? '(' + LABEL.leader + ')' : '')).join(', ')).join('\n');
+    try { await navigator.clipboard.writeText(text); say('복사했습니다.'); }
+    catch (e) { say('복사하지 못했습니다. 화면의 결과를 직접 선택해 복사하세요.'); }
+  }
+  $('make').onclick = deal;
+  $('shuffle').onclick = deal;
+  $('copy').onclick = copy;
+  $('present').onclick = () => { if (!result.length) deal(); if (result.length) document.body.classList.add('present'); };
+  $('back').onclick = () => document.body.classList.remove('present');
+  deal();
+</script>
+</body>
+</html>

@@ -10,6 +10,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap">
 <script src="vendor/qrcode/qrcode.js" defer></script>
+<script src="doc-reader.js"></script>
+<script src="vibe-kit.js"></script>
 <style>
 :root{
   --paper:#F2F2F2; --sheet:#F8F8F8; --ink:#1A1A1A; --ink2:#4A4A4A; --mute:#8E8E8E;
@@ -539,15 +541,16 @@ body.focus section.keep{padding:28px 0;border:0}
       </div>
 
       <div class="vstep" id="v-run">
-        <h3><span class="num">02</span>실행 — 붙여 넣고 돌려 보기</h3>
+        <h3><span class="num">02</span>실행 — 예시 앱부터 띄우고, 붙여 넣고 돌려 보기</h3>
+        <p class="sub" style="margin:0 0 8px">먼저 예시 앱을 하나 눌러 보세요. 바로 돌아갑니다. 마음에 들면 03에서 한 문장으로 바꿔 갑니다. 내 앱을 처음부터 만들었다면 01의 답을 아래 칸에 붙여 넣으세요.</p>
+        <div class="chips" id="vSamples"></div>
+        <p class="note" id="vSampleNote" style="margin:0 0 10px"></p>
         <div class="studio">
           <div>
             <textarea id="vCode" spellcheck="false" placeholder="AI가 준 답을 통째로 붙여 넣으세요. 코드 부분만 골라 실행합니다."></textarea>
             <div class="row">
               <button class="btn" id="vRun">실행 <span class="k" id="vRunKey"></span></button>
               <button class="btn ghostb" id="vPaste">복사한 답 붙여넣기</button>
-              <button class="btn ghostb" id="vSample2">예시: 발음 카드</button>
-              <button class="btn ghostb" id="vSample">예시: 순서 뽑기</button>
               <button class="mini" id="vClear">비우기</button>
             </div>
           </div>
@@ -566,13 +569,13 @@ body.focus section.keep{padding:28px 0;border:0}
       <div class="vstep" id="v-fix">
         <h3><span class="num">03</span>바꿔 쓰고 고치기 — 옆 교수님이 학생이 되어</h3>
         <div class="swap"><b>11:30 바꿔 쓰기.</b> 옆자리 교수님과 자리를 바꿔 앉아, 상대 앱을 학생처럼 3분 써 봅니다. 쓰다가 막히거나 아쉬운 점을 아래 칸에 한 줄로 적어 주고 돌아옵니다. 내 자리로 돌아오면 그 한 줄로 한 번 고칩니다.</div>
-        <p class="sub" style="margin:0 0 12px">AI ONE을 켜 두면 누르는 즉시 고쳐진 코드가 실행됩니다. 끄면 복사만 하니, 코드를 받았던 AI 대화창에 붙여 넣고 새 코드를 02에 다시 붙여 넣으세요.</p>
+        <p class="sub" style="margin:0 0 12px">AI에게는 <b>바뀐 곳만</b> 달라고 요청하므로 답이 짧고 빠릅니다(토큰 절약). AI ONE을 켜 두면 답을 받는 즉시 코드에 끼워 넣어 실행합니다. 끄면 복사만 하니, 받은 답을 02 칸에 붙여 넣으세요. 바뀐 곳도 전체 코드도 알아서 반영합니다.</p>
         <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="vUseAi"> 고칠 때 AI ONE으로 바로 실행 (끄면 복사만 합니다)</label>
         <div class="chips" id="vFixes"></div>
         <div class="row">
           <input id="vAsk" placeholder="옆 교수님의 한 줄. 예: 카드를 넘길 때 자동으로 발음이 나오면 좋겠어요" style="flex:1;min-width:240px">
           <button class="btn" id="vAskCopy">고칠 점 복사</button>
-          <label class="chk"><input type="checkbox" id="vWithCode"> 지금 코드도 함께 (새 대화창일 때)</label>
+          <label class="chk"><input type="checkbox" id="vWithCode"> 지금 코드도 함께 (AI가 코드를 모를 때)</label>
         </div>
       </div>
 
@@ -883,224 +886,6 @@ body.focus section.keep{padding:28px 0;border:0}
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div id="printDoc"></div>
-
-<!-- '예시 앱 불러오기' in the vibe coding studio (a textarea keeps </script> inside it harmless) -->
-<textarea id="vibe-sample" hidden><!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>발표 순서 뽑기</title>
-<style>
-  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #8E8E8E; --line: #D2D2D2; --red: #E54536; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 24px; display: grid; grid-template-columns: 1fr 220px; gap: 32px; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  .hint { color: var(--mute); font-size: 14px; margin: 0 0 18px; }
-  label { font-size: 15px; }
-  input { width: 72px; font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); background: #fff; }
-  .big { font: 800 clamp(110px, 26vw, 240px)/1 -apple-system, "Helvetica Neue", Arial, sans-serif; margin: 22px 0 10px; font-variant-numeric: tabular-nums; }
-  .left { color: var(--mute); font-size: 15px; margin: 0 0 18px; }
-  button { font-size: 16px; padding: 10px 18px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; margin-right: 8px; }
-  button.ghost { background: transparent; color: var(--ink); }
-  aside h2 { font-size: 12px; letter-spacing: .24em; color: var(--mute); margin: 6px 0 10px; }
-  ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
-  li { padding: 8px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-  li:last-child { color: var(--red); font-weight: 700; }
-  @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <main>
-    <h1>발표 순서 뽑기</h1>
-    <p class="hint">스페이스바나 '뽑기'를 누르세요. 한 번 뽑힌 번호는 다시 나오지 않습니다.</p>
-    <label>인원 <input id="count" type="number" min="2" max="200" value="30"> 명</label>
-    <div class="big" id="num">?</div>
-    <p class="left" id="left"></p>
-    <button id="draw">뽑기</button><button class="ghost" id="reset">처음부터</button>
-  </main>
-  <aside>
-    <h2>뽑힌 순서</h2>
-    <ol id="order"></ol>
-  </aside>
-</div>
-<script>
-  const $ = id => document.getElementById(id);
-  let pool = [], picked = [];
-  function start() {
-    const n = Math.max(2, Math.min(200, Number($('count').value) || 30));
-    pool = Array.from({ length: n }, (_, i) => i + 1);
-    picked = [];
-    $('num').textContent = '?';
-    render();
-  }
-  function draw() {
-    if (!pool.length) return;
-    const n = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-    picked.push(n);
-    $('num').textContent = n;
-    render();
-  }
-  function render() {
-    $('left').textContent = pool.length ? '남은 인원 ' + pool.length + '명' : '모두 뽑았습니다. 처음부터를 누르면 다시 시작합니다.';
-    $('order').innerHTML = picked.map((n, i) => '<li>' + (i + 1) + '번째 — ' + n + '번</li>').join('');
-  }
-  $('draw').onclick = draw;
-  $('reset').onclick = start;
-  $('count').onchange = start;
-  document.addEventListener('keydown', e => {
-    if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); draw(); }
-  });
-  start();
-</script>
-</body>
-</html>
-</textarea>
-
-<!-- "예시: 발음 듣기 단어 카드" in the vibe studio (mission 2): browser speech only, no network -->
-<textarea id="vibe-sample2" hidden>&lt;!doctype html>
-&lt;html lang="ko">
-&lt;head>
-&lt;meta charset="utf-8">
-&lt;meta name="viewport" content="width=device-width, initial-scale=1">
-&lt;title>발음 듣기 단어 카드&lt;/title>
-&lt;style>
-  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #8E8E8E; --line: #D2D2D2; --red: #E54536; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", sans-serif; }
-  .wrap { max-width: 640px; margin: 0 auto; padding: 22px 18px 28px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .hint { color: var(--mute); font-size: 14px; margin: 0 0 14px; }
-  .langs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-  .langs button { font-size: 15px; padding: 8px 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
-  .langs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .top { display: flex; justify-content: space-between; font-size: 14px; color: var(--mute); margin-bottom: 8px; }
-  .card { background: #fff; border: 1px solid var(--ink); min-height: 250px; padding: 26px 22px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; cursor: pointer; user-select: none; }
-  .word { font-size: clamp(40px, 11vw, 64px); font-weight: 800; line-height: 1.15; }
-  .read { font-size: 18px; color: var(--mute); margin-top: 8px; }
-  .mean { font-size: 30px; font-weight: 800; }
-  .ex { font-size: 19px; margin-top: 14px; line-height: 1.5; }
-  .tap { font-size: 13px; color: var(--mute); margin-top: 18px; }
-  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
-  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-  button.b { font-size: 17px; padding: 14px 8px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
-  button.g { background: #fff; color: var(--ink); }
-  button.r { background: var(--red); border-color: var(--red); }
-  .warn { color: var(--red); font-size: 14px; margin: 10px 0 0; min-height: 1.2em; }
-  .done { font-size: 22px; font-weight: 800; }
-&lt;/style>
-&lt;/head>
-&lt;body>
-&lt;div class="wrap">
-  &lt;h1>발음 듣기 단어 카드&lt;/h1>
-  &lt;p class="hint">카드를 누르면 뒤집힙니다. '듣기'를 누르면 원어 발음이 나옵니다. 모르는 카드만 다시 볼 수 있습니다.&lt;/p>
-  &lt;div class="langs" id="langs">&lt;/div>
-  &lt;div class="top">&lt;span id="pos">&lt;/span>&lt;span id="left">&lt;/span>&lt;/div>
-  &lt;div class="card" id="card">&lt;/div>
-  &lt;div class="row">
-    &lt;button class="b" id="say">듣기&lt;/button>
-    &lt;button class="b g" id="slow">느리게&lt;/button>
-    &lt;button class="b g" id="sayEx">예문 듣기&lt;/button>
-  &lt;/div>
-  &lt;div class="row2">
-    &lt;button class="b g" id="no">모른다&lt;/button>
-    &lt;button class="b r" id="yes">안다 · 다음&lt;/button>
-  &lt;/div>
-  &lt;p class="warn" id="warn">&lt;/p>
-&lt;/div>
-&lt;script>
-  const SETS = {
-    '영어': { lang: 'en-US', words: [
-      ['schedule', '', '일정; 일정을 잡다', 'Could we schedule a meeting for Monday?'],
-      ['deadline', '', '마감', 'The deadline is this Friday.'],
-      ['proposal', '', '제안서', 'Please review the attached proposal.'],
-      ['agenda', '', '회의 안건', "Let's go over today's agenda."],
-      ['invoice', '', '청구서', 'We will send the invoice tomorrow.'],
-      ['follow up', '', '후속 연락하다', "I'll follow up with you next week."]] },
-    '일본어': { lang: 'ja-JP', words: [
-      ['予約', 'よやく', '예약', 'レストランを予約しました。'],
-      ['会議', 'かいぎ', '회의', '会議は三時からです。'],
-      ['締め切り', 'しめきり', '마감', '締め切りは金曜日です。'],
-      ['確認', 'かくにん', '확인', 'メールを確認してください。'],
-      ['遅刻', 'ちこく', '지각', 'すみません、遅刻しました。'],
-      ['名刺', 'めいし', '명함', '名刺をどうぞ。']] },
-    '중국어': { lang: 'zh-CN', words: [
-      ['会议', 'huìyì', '회의', '会议几点开始？'],
-      ['预订', 'yùdìng', '예약하다', '我想预订一个房间。'],
-      ['名片', 'míngpiàn', '명함', '这是我的名片。'],
-      ['价格', 'jiàgé', '가격', '这个价格可以再便宜一点吗？'],
-      ['合同', 'hétong', '계약서', '请在合同上签字。'],
-      ['发票', 'fāpiào', '영수증', '请给我开一张发票。']] },
-    '스페인어': { lang: 'es-ES', words: [
-      ['reunión', '', '회의', 'La reunión empieza a las tres.'],
-      ['cita', '', '약속, 예약', 'Tengo una cita con el cliente mañana.'],
-      ['factura', '', '청구서', '¿Me puede enviar la factura?'],
-      ['plazo', '', '기한', 'El plazo termina el viernes.'],
-      ['presupuesto', '', '견적, 예산', 'Le envío el presupuesto hoy.'],
-      ['correo', '', '이메일', 'Te escribo un correo esta tarde.']] }
-  };
-  const $ = id => document.getElementById(id);
-  let setName = '영어', deck = [], i = 0, flipped = false, unknown = [];
-  function start(name, onlyUnknown) {
-    setName = name;
-    deck = onlyUnknown ? unknown.slice() : SETS[name].words.map((w, k) => k);
-    unknown = []; i = 0; flipped = false;
-    document.querySelectorAll('#langs button').forEach(b => b.classList.toggle('on', b.dataset.n === name));
-    draw(); checkVoice();
-  }
-  function cur() { return SETS[setName].words[deck[i]]; }
-  function draw() {
-    const c = $('card');
-    if (i >= deck.length) {
-      c.innerHTML = unknown.length
-        ? '&lt;div class="done">모르는 카드 ' + unknown.length + '장&lt;/div>&lt;div class="tap">눌러서 모르는 카드만 다시 보기&lt;/div>'
-        : '&lt;div class="done">모두 안다!&lt;/div>&lt;div class="tap">눌러서 처음부터&lt;/div>';
-      $('pos').textContent = ''; $('left').textContent = '';
-      return;
-    }
-    const w = cur();
-    c.innerHTML = flipped
-      ? '&lt;div class="mean">' + w[2] + '&lt;/div>&lt;div class="ex">' + w[3] + '&lt;/div>&lt;div class="tap">다시 누르면 앞면&lt;/div>'
-      : '&lt;div class="word" lang="' + SETS[setName].lang + '">' + w[0] + '&lt;/div>' + (w[1] ? '&lt;div class="read">' + w[1] + '&lt;/div>' : '') + '&lt;div class="tap">눌러서 뜻 보기&lt;/div>';
-    $('pos').textContent = (i + 1) + ' / ' + deck.length;
-    $('left').textContent = unknown.length ? '모른다 ' + unknown.length : '';
-  }
-  function voiceFor(lang) {
-    const vs = speechSynthesis.getVoices();
-    return vs.find(v => v.lang.replace('_', '-') === lang) || vs.find(v => v.lang.slice(0, 2) === lang.slice(0, 2));
-  }
-  function checkVoice() {
-    if (!('speechSynthesis' in window)) { $('warn').textContent = '이 브라우저는 소리 읽기를 지원하지 않습니다.'; return; }
-    const ok = voiceFor(SETS[setName].lang);
-    $('warn').textContent = speechSynthesis.getVoices().length &amp;&amp; !ok ? '이 기기에 ' + setName + ' 목소리가 없어 다른 목소리로 읽을 수 있습니다.' : '';
-  }
-  function speak(text, rate) {
-    if (!('speechSynthesis' in window) || !text) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = SETS[setName].lang; u.rate = rate || 1;
-    const v = voiceFor(u.lang); if (v) u.voice = v;
-    speechSynthesis.speak(u);
-  }
-  $('langs').innerHTML = Object.keys(SETS).map(n => '&lt;button data-n="' + n + '">' + n + '&lt;/button>').join('');
-  $('langs').onclick = e => { const b = e.target.closest('button'); if (b) start(b.dataset.n); };
-  $('card').onclick = () => {
-    if (i >= deck.length) { start(setName, unknown.length > 0); return; }
-    flipped = !flipped; draw();
-  };
-  $('say').onclick = () => { if (i &lt; deck.length) speak(cur()[0], 1); };
-  $('slow').onclick = () => { if (i &lt; deck.length) speak(cur()[0], 0.6); };
-  $('sayEx').onclick = () => { if (i &lt; deck.length) speak(cur()[3], 0.9); };
-  $('yes').onclick = () => { if (i &lt; deck.length) { i++; flipped = false; draw(); } };
-  $('no').onclick = () => { if (i &lt; deck.length) { unknown.push(deck[i]); i++; flipped = false; draw(); } };
-  if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = checkVoice;
-  start('영어');
-&lt;/script>
-&lt;/body>
-&lt;/html>
-</textarea>
 
 <!-- Apps Script code shown in STEP 3 -->
 <script type="text/plain" id="code-3-1">/* 퀴즈 시트를 구글 폼 퀴즈로 바꿉니다.
@@ -2207,7 +1992,7 @@ function sheetFor_(name, header) {
         '- 처음 쓰는 사람도 알 수 있게 화면 위쪽에 사용법을 한 줄 넣어 줘.',
         '', '[답하는 방법]',
         '- 전체 코드를 ```html 블록 하나로 한 번에 줘. 설명은 세 줄 이하로.',
-        '- 내가 고칠 점을 말하면, 바뀐 부분만 말고 전체 코드를 다시 줘.'])).join('\n');
+        '- 내가 고칠 점을 말하면 전체 코드를 다시 쓰지 말고, 바뀐 곳만 "<<<<<<< 찾기 / ======= / >>>>>>> 바꾸기" 형식으로 줘. 찾을 글은 코드에서 한 곳이어야 해.'])).join('\n');
   }
   function vPromptRefresh() { if (!vPromptEdited) $('#vPrompt').value = vibePrompt(readPlan()); }
   function chooseIdea(i) {
@@ -2241,7 +2026,14 @@ function sheetFor_(name, header) {
   }
   function vStatus(msg, err) { const s = $('#vStatus'); s.textContent = msg; s.classList.toggle('err', !!err); }
   function vRun() {
-    const raw = $('#vCode').value, code = extractHtml(raw);
+    let raw = $('#vCode').value;
+    if (VibePatch.has(raw)) {
+      const r = vibe.code ? VibePatch.apply(vibe.code, raw) : null;
+      if (!r) { vStatus('바뀐 곳을 끼워 넣을 코드가 없습니다. 먼저 예시나 코드를 실행하세요.', true); return; }
+      if (r.failed.length) { vStatus('바꾸지 못했습니다: ' + r.failed.map(f => (f.label ? '"' + f.label + '" ' : '') + f.why).join(' / '), true); toast('코드는 그대로입니다. AI에게 "찾는 부분을 코드에서 그대로 복사해서 다시 알려 줘"라고 말해 보세요.'); return; }
+      raw = r.code; $('#vCode').value = raw; toast(r.applied + '곳을 바꿔 실행합니다.');
+    }
+    const code = extractHtml(raw);
     if (!code) { vStatus('실행할 코드가 없습니다. AI가 준 답을 붙여 넣으세요.', true); return; }
     if (code !== raw.trim()) { $('#vCode').value = code; toast('답에서 코드 부분만 골라 실행합니다.'); }
     vibe.code = code; vStore();
@@ -2254,8 +2046,8 @@ function sheetFor_(name, header) {
     if (e.data.err) { vErrors.push(String(e.data.err)); vStatus('오류 ' + vErrors.length + '개: ' + vErrors[0], true); $('#vFix').hidden = false; }
     else if (e.data.ok && !vErrors.length) vStatus('실행했습니다. 오류 없음 · ' + hhmm(Date.now()));
   });
-  const fixText = (ask, withCode) => ask.trim() + '\n나머지는 그대로 두고, 바뀐 전체 코드를 ```html 블록 하나로 다시 줘.'
-    + (withCode ? '\n\n[지금 코드]\n```html\n' + $('#vCode').value.trim() + '\n```' : '');
+  // 고칠 때는 바뀐 곳만 받습니다(VibePatch): 답이 짧아 토큰이 덜 들고, 받은 답은 지금 코드에 끼워 넣습니다.
+  const fixText = (ask, withCode) => VibePatch.fixPrompt(ask, withCode ? $('#vCode').value : '');
 
   function renderVersions() {
     $('#vVers').innerHTML = vibe.versions.slice().reverse().map(x => '<li><b class="num">v' + x.n + '</b><span>' + esc(x.name) + ' · ' + x.lines + '줄 · '
@@ -2295,8 +2087,15 @@ function sheetFor_(name, header) {
   $('#vRun').onclick = vRun;
   // an example app also names itself in 04 (publish), so the gallery card matches what runs
   const samplePub = (title, desc) => { $('#pubTitle').value = title; $('#pubDesc').value = desc; };
-  $('#vSample').onclick = () => { $('#vCode').value = $('#vibe-sample').value.trim(); vRun(); samplePub('발표 순서 뽑기', '번호를 중복 없이 한 명씩 뽑아 크게 보여 줍니다'); };
-  $('#vSample2').onclick = () => { $('#vCode').value = $('#vibe-sample2').value.trim(); vRun(); samplePub('발음 듣기 단어 카드', '카드를 넘기며 영어·일본어·중국어·스페인어 발음을 듣습니다'); };
+  $('#vSamples').innerHTML = VIBE_SAMPLES.map((x, i) => '<button class="chip" data-vsample="' + i + '">' + esc(x.name) + '</button>').join('');
+  $('#vSamples').addEventListener('click', e => {
+    const b = e.target.closest('[data-vsample]'); if (!b) return;
+    const x = VIBE_SAMPLES[Number(b.dataset.vsample)];
+    $$('#vSamples .chip').forEach(c => c.classList.toggle('on', c === b));
+    $('#vCode').value = x.code; vRun(); samplePub(x.name, x.desc);
+    $('#vSampleNote').textContent = x.tag + ' · ' + x.desc + ' · 03에서 이렇게 바꿔 보세요: "' + x.ask + '"';
+    $('#vAsk').placeholder = '예: ' + x.ask;
+  });
   $('#vClear').onclick = () => { $('#vCode').value = ''; vibe.code = ''; vStore(); $('#vFrame').srcdoc = ''; $('#vFix').hidden = true; vStatus('아직 실행하지 않았습니다.'); };
   $('#vPaste').onclick = async () => {
     let text = '';
@@ -2310,8 +2109,7 @@ function sheetFor_(name, header) {
     $('#vFrameBox').classList.toggle('phone', b.dataset.vsize === 'phone');
   }));
   $('#vFull').onclick = () => { const box = $('#vFrameBox'); if (box.requestFullscreen) box.requestFullscreen().catch(() => {}); };
-  const errAsk = () => '이 웹앱을 실행하니 아래 오류가 났어.\n' + vErrors.slice(0, 5).map(x => '- ' + x).join('\n')
-    + '\n원인을 한 줄로 설명하고, 고친 전체 코드를 ```html 블록 하나로 줘.\n\n[지금 코드]\n```html\n' + $('#vCode').value.trim() + '\n```';
+  const errAsk = () => VibePatch.errorPrompt(vErrors, $('#vCode').value);
   $('#vAskFix').onclick = () => $('#vUseAi').checked ? vAiGenerate(errAsk())
     : copy(errAsk(), '오류와 코드를 복사했습니다. AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   $('#vAskCopy').onclick = () => {
@@ -2631,7 +2429,7 @@ function sheetFor_(name, header) {
 
   /* ---------- attachments: documents are read in this browser (nothing is uploaded except the extracted text), images are downscaled ---------- */
   const ATT_ACCEPT = '.pdf,.docx,.pptx,.hwpx,.xlsx,.txt,.md,.csv,.tsv,.png,.jpg,.jpeg,.webp,image/*';
-  const ATT = { files: 3, images: 4, textOne: 100000, textAll: 150000, bytes: 25 * 1024 * 1024, imgSide: 1568 };
+  const ATT = DocReader.ATT;
   const ATT_HINT = {
     'p-1': '강의 PDF, 슬라이드(PPT), 워드 파일을 올려 주세요. 올린 자료만 근거로 답합니다.',
     'p-3': '시험 문항 파일(PDF, 워드, 한글 hwpx)을 올리면 붙여 넣지 않아도 됩니다.',
@@ -2659,111 +2457,7 @@ function sheetFor_(name, header) {
     const det = $('#at-' + id); if (det && (a.files.length || a.images.length || a.msg)) det.open = true;
     segRender(id);
   }
-  const extOf = n => (n.split('.').pop() || '').toLowerCase();
-  const decodeXml = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&');
-  const tidy = s => s.replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  async function unzip(buf) {
-    const dv = new DataView(buf), u8 = new Uint8Array(buf), ent = {};
-    let e = -1;
-    for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
-    if (e < 0) throw new Error('not a zip');
-    const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true);
-    for (let k = 0; k < n && dv.getUint32(p, true) === 0x02014b50; k++) {
-      const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
-      ent[new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl))] = { method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), off: dv.getUint32(p + 42, true) };
-      p += 46 + nl + xl + cl;
-    }
-    return {
-      names: Object.keys(ent),
-      async read(name) {
-        const f = ent[name]; if (!f) return '';
-        const start = f.off + 30 + dv.getUint16(f.off + 26, true) + dv.getUint16(f.off + 28, true), data = u8.subarray(start, start + f.size);
-        if (f.method === 0) return new TextDecoder().decode(data);
-        return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
-      }
-    };
-  }
-  const numSort = (a, b) => (parseInt(a.replace(/\D+/g, ''), 10) || 0) - (parseInt(b.replace(/\D+/g, ''), 10) || 0);
-  const paras = (xml, endTag, textRe) => xml.split(endTag).map(p => { let s = ''; for (const m of p.matchAll(textRe)) s += decodeXml(m[1].replace(/<[^>]+>/g, '')); return s.trim(); }).filter(Boolean).join('\n');
-  const readers = {
-    async docx(buf) { const z = await unzip(buf); return paras(await z.read('word/document.xml'), '</w:p>', /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g); },
-    async pptx(buf) {
-      const z = await unzip(buf), out = [];
-      for (const nm of z.names.filter(x => /^ppt\/slides\/slide\d+\.xml$/.test(x)).sort(numSort)) {
-        const t = paras(await z.read(nm), '</a:p>', /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g);
-        if (t) out.push('[슬라이드 ' + (parseInt(nm.replace(/\D+/g, ''), 10)) + ']\n' + t);
-      }
-      return out.join('\n\n');
-    },
-    async hwpx(buf) {
-      const z = await unzip(buf), out = [];
-      for (const nm of z.names.filter(x => /^Contents\/section\d+\.xml$/i.test(x)).sort(numSort)) out.push(paras(await z.read(nm), '</hp:p>', /<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g));
-      return out.join('\n');
-    },
-    async xlsx(buf) {
-      const z = await unzip(buf), ss = [];
-      for (const m of (await z.read('xl/sharedStrings.xml')).matchAll(/<si>([\s\S]*?)<\/si>/g)) ss.push(decodeXml([...m[1].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')));
-      const out = [];
-      for (const nm of z.names.filter(x => /^xl\/worksheets\/sheet\d+\.xml$/.test(x)).sort(numSort)) {
-        const rows = [];
-        for (const r of (await z.read(nm)).matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
-          const cells = [];
-          for (const c of r[1].matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-            const col = ((c[1].match(/r="([A-Z]+)\d+"/) || [])[1] || 'A').split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
-            const v = (c[2] || '').match(/<v>([\s\S]*?)<\/v>/), is = (c[2] || '').match(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/);
-            cells[col] = /t="s"/.test(c[1]) && v ? ss[+v[1]] || '' : is ? decodeXml(is[1]) : v ? decodeXml(v[1]) : '';
-          }
-          if (cells.some(Boolean)) rows.push(Array.from(cells, x => x || '').join('\t'));
-        }
-        if (rows.length) out.push('[시트 ' + (parseInt(nm.replace(/\D+/g, ''), 10)) + ']\n' + rows.join('\n'));
-      }
-      return out.join('\n\n');
-    }
-  };
-  async function readTextFile(file) {
-    const buf = await file.arrayBuffer();
-    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { return new TextDecoder('euc-kr').decode(buf); }
-  }
-  let pdfLib;
-  async function loadPdf() {
-    if (!pdfLib) {
-      pdfLib = await import('./vendor/pdfjs/pdf.min.mjs');
-      pdfLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', location.href).href;
-    }
-    return pdfLib;
-  }
-  function canvasUrl(src, w, h) {
-    const k = Math.min(1, ATT.imgSide / Math.max(w, h)), c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
-    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.82);
-  }
-  async function readPdf(file) {
-    const lib = await loadPdf();
-    const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-    let text = '', chars = 0;
-    for (let i = 1; i <= pdf.numPages && text.length < ATT.textOne * 1.3; i++) {
-      const tc = await (await pdf.getPage(i)).getTextContent();
-      const s = tc.items.map(it => it.str + (it.hasEOL ? '\n' : ' ')).join('').replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
-      chars += s.length;
-      text += '[쪽 ' + i + ']\n' + s + '\n\n';
-    }
-    if (chars >= 40 * Math.min(pdf.numPages, 3)) return { text: text.trim(), pages: pdf.numPages };
-    const images = [], n = Math.min(pdf.numPages, ATT.images);  // a scan has no text layer: send the first pages as pictures
-    for (let i = 1; i <= n; i++) {
-      const pg = await pdf.getPage(i), vp0 = pg.getViewport({ scale: 1 }), sc = ATT.imgSide / Math.max(vp0.width, vp0.height), vp = pg.getViewport({ scale: sc });
-      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-      await pg.render({ canvasContext: c.getContext('2d'), viewport: vp, background: '#fff' }).promise;
-      images.push(c.toDataURL('image/jpeg', 0.82));
-    }
-    return { images, pages: pdf.numPages };
-  }
-  async function readImage(file) {
-    let bmp;
-    try { bmp = await createImageBitmap(file); } catch (e) { throw new Error('이 이미지 형식은 읽을 수 없습니다. PNG나 JPG로 저장해 올려 주세요. (아이폰 HEIC는 안 됩니다)'); }
-    const url = canvasUrl(bmp, bmp.width, bmp.height); if (bmp.close) bmp.close();
-    return url;
-  }
+  const { extOf, tidy, readers, readTextFile, readPdf, readImage } = DocReader;
   const attChars = a => a.files.reduce((n, f) => n + f.text.length, 0);
   async function attAdd(id, list) {
     const a = attOf(id); a.msg = '';
@@ -3164,6 +2858,14 @@ function sheetFor_(name, header) {
         done: o => { truncated = !!o.truncated; }
       }, ctl.signal);
       if (!ran) { vStatus('취소했습니다.'); return; }
+      if (VibePatch.has(text)) {
+        const r = vibe.code ? VibePatch.apply(vibe.code, text) : null;
+        if (!r) { vStatus('바뀐 곳을 끼워 넣을 코드가 없습니다. 먼저 코드를 실행해 두세요.', true); return; }
+        if (r.failed.length) { vStatus('AI가 알려 준 곳을 코드에서 찾지 못했습니다(' + r.failed.map(f => f.why).join(' / ') + '). 코드는 그대로입니다. 한 번 더 눌러 주세요.', true); return; }
+        $('#vCode').value = r.code; vRun();
+        toast(label + '가 알려 준 ' + r.applied + '곳을 바꿔 실행했습니다.');
+        return;
+      }
       const code = extractHtml(text);
       if (!/<(!doctype|html|body|div|script)/i.test(code)) { vStatus('AI 답에서 코드를 찾지 못했습니다. 한 번 더 눌러 주세요.', true); return; }
       if (truncated && !/<\/html>/i.test(code)) { vStatus('코드가 너무 길어서 여러 번 이어 썼는데도 끝나지 않았습니다. 더 작은 앱으로 한 번 더 눌러 주세요.', true); return; }

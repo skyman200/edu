@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>듣고 받아쓰기</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --line: #BCBCBC; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 22px 18px 32px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .hint { margin: 0 0 14px; }
+  .top { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .bar { height: 6px; border: 1px solid var(--line); background: #fff; }
+  .bar i { display: block; height: 100%; background: var(--red); transform-origin: left; transition: transform .3s; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 10px; }
+  button { min-height: 52px; font: inherit; font-size: 20px; border: 1px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); cursor: pointer; }
+  button.main { background: var(--ink); color: #fff; }
+  input { width: 100%; min-height: 54px; font: inherit; font-size: 22px; padding: 8px 12px; border: 1px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); }
+  .btns { display: grid; gap: 8px; margin-top: 10px; }
+  .notice { color: var(--red); min-height: 1.3em; margin: 8px 0 0; }
+  .out { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 26px; line-height: 1.6; }
+  .w { margin-right: 10px; }
+  .out .x { color: var(--red); text-decoration: underline 3px; text-underline-offset: 5px; }
+  .ans { font-weight: 800; margin-top: 8px; }
+  .big { font-size: 56px; font-weight: 800; text-align: center; margin: 30px 0 18px; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>듣고 받아쓰기</h1>
+  <p class="hint">듣기를 눌러 문장을 듣고, 영어로 쓴 뒤 확인을 누르세요.</p>
+  <div class="top"><span id="pos"></span><span id="score"></span></div>
+  <div class="bar"><i id="fill" style="transform:scaleX(0)"></i></div>
+  <div id="play">
+    <div class="row">
+      <button class="main" id="say">듣기</button>
+      <button id="slow">느리게 듣기</button>
+    </div>
+    <input id="inp" autocomplete="off" spellcheck="false" placeholder="영어로 쓰세요">
+    <div class="btns"><button class="main" id="ok">확인</button><button id="next" hidden>다음</button></div>
+    <p class="notice" id="notice"></p>
+    <div class="out" id="out" hidden></div>
+  </div>
+  <div id="end" hidden>
+    <div class="big" id="final"></div>
+    <div class="btns"><button class="main" id="again">다시 하기</button></div>
+  </div>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다 (영어 문장 | 한국어 뜻)
+  const SENTENCES = [
+    ['I would like a cup of coffee, please.', '커피 한 잔 주세요.'],
+    ['Could you tell me how to get to the station?', '역에 어떻게 가는지 알려 주시겠어요?'],
+    ['The meeting starts at three o\'clock.', '회의는 3시에 시작합니다.'],
+    ['She has been studying English for two years.', '그녀는 2년 동안 영어를 공부해 왔습니다.'],
+    ['Please send me the report by Friday.', '금요일까지 보고서를 보내 주세요.'],
+    ['I am looking forward to seeing you next week.', '다음 주에 뵙기를 기대하고 있습니다.'],
+    ['What time does the library close today?', '도서관은 오늘 몇 시에 닫나요?'],
+    ['We need to finish this project before the deadline.', '우리는 마감 전에 이 프로젝트를 끝내야 합니다.']
+  ];
+  const $ = id => document.getElementById(id);
+  let i = 0, score = 0, checked = false;
+  const words = s => s.toLowerCase().replace(/[^a-z0-9'\s]/g, ' ').replace(/'/g, '').split(/\s+/).filter(Boolean);
+  function voice() {
+    const vs = speechSynthesis.getVoices();
+    return vs.find(v => v.lang.replace('_', '-') === 'en-US') || vs.find(v => v.lang.slice(0, 2) === 'en');
+  }
+  function checkVoice() {
+    if (!('speechSynthesis' in window)) { $('notice').textContent = '이 브라우저는 소리를 지원하지 않습니다.'; return; }
+    $('notice').textContent = speechSynthesis.getVoices().length && !voice() ? '이 기기에 영어 목소리가 없습니다.' : '';
+  }
+  function speak(rate) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(SENTENCES[i][0]);
+    u.lang = 'en-US'; u.rate = rate;
+    const v = voice(); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  }
+  function show() {
+    $('fill').style.transform = 'scaleX(' + (i / SENTENCES.length) + ')';
+    $('score').textContent = '맞힌 문장 ' + score + ' / ' + SENTENCES.length;
+    const done = i >= SENTENCES.length;
+    $('play').hidden = done; $('end').hidden = !done;
+    if (done) { $('pos').textContent = '완료'; $('final').textContent = score + ' / ' + SENTENCES.length + ' 문장 정답'; return; }
+    $('pos').textContent = (i + 1) + ' / ' + SENTENCES.length + ' 번째 문장';
+    checked = false; $('inp').value = ''; $('inp').disabled = false;
+    $('out').hidden = true; $('next').hidden = true; $('ok').hidden = false;
+  }
+  function check() {
+    if (checked) return;
+    const you = words($('inp').value), right = words(SENTENCES[i][0]);
+    const out = $('out'); out.textContent = '';
+    const line = document.createElement('div');
+    let allOk = you.length === right.length;
+    you.forEach((w, k) => {
+      const s = document.createElement('span');
+      s.className = 'w' + (w === right[k] ? '' : ' x'); s.textContent = w;
+      if (w !== right[k]) allOk = false;
+      line.appendChild(s);
+    });
+    for (let k = you.length; k < right.length; k++) {
+      const s = document.createElement('span'); s.className = 'w x'; s.textContent = '___'; line.appendChild(s);
+    }
+    if (!you.length) line.firstChild.textContent = '(비어 있음)';
+    const a = document.createElement('div'); a.className = 'ans'; a.textContent = '정답: ' + SENTENCES[i][0];
+    const m = document.createElement('div'); m.textContent = SENTENCES[i][1];
+    out.append(line, a, m); out.hidden = false;
+    checked = true; $('inp').disabled = true;
+    if (allOk) score++;
+    $('score').textContent = '맞힌 문장 ' + score + ' / ' + SENTENCES.length;
+    $('ok').hidden = true; $('next').hidden = false; $('next').textContent = i === SENTENCES.length - 1 ? '결과 보기' : '다음';
+  }
+  $('say').onclick = () => speak(1);
+  $('slow').onclick = () => speak(0.6);
+  $('ok').onclick = check;
+  $('next').onclick = () => { i++; show(); };
+  $('again').onclick = () => { i = 0; score = 0; show(); };
+  $('inp').onkeydown = e => { if (e.key === 'Enter') check(); };
+  if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', checkVoice);
+  checkVoice(); show();
+</script>
+</body>
+</html>

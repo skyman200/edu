@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>복습 퀴즈</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #6B6B6B; --line: #BCBCBC; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 20px; }
+  .hint { color: var(--mute); font-size: 15px; margin: 0 0 14px; }
+  .top { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .bar { height: 6px; background: var(--line); border-radius: 2px; overflow: hidden; margin-bottom: 28px; }
+  .bar i { display: block; height: 100%; width: 100%; background: var(--ink); transform-origin: left; transition: transform .3s; }
+  h1 { font-size: clamp(26px, 5vw, 40px); line-height: 1.35; margin: 0 0 24px; }
+  .opt { display: block; width: 100%; min-height: 56px; text-align: left; font: inherit; font-size: clamp(18px, 3.2vw, 24px); padding: 12px 16px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); cursor: pointer; }
+  .opt:disabled { cursor: default; }
+  .opt.right { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .opt.wrong { border: 2px solid var(--red); }
+  .why { font-size: clamp(16px, 2.6vw, 20px); line-height: 1.5; margin: 14px 0; padding-left: 12px; border-left: 3px solid var(--red); }
+  .btn { min-height: 48px; font: inherit; font-size: 17px; padding: 10px 22px; margin: 6px 8px 0 0; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: #fff; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .score { font-size: clamp(56px, 14vw, 110px); font-weight: 800; margin: 0 0 12px; }
+  ul { padding: 0; list-style: none; border-top: 1px solid var(--ink); }
+  li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 17px; line-height: 1.5; }
+  li b { color: var(--red); }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="hint">보기를 눌러 답하고, 해설을 읽은 뒤 '다음'을 누르세요. 문제 순서와 보기는 매번 섞입니다.</p>
+  <div class="top"><span id="prog"></span><span id="score"></span></div>
+  <div class="bar"><i id="fill"></i></div>
+  <div id="main"></div>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다
+  const QUESTIONS = [
+    { q: '광합성이 일어나는 식물 세포 안의 기관은?', options: ['미토콘드리아', '엽록체', '리보솜', '액포'], answer: 1, why: '엽록체의 엽록소가 빛을 흡수해 광합성이 일어납니다.' },
+    { q: '광합성에 필요한 원료로 짝지어진 것은?', options: ['산소와 포도당', '이산화탄소와 물', '질소와 물', '산소와 이산화탄소'], answer: 1, why: '이산화탄소와 물을 원료로, 빛에너지를 이용해 포도당을 만듭니다.' },
+    { q: '광합성의 결과로 방출되는 기체는?', options: ['산소', '이산화탄소', '질소', '수소'], answer: 0, why: '물이 분해되면서 산소가 생기고 기공을 통해 방출됩니다.' },
+    { q: '빛에너지를 직접 흡수하는 색소는?', options: ['헤모글로빈', '멜라닌', '엽록소', '케라틴'], answer: 2, why: '엽록소는 주로 붉은빛과 푸른빛을 흡수하고 초록빛은 반사합니다.' },
+    { q: '잎에서 기체가 드나드는 작은 구멍의 이름은?', options: ['기공', '헛물관', '뿌리털', '큐티클'], answer: 0, why: '기공은 공변세포가 여닫으며 이산화탄소 흡수와 산소 방출을 조절합니다.' },
+    { q: '광합성으로 만든 양분은 주로 어떤 형태로 저장될까?', options: ['단백질', '녹말', '지방산', '비타민'], answer: 1, why: '포도당이 연결되어 녹말로 저장되며, 아이오딘 반응으로 확인합니다.' },
+    { q: '광합성이 가장 활발해지기 쉬운 조건은?', options: ['어둡고 서늘함', '밝고 이산화탄소 충분', '빛 없이 물 충분', '매우 낮은 온도'], answer: 1, why: '빛의 세기, 이산화탄소 농도, 온도가 광합성 속도를 좌우합니다.' },
+    { q: '광합성 전체를 요약한 식으로 옳은 것은?', options: ['포도당 + 산소 → 물 + 이산화탄소', '물 + 이산화탄소 → 포도당 + 산소', '물 + 산소 → 포도당', '포도당 → 물 + 산소'], answer: 1, why: '빛에너지로 물과 이산화탄소가 포도당과 산소로 바뀝니다. 호흡은 그 반대입니다.' }
+  ];
+  const $ = id => document.getElementById(id);
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  let deck, idx, score, missed;
+  function play(list) {
+    deck = shuffle(list).map(it => {
+      const opts = shuffle(it.options.map((t, i) => ({ t, ok: i === it.answer })));
+      return { q: it.q, why: it.why, options: opts.map(o => o.t), answer: opts.findIndex(o => o.ok), src: it };
+    });
+    idx = 0; score = 0; missed = []; show();
+  }
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+  function show() {
+    const m = $('main'); m.textContent = '';
+    $('prog').textContent = (Math.min(idx + 1, deck.length)) + ' / ' + deck.length;
+    $('score').textContent = '점수 ' + score;
+    $('fill').style.transform = 'scaleX(' + (idx / deck.length) + ')';
+    if (idx >= deck.length) return finish(m);
+    const d = deck[idx], btns = [];
+    m.append(el('h1', '', d.q));
+    d.options.forEach((t, i) => {
+      const b = el('button', 'opt', (i + 1) + '. ' + t); btns.push(b);
+      b.onclick = () => {
+        btns.forEach(x => x.disabled = true);
+        btns[d.answer].classList.add('right');
+        if (i === d.answer) score++; else { b.classList.add('wrong'); missed.push(d); }
+        $('score').textContent = '점수 ' + score;
+        m.append(el('p', 'why', '해설: ' + d.why));
+        const n = el('button', 'btn', '다음'); n.onclick = () => { idx++; show(); };
+        m.append(n); n.focus();
+      };
+      m.append(b);
+    });
+  }
+  function finish(m) {
+    m.append(el('div', 'score', score + ' / ' + deck.length));
+    m.append(el('p', 'hint', missed.length ? '틀린 문제 ' + missed.length + '개' : '모두 맞혔습니다.'));
+    const ul = el('ul');
+    missed.forEach(d => { const li = el('li'); li.append(d.q + ' → ', el('b', '', d.options[d.answer])); ul.append(li); });
+    m.append(ul);
+    if (missed.length) { const r = el('button', 'btn', '틀린 문제만 다시 풀기'); r.onclick = () => play(missed.map(d => d.src)); m.append(r); }
+    const a = el('button', 'btn ghost', '처음부터'); a.onclick = () => play(QUESTIONS); m.append(a);
+  }
+  play(QUESTIONS);
+</script>
+</body>
+</html>

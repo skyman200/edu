@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>토론 타이머</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #6B6B6B; --line: #BCBCBC; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 20px; text-align: center; }
+  .hint { color: var(--mute); font-size: 15px; margin: 0 0 18px; }
+  .steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 8px; }
+  .steps span { padding: 8px 14px; border: 1px solid var(--line); border-radius: 4px; font-size: clamp(16px, 2.6vw, 22px); color: var(--mute); }
+  .steps .now { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 700; }
+  .steps .done { text-decoration: line-through; }
+  .time { font: 800 clamp(96px, 26vw, 300px)/1.05 -apple-system, "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; margin: 20px 0; transition: opacity .3s; }
+  .time.low { color: var(--red); }
+  .time.paused { opacity: .55; }
+  .btn { min-height: 52px; font: inherit; font-size: 18px; padding: 10px 24px; margin: 4px; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: #fff; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .edit { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 16px; }
+  input { width: 80px; min-height: 44px; font: inherit; font-size: 18px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+  .edit .btn { min-height: 44px; font-size: 16px; }
+  @media (prefers-reduced-motion: reduce) { .time { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="hint">스페이스바나 '시작'으로 시작·멈춤. 시간이 끝나면 다음 순서로 넘어가며, 시작은 직접 누릅니다.</p>
+  <div class="steps" id="steps"></div>
+  <div class="time paused" id="time">00:00</div>
+  <button class="btn" id="go">시작</button><button class="btn ghost" id="next">다음</button><button class="btn ghost" id="reset">처음으로</button>
+  <div class="edit">모든 순서의 시간 <input id="min" type="number" min="0.5" step="0.5" value="2"> 분 <button class="btn ghost" id="apply">적용</button></div>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다
+  const TURNS = [{ name: '찬성 1', sec: 120 }, { name: '반대 1', sec: 120 }, { name: '찬성 2', sec: 120 }, { name: '반대 2', sec: 120 }, { name: '정리 발언', sec: 60 }];
+  const $ = id => document.getElementById(id);
+  let cur = 0, left = TURNS[0].sec, timer = null, end = 0;
+  const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  function beep() {
+    try {
+      const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + 0.6);
+    } catch (e) {}
+  }
+  function render() {
+    const s = $('steps'); s.textContent = '';
+    TURNS.forEach((t, i) => { const e = document.createElement('span'); e.textContent = t.name; if (i === cur) e.className = 'now'; else if (i < cur) e.className = 'done'; s.append(e); });
+    const t = $('time'); t.textContent = fmt(left);
+    t.className = 'time' + (left <= 30 ? ' low' : '') + (timer ? '' : ' paused');
+    $('go').textContent = timer ? '멈춤' : '시작';
+  }
+  function stop() { clearInterval(timer); timer = null; }
+  function toggle() {
+    if (timer) { stop(); return render(); }
+    if (left <= 0) return;
+    end = Date.now() + left * 1000;
+    timer = setInterval(() => {
+      left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      if (left === 0) { stop(); beep(); advance(); }
+      render();
+    }, 200);
+    render();
+  }
+  function advance() { stop(); if (cur < TURNS.length - 1) cur++; left = TURNS[cur].sec; render(); }
+  $('go').onclick = toggle;
+  $('next').onclick = advance;
+  $('reset').onclick = () => { stop(); cur = 0; left = TURNS[0].sec; render(); };
+  $('apply').onclick = () => {
+    const m = Number($('min').value);
+    if (!(m > 0)) return;
+    TURNS.forEach(t => t.sec = Math.round(m * 60));
+    stop(); left = TURNS[cur].sec; render();
+  };
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') { e.preventDefault(); toggle(); }
+  });
+  render();
+</script>
+</body>
+</html>

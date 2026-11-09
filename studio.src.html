@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>수업용 웹앱 스튜디오 · 혼자 해 보기</title>
+<style>
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+:root{--bg:#F2F2F2;--ink:#1A1A1A;--mut:#5b5b5b;--line:#BCBCBC;--red:#E54536;--paper:#fff}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+header{padding:28px 24px 16px;max-width:1280px;margin:0 auto}
+.k{font:600 12px/1 Montserrat,Pretendard,sans-serif;letter-spacing:.14em;color:var(--red)}
+h1{margin:8px 0 6px;font-size:28px;line-height:1.25}
+header p{margin:0;color:var(--mut);max-width:60em}
+main{max-width:1280px;margin:0 auto;padding:0 24px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+section{border-top:1px solid var(--ink);padding-top:14px;margin-top:10px}
+h2{margin:0 0 8px;font-size:17px}
+h2 .n{font:600 13px Montserrat,sans-serif;color:var(--red);margin-right:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+button,.chip{font:inherit;cursor:pointer;border:1px solid var(--ink);background:var(--paper);color:var(--ink);padding:8px 12px;border-radius:4px;min-height:40px}
+button:hover{background:var(--ink);color:var(--paper)}
+button.red{background:var(--red);border-color:var(--red);color:#fff}
+button.red:hover{background:var(--ink);border-color:var(--ink)}
+button.on{background:var(--ink);color:var(--paper)}
+button.q{border-color:var(--line);font-size:14px;min-height:34px;padding:4px 10px}
+button:disabled{opacity:.4;cursor:default}
+textarea,input{width:100%;font:inherit;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink);padding:10px}
+textarea{resize:vertical}
+#code{font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;height:220px;white-space:pre;tab-size:2}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.note{color:var(--mut);font-size:14px;margin:6px 0}
+.msg{font-size:14px;min-height:22px;margin:6px 0}
+.msg.err{color:var(--red)}
+.frame{border:1px solid var(--ink);background:var(--paper);height:560px}
+.frame.phone{width:390px;max-width:100%;margin:0 auto}
+iframe{width:100%;height:100%;border:0;display:block}
+details{border:1px solid var(--line);border-radius:4px;padding:8px 12px;margin:8px 0;background:var(--paper)}
+summary{cursor:pointer;font-weight:600}
+.sticky{position:sticky;top:10px}
+.cost{border:1px solid var(--line);padding:8px 12px;font-size:14px;margin:8px 0;background:var(--paper)}
+@media(prefers-reduced-motion:no-preference){button{transition:background .15s,color .15s}}
+</style>
+</head>
+<body>
+<header>
+  <div class="k">CLASS APP STUDIO</div>
+  <h1>예시 앱을 먼저 띄우고, 말로 바꿔 가세요</h1>
+  <p>강사도 인터넷 강의실 서버도 필요 없습니다. 이 파일 하나와 아무 AI 채팅(Claude, ChatGPT, Gemini 등)이면 됩니다. 저장해 두면 인터넷 없이도 예시가 열립니다.</p>
+</header>
+<main>
+<div>
+  <section>
+    <h2><span class="n">01</span>예시 앱 고르기</h2>
+    <div class="chips" id="samples"></div>
+    <div class="note" id="sampleDesc">하나를 누르면 오른쪽에서 바로 돌아갑니다. 먼저 써 보세요.</div>
+  </section>
+  <section>
+    <h2><span class="n">02</span>바꾸고 싶은 것을 한 문장으로</h2>
+    <input id="ask" placeholder="예: 글자를 더 크게 하고 정답을 맞히면 소리가 나게 해 줘" maxlength="300">
+    <div class="chips" id="asks"></div>
+    <div class="row"><button class="red" id="copyFix">AI에게 보낼 글 복사</button><span class="note" style="margin:0">지금 코드가 함께 복사됩니다. AI 채팅에 붙여 넣으세요.</span></div>
+    <div class="cost">토큰 절약: AI에게는 <b>바뀐 곳만</b> 달라고 요청합니다. 전체 코드를 다시 쓰게 하면 답이 길어지고 느리며 비쌉니다. 이 글은 그 형식을 이미 담고 있습니다.</div>
+  </section>
+  <section>
+    <h2><span class="n">03</span>AI의 답을 붙여 넣기</h2>
+    <textarea id="reply" rows="6" placeholder="AI가 준 답을 통째로 붙여 넣으세요. 바뀐 곳(&lt;&lt;&lt;&lt;&lt;&lt;&lt; 찾기 ...)이든 전체 코드든 알아서 반영합니다."></textarea>
+    <div class="row"><button class="red" id="applyReply">답 반영하고 실행</button><button class="q" id="undo" disabled>방금 바꾼 것 되돌리기</button></div>
+    <div class="msg" id="msg"></div>
+  </section>
+  <section>
+    <h2><span class="n">04</span>내 앱으로 가져가기</h2>
+    <div class="row"><button id="download">HTML 파일로 저장</button><button id="copyCode">코드 복사</button></div>
+    <p class="note">저장한 파일을 더블클릭하면 브라우저에서 열립니다. 학생에게는 파일을 보내거나 학습관리시스템(LMS)에 올리세요. 이름과 학번은 받지 마세요.</p>
+    <details><summary>코드 보기와 직접 고치기</summary>
+      <textarea id="code" spellcheck="false"></textarea>
+      <div class="row"><button class="q" id="runCode">이 코드로 실행</button></div>
+    </details>
+    <details><summary>처음부터 만들고 싶을 때 쓰는 글</summary>
+      <textarea id="scratch" rows="9" readonly></textarea>
+      <div class="row"><button class="q" id="copyScratch">복사</button><span class="note" style="margin:0">괄호 안을 내 수업에 맞게 고쳐서 AI 채팅에 붙여 넣으세요. 답은 코드 블록으로 옵니다. 03 칸에 통째로 붙여 넣으면 됩니다.</span></div>
+    </details>
+  </section>
+</div>
+<div class="sticky">
+  <section>
+    <h2><span class="n">RUN</span>실행 화면 <span class="note" id="status" style="margin-left:8px"></span></h2>
+    <div class="row"><button class="q on" id="wide">넓게</button><button class="q" id="phone">휴대폰</button><button class="q" id="full">크게 보기</button></div>
+    <div class="frame" id="box"><iframe id="frame" title="실행 화면" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe></div>
+    <div class="row" id="fixRow" hidden><button class="red" id="copyErr">오류를 AI에게 물어볼 글 복사</button><span class="note" style="margin:0">오류 내용과 지금 코드가 복사됩니다.</span></div>
+  </section>
+</div>
+</main>
+<script>
+/*VIBEKIT*/
+</script>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var code = '', cur = null, history = [], errors = [];
+  var GUARD = '<script>(function(){var s=function(o){o.studio=1;try{parent.postMessage(o,"*")}catch(e){}};'
+    + 'try{localStorage.getItem("x")}catch(e){var m={},st={getItem:function(k){return k in m?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}};'
+    + 'try{Object.defineProperty(window,"localStorage",{value:st,configurable:true})}catch(e2){}}'
+    + 'addEventListener("error",function(e){s({err:(e.message||"오류")+(e.lineno?" (줄 "+e.lineno+")":"")})});'
+    + 'addEventListener("unhandledrejection",function(e){s({err:"Promise: "+((e.reason&&e.reason.message)||e.reason)})});'
+    + 'addEventListener("load",function(){s({ok:1})})})()<\/script>';
+  function guarded(c) {
+    var res = [/<head[^>]*>/i, /<html[^>]*>/i, /^\s*<!doctype[^>]*>/i];
+    for (var i = 0; i < res.length; i++) if (res[i].test(c)) return c.replace(res[i], function (t) { return t + GUARD; });
+    return GUARD + c;
+  }
+  function status(t, bad) { var s = $('#status'); s.textContent = t; s.style.color = bad ? '#E54536' : ''; }
+  function msg(t, bad) { var m = $('#msg'); m.textContent = t; m.className = 'msg' + (bad ? ' err' : ''); }
+  function run() {
+    errors = []; $('#fixRow').hidden = true; status('실행 중');
+    $('#code').value = code; $('#frame').srcdoc = guarded(code);
+  }
+  window.addEventListener('message', function (e) {
+    if (e.source !== $('#frame').contentWindow || !e.data || !e.data.studio) return;
+    if (e.data.err) { errors.push(String(e.data.err)); status('오류 ' + errors.length + '개: ' + errors[0], true); $('#fixRow').hidden = false; }
+    else if (e.data.ok && !errors.length) status('실행했습니다. 오류 없음');
+  });
+  function setCode(c, keep) {
+    if (!keep) history = []; else history.push(code);
+    code = c; $('#undo').disabled = !history.length; run();
+  }
+  function copy(text, ok) {
+    var done = function () { msg(ok, false); };
+    var fallback = function () { var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { msg('복사하지 못했습니다. 코드 보기 칸에서 직접 복사하세요.', true); } t.remove(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  }
+  function extractHtml(text) {
+    var fences = [], re = /```[ \t]*([\w-]*)[^\n]*\n([\s\S]*?)```/g, m;
+    while ((m = re.exec(text))) fences.push(m);
+    var pick = fences.filter(function (f) { return /^html?$/i.test(f[1]); })[0] || fences.filter(function (f) { return /<(!doctype|html|body)/i.test(f[2]); })[0];
+    if (pick) return pick[2].trim();
+    var s = text.search(/<!doctype html|<html[\s>]/i);
+    if (s >= 0) { var e = text.toLowerCase().lastIndexOf('</html>'); return text.slice(s, e > s ? e + 7 : undefined).trim(); }
+    return '';
+  }
+
+  var sb = $('#samples');
+  VIBE_SAMPLES.forEach(function (s, i) {
+    var b = document.createElement('button'); b.textContent = s.name; b.dataset.i = i;
+    b.onclick = function () {
+      cur = s; Array.prototype.forEach.call(sb.children, function (x) { x.classList.toggle('on', x === b); });
+      $('#sampleDesc').textContent = s.tag + ' · ' + s.desc; $('#ask').placeholder = '예: ' + s.ask; msg('');
+      setCode(s.code, false);
+      var ab = $('#asks'); ab.textContent = '';
+      var q = document.createElement('button'); q.className = 'q'; q.textContent = s.ask; q.onclick = function () { $('#ask').value = s.ask; }; ab.appendChild(q);
+      ['글자를 프로젝터용으로 더 크게 해 줘', '휴대폰에서도 버튼이 크게 눌리게 해 줘', '처음 쓰는 사람을 위한 사용법을 화면 위에 한 줄 넣어 줘'].forEach(function (t) {
+        var x = document.createElement('button'); x.className = 'q'; x.textContent = t; x.onclick = function () { $('#ask').value = t; }; ab.appendChild(x);
+      });
+    };
+    sb.appendChild(b);
+  });
+
+  $('#copyFix').onclick = function () {
+    var a = $('#ask').value.trim();
+    if (!code) { msg('먼저 예시 앱을 하나 고르세요.', true); return; }
+    if (!a) { $('#ask').focus(); msg('바꾸고 싶은 것을 한 문장으로 적어 주세요.', true); return; }
+    copy(VibePatch.fixPrompt(a, code), '복사했습니다. AI 채팅에 붙여 넣고, 받은 답을 03 칸에 붙여 넣으세요.');
+  };
+  $('#copyErr').onclick = function () { copy(VibePatch.errorPrompt(errors, code), '오류와 코드를 복사했습니다. AI 채팅에 붙여 넣으세요.'); };
+  $('#applyReply').onclick = function () {
+    var t = $('#reply').value;
+    if (!t.trim()) { msg('AI의 답을 먼저 붙여 넣으세요.', true); return; }
+    if (VibePatch.has(t)) {
+      if (!code) { msg('먼저 예시 앱을 하나 고르세요.', true); return; }
+      var r = VibePatch.apply(code, t);
+      if (r.failed.length) { msg('반영하지 못했습니다(' + r.failed.map(function (f) { return (f.label ? '"' + f.label + '" ' : '') + f.why; }).join(' / ') + '). AI에게 "찾는 부분을 코드에서 그대로 복사해서 다시 알려 줘"라고 말해 보세요. 코드는 그대로입니다.', true); return; }
+      setCode(r.code, true); msg(r.applied + '곳을 바꿔 실행했습니다.'); $('#reply').value = ''; return;
+    }
+    var h = extractHtml(t);
+    if (!h) { msg('답에서 바뀐 곳이나 코드를 찾지 못했습니다. AI에게 "바꿀 곳만 알려 줘"라고 다시 말해 보세요.', true); return; }
+    setCode(h, !!code); msg('전체 코드로 바꿔 실행했습니다.'); $('#reply').value = '';
+  };
+  $('#undo').onclick = function () { if (history.length) { code = history.pop(); $('#undo').disabled = !history.length; run(); msg('되돌렸습니다.'); } };
+  $('#runCode').onclick = function () { var c = $('#code').value; if (c.trim()) setCode(c, !!code); };
+  $('#copyCode').onclick = function () { if (code) copy(code, '코드를 복사했습니다.'); };
+  $('#download').onclick = function () {
+    if (!code) { msg('먼저 예시 앱을 하나 고르세요.', true); return; }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([code], { type: 'text/html' }));
+    a.download = (cur ? cur.id : 'my-app') + '.html'; document.body.appendChild(a); a.click(); a.remove();
+    msg('파일로 저장했습니다.');
+  };
+  $('#wide').onclick = $('#phone').onclick = function () {
+    var p = this.id === 'phone'; $('#box').classList.toggle('phone', p); $('#phone').classList.toggle('on', p); $('#wide').classList.toggle('on', !p);
+  };
+  $('#full').onclick = function () { var b = $('#box'); if (b.requestFullscreen) b.requestFullscreen().catch(function () {}); };
+
+  var SCRATCH = VibePatch.SCRATCH;
+  $('#scratch').value = SCRATCH;
+  $('#copyScratch').onclick = function () { copy(SCRATCH, '복사했습니다. 괄호 안을 고쳐서 AI 채팅에 붙여 넣으세요.'); };
+
+  $('#samples').firstChild.click();
+})();
+</script>
+</body>
+</html>

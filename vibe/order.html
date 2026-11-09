@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>발표 순서 뽑기</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #8E8E8E; --line: #D2D2D2; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 24px; display: grid; grid-template-columns: 1fr 220px; gap: 32px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .hint { color: var(--mute); font-size: 14px; margin: 0 0 18px; }
+  label { font-size: 15px; }
+  input { width: 72px; font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); background: #fff; }
+  .big { font: 800 clamp(110px, 26vw, 240px)/1 -apple-system, "Helvetica Neue", Arial, sans-serif; margin: 22px 0 10px; font-variant-numeric: tabular-nums; }
+  .left { color: var(--mute); font-size: 15px; margin: 0 0 18px; }
+  button { font-size: 16px; padding: 10px 18px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; margin-right: 8px; }
+  button.ghost { background: transparent; color: var(--ink); }
+  aside h2 { font-size: 12px; letter-spacing: .24em; color: var(--mute); margin: 6px 0 10px; }
+  ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
+  li { padding: 8px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  li:last-child { color: var(--red); font-weight: 700; }
+  @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <h1>발표 순서 뽑기</h1>
+    <p class="hint">스페이스바나 '뽑기'를 누르세요. 한 번 뽑힌 번호는 다시 나오지 않습니다.</p>
+    <label>인원 <input id="count" type="number" min="2" max="200" value="30"> 명</label>
+    <div class="big" id="num">?</div>
+    <p class="left" id="left"></p>
+    <button id="draw">뽑기</button><button class="ghost" id="reset">처음부터</button>
+  </main>
+  <aside>
+    <h2>뽑힌 순서</h2>
+    <ol id="order"></ol>
+  </aside>
+</div>
+<script>
+  const $ = id => document.getElementById(id);
+  let pool = [], picked = [];
+  function start() {
+    const n = Math.max(2, Math.min(200, Number($('count').value) || 30));
+    pool = Array.from({ length: n }, (_, i) => i + 1);
+    picked = [];
+    $('num').textContent = '?';
+    render();
+  }
+  function draw() {
+    if (!pool.length) return;
+    const n = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    picked.push(n);
+    $('num').textContent = n;
+    render();
+  }
+  function render() {
+    $('left').textContent = pool.length ? '남은 인원 ' + pool.length + '명' : '모두 뽑았습니다. 처음부터를 누르면 다시 시작합니다.';
+    $('order').innerHTML = picked.map((n, i) => '<li>' + (i + 1) + '번째 — ' + n + '번</li>').join('');
+  }
+  $('draw').onclick = draw;
+  $('reset').onclick = start;
+  $('count').onchange = start;
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); draw(); }
+  });
+  start();
+</script>
+</body>
+</html>

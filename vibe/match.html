@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개념 짝 맞추기</title>
+<style>
+  :root { --paper: #F2F2F2; --ink: #1A1A1A; --mute: #6B6B6B; --line: #BCBCBC; --red: #E54536; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px 20px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .hint { color: var(--mute); font-size: 16px; margin: 0 0 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 28px; font-size: 20px; padding: 10px 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line); margin-bottom: 16px; font-variant-numeric: tabular-nums; }
+  .bar b { color: var(--red); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .card { min-height: 88px; padding: 10px; font: inherit; font-size: 18px; line-height: 1.35; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; transition: opacity .4s; }
+  .card.term { font-weight: 700; font-size: 22px; }
+  .card.sel { border: 2px solid var(--ink); }
+  .card.gone { opacity: 0; pointer-events: none; }
+  .card.shake { animation: shake .3s; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+  .result { font-size: 22px; margin: 16px 0 0; }
+  button.again { min-height: 48px; font: inherit; font-size: 18px; padding: 0 20px; border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 4px; cursor: pointer; margin-top: 12px; }
+  [hidden] { display: none; }
+  @media (max-width: 700px) { .grid { grid-template-columns: repeat(3, 1fr); } .card { font-size: 15px; } .card.term { font-size: 18px; } }
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card.shake { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>개념 짝 맞추기</h1>
+  <p class="hint">용어 카드와 뜻 카드를 차례로 눌러 짝을 맞추세요. 맞으면 사라지고, 틀리면 흔들립니다.</p>
+  <div class="bar"><span>남은 짝 <b id="left">6</b></span><span>걸린 시간 <b id="time">00:00</b></span><span>틀린 횟수 <b id="miss">0</b></span></div>
+  <div class="grid" id="grid"></div>
+  <p class="result" id="result" hidden></p>
+  <button class="again" id="again">다시 하기</button>
+</div>
+<script>
+  // 여기를 고치면 내용이 바뀝니다
+  const PAIRS = [
+    { term: '형성평가', def: '수업 중간에 학습 진행을 점검하는 평가' },
+    { term: '총괄평가', def: '단원이나 학기 끝에 성취를 판단하는 평가' },
+    { term: '학습목표', def: '수업 후 학습자가 할 수 있어야 할 행동' },
+    { term: '비계', def: '학습자가 스스로 하도록 주는 단계적 도움' },
+    { term: '근접발달영역', def: '도움을 받으면 해낼 수 있는 학습 범위' },
+    { term: '메타인지', def: '자신의 이해 상태를 알고 점검하는 능력' },
+    { term: '플립러닝', def: '개념은 사전에, 활동은 수업에서 하는 방식' },
+    { term: '루브릭', def: '평가 기준을 단계별로 적어 둔 채점표' },
+    { term: '역량', def: '지식과 태도를 실제 과제에 쓰는 능력' },
+    { term: '교수설계', def: '목표에 맞춰 수업을 체계적으로 계획함' },
+    { term: '동기', def: '학습 행동을 시작하고 이어 가게 하는 힘' },
+    { term: '피드백', def: '수행 결과에 대해 돌려주는 개선 정보' }
+  ];
+  const $ = id => document.getElementById(id);
+  let sel = null, left = 0, miss = 0, t0 = 0, timer = null, busy = false;
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  const elapsed = () => Math.floor((Date.now() - t0) / 1000);
+  function start() {
+    clearInterval(timer); timer = null; t0 = 0; sel = null; busy = false; miss = 0;
+    const pick = shuffle(PAIRS.slice()).slice(0, 6);
+    left = pick.length;
+    const cards = [];
+    pick.forEach((p, i) => { cards.push({ id: i, text: p.term, term: true }, { id: i, text: p.def, term: false }); });
+    $('grid').textContent = '';
+    shuffle(cards).forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'card' + (c.term ? ' term' : '');
+      b.textContent = c.text;
+      b.onclick = () => click(b, c);
+      $('grid').appendChild(b);
+    });
+    $('result').hidden = true;
+    render();
+  }
+  function render() { $('left').textContent = left; $('miss').textContent = miss; $('time').textContent = fmt(t0 ? elapsed() : 0); }
+  function click(b, c) {
+    if (busy || b.classList.contains('gone')) return;
+    if (!t0) { t0 = Date.now(); timer = setInterval(render, 500); }
+    if (!sel) { sel = { b, c }; b.classList.add('sel'); return; }
+    if (sel.b === b) { b.classList.remove('sel'); sel = null; return; }
+    const a = sel; sel = null; a.b.classList.remove('sel');
+    if (a.c.id === c.id && a.c.term !== c.term) {
+      a.b.classList.add('gone'); b.classList.add('gone'); left--;
+      if (!left) {
+        clearInterval(timer);
+        $('result').textContent = '완료. 걸린 시간 ' + fmt(elapsed()) + ', 틀린 횟수 ' + miss + '회';
+        $('result').hidden = false;
+      }
+    } else {
+      miss++; busy = true;
+      [a.b, b].forEach(x => x.classList.add('shake'));
+      setTimeout(() => { [a.b, b].forEach(x => x.classList.remove('shake')); busy = false; }, 300);
+    }
+    render();
+  }
+  $('again').onclick = start;
+  start();
+</script>
+</body>
+</html>
