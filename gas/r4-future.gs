@@ -50,6 +50,7 @@ function today_() {
 }
 
 function doGet(e) {
+  if (!isReady_('설정')) return notReady_('미래의 나에게');
   if (e && e.parameter && e.parameter.r) {
     var id = String(e.parameter.r).replace(/[^a-z0-9]/gi, '').slice(0, 12); // the page runs in an iframe, so location.search cannot carry it
     return page_('회고 쓰기', REFLECT_HTML.replace('__ID__', id), { css: LETTER_CSS });

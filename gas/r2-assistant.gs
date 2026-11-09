@@ -52,6 +52,7 @@ function material_(c) {
 }
 
 function doGet() {
+  if (!isReady_('설정')) return notReady_('24시간 수업 조교');
   return page_(cfg_().name, ASK_HTML);
 }
 

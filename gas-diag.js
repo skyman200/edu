@@ -55,6 +55,9 @@
     { id: 'lock', re: /Could not obtain lock|Lock timeout/i,
       title: '다른 실행이 끝나기를 기다리다 포기했습니다', cause: '여러 명이 동시에 보내면 시트 쓰기를 한 명씩 차례로 합니다. 대기 시간이 모자랐습니다.',
       fix: '잠시 뒤 다시 보내면 됩니다. 사람이 아주 많다면 lock.waitLock(10000)의 숫자를 30000으로 늘리세요.', ai: false },
+    { id: 'noDoGet', re: /(?:Script function not found:\s*|스크립트 함수[^\n]{0,20}?)(doGet|doPost)\b/i,
+      title: '이 코드에는 웹 화면(doGet)이 없습니다', cause: '웹 앱으로 배포한 주소를 열었는데, 코드에 웹 화면을 만드는 doGet 함수가 없습니다. 칠판 사진 노트처럼 시트 메뉴와 드라이브 폴더로 쓰는 도구는 웹 주소가 필요 없습니다.',
+      fix: '웹 앱으로 배포하지 말고 시트 메뉴로 쓰세요. 학생이 폰으로 여는 화면이 필요한 코드라면 AI에게 "doGet 함수를 만들어 HtmlService로 화면을 돌려줘"라고 말한 뒤, 배포 관리에서 새 버전으로 다시 배포하세요.', ai: false },
     { id: 'noFn', re: /Script function not found: (\w+)/i,
       title: '실행하려는 함수가 코드에 없습니다', cause: '메뉴나 트리거가 부르는 함수 이름이 코드에 없습니다. 붙여 넣다가 일부가 빠졌거나 이름이 다릅니다.',
       fix: '코드 전체를 지우고 공통 도우미와 레시피를 처음부터 다시 붙여 넣으세요. 웹 앱이라면 배포 → 배포 관리 → 새 버전으로 다시 배포하세요.', ai: false },
@@ -117,7 +120,7 @@
     }
     // 더 구체적인 풀이가 있으면 일반 풀이는 뺍니다.
     const has = (id) => out.some((d) => d.id === id);
-    return out.filter((d) => !(d.id === 'readNull' && has('noSheet')) && !(d.id === 'notDefined' && has('notDefinedHelper')) && !(d.id === 'syntax' && has('jsonParse')));
+    return out.filter((d) => !(d.id === 'readNull' && has('noSheet')) && !(d.id === 'notDefined' && has('notDefinedHelper')) && !(d.id === 'syntax' && has('jsonParse')) && !(d.id === 'noFn' && has('noDoGet')));
   }
 
   // 오류에 나온 줄 주변 코드를 보여 주기 위한 조각.
@@ -196,6 +199,10 @@
       if (new RegExp('\\b' + h + '\\(').test(src) && !defined.has(h)) out.push({ level: 'error', line: 0, msg: `${h} 함수를 쓰는데 정의가 없습니다. 공통 도우미 코드를 같이 붙여 넣으세요.` });
     }
     if (/\bSERVER\b/.test(src) && !/\b(?:var|let|const)\s+SERVER\b/.test(src)) out.push({ level: 'error', line: 0, msg: 'SERVER 값이 정의되어 있지 않습니다. 공통 도우미를 같이 붙여 넣으세요.' });
+    const bare = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    if (/(?<!function\s)\bpage_\s*\(/.test(bare) && !defined.has('doGet') && !defined.has('doPost')) {
+      out.push({ level: 'warn', line: 0, msg: '웹 화면(page_)을 돌려주는 코드인데 doGet 함수가 없습니다. 이대로 웹 앱으로 배포해 주소를 열면 "스크립트 함수(doGet)를 찾을 수 없습니다"가 뜹니다.' });
+    }
     const seen = new Map();
     for (const d of definedFunctions(src)) {
       if (seen.has(d.name)) out.push({ level: 'warn', line: d.line, msg: `함수 ${d.name}이 ${seen.get(d.name)}줄에도 있습니다. Apps Script는 뒤의 것만 실행합니다. 레시피를 두 개 붙였다면 프로젝트(파일)를 나누세요.` });
@@ -542,6 +549,7 @@
     '- 수정한 전체 코드를 ```javascript 코드 블록 하나로 줍니다. 일부만 보여 주지 않습니다.',
     '- 수업 코드나 API 키를 코드에 쓰지 않습니다.',
     '- 학생에게 줄 웹 앱 주소는 webUrl_()(시트 메뉴 "웹 앱 주소 넣기"로 넣은 /exec 주소)만 씁니다. ScriptApp.getService().getUrl()은 /dev나 없는 주소를 돌려줄 때가 있어 쓰지 않습니다.',
+    '- 웹 주소로 열 화면이 있으면 doGet 함수를 반드시 만들고, 메뉴·트리거·드라이브 폴더로만 쓰는 코드에는 웹 앱 배포가 필요 없다고 안내합니다.',
     '- 학생 이름, 학번 같은 개인정보를 새로 모으지 않습니다.',
     '- 코드 블록 밖 설명은 다섯 줄 이내로, 무엇을 바꿨는지만 씁니다.',
   ].join('\n');

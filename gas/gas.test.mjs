@@ -602,6 +602,24 @@ test('web app address: never getUrl(); the board QR uses the saved /exec or the 
   for (const f of ['r1-board.gs', 'r2-assistant.gs', 'r3-tutor.gs', 'r4-future.gs', 'r6-survey.gs']) assert.ok(!/getService\(\)\.getUrl\(/.test(readGs(f).replace(/\/\/.*$/gm, '')), f + ' does not use getUrl()');
 });
 
+test('every recipe answers a visit to its web address: a tool without a web page says so instead of "doGet not found"', () => {
+  for (const f of ['r1-board', 'r2-assistant', 'r3-tutor', 'r4-future', 'r5-boardphoto', 'r6-survey']) {
+    const env = boot(f + '.gs');
+    assert.equal(typeof env.ctx.doGet, 'function', f + ' has doGet');
+    const out = env.ctx.doGet({ parameter: {}, parameters: {} });
+    assert.ok(out && out.html, f + ' doGet returns a page');
+  }
+  for (const f of ['r2-assistant', 'r4-future']) {
+    const fresh = boot(f + '.gs'); // a student opens the address before the professor ran the first preparation
+    assert.ok(fresh.ctx.doGet({ parameter: {} }).html.includes('아직 준비 중입니다'), f + ' shows a "not ready" page, not a script error');
+  }
+  const r5 = boot('r5-boardphoto.gs');
+  r5.setup();
+  const html = r5.ctx.doGet({ parameter: {} }).html;
+  assert.ok(html.includes('웹 주소로 열지 않습니다'));
+  assert.ok(!/drive\.google\.com/.test(html), 'the public page does not reveal the Drive folder');
+});
+
 test('design guard: pages and mails stay flat and in the lab style (no gradients, glow, blur, big radii, emoji); mail text is escaped', () => {
   const env = boot('r1-board.gs');
   env.setup();

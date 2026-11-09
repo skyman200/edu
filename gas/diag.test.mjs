@@ -46,7 +46,10 @@ test('diagnose: common failures, specific beats generic', () => {
   assert.deepEqual(ids('SyntaxError: Unexpected end of input'), ['syntax']);
   assert.deepEqual(ids('SyntaxError: Unexpected token < in JSON at position 0'), ['jsonParse']);
   assert.ok(ids('Exception: Cannot call SpreadsheetApp.getUi() from this context.').includes('getUi'));
-  assert.ok(ids('Script function not found: doGet').includes('noFn'));
+  assert.deepEqual(ids('Script function not found: doGet'), ['noDoGet'], 'a missing doGet is explained as "no web page in this code", not as a paste error');
+  assert.deepEqual(ids('칠판 사진이 수업 노트로 스크립트 함수(doGet)를 찾을 수 없습니다.'), ['noDoGet'], 'the Korean web-app error page is recognized');
+  assert.ok(ids('Script function not found: setup').includes('noFn'));
+  assert.ok(!ids('Script function not found: setup').includes('noDoGet'));
   assert.deepEqual(ids('Error at doGet(코드:5:3) something odd'), []);
   assert.deepEqual(ids('totally unrelated text'), []);
   for (const r of D.RULES) assert.ok(r.title && r.cause && /[가-힣]/.test(r.fix), r.id);
@@ -65,6 +68,10 @@ test('staticCheck: syntax, brackets, helpers, duplicates, keys', () => {
   assert.ok(r.some((x) => x.level === 'error' && x.msg.startsWith('문법 오류')));
   assert.ok(r.some((x) => /닫히지 않았습니다/.test(x.msg) && x.line === 3));
   assert.ok(D.staticCheck('function a(){ ai_("x"); }').some((x) => /ai_ 함수를 쓰는데/.test(x.msg)));
+  const web = 'function page_(t){return t}\nfunction onOpen(){}\nfunction show(){ return page_("a","b"); }';
+  assert.ok(D.staticCheck(web).some((x) => /doGet 함수가 없습니다/.test(x.msg)), 'a page without doGet is flagged');
+  assert.ok(!D.staticCheck(web + '\nfunction doGet(){ return show(); }').some((x) => /doGet/.test(x.msg)));
+  assert.ok(!D.staticCheck('function page_(t){return t}\n// return page_("a")\nfunction x(){}').some((x) => /doGet/.test(x.msg)), 'comments do not count');
   assert.ok(D.staticCheck('function a(){ ai_("x"); }\nfunction ai_(p){}').every((x) => !/ai_ 함수/.test(x.msg)));
   assert.ok(D.staticCheck('function a(){ return SERVER; }').some((x) => /SERVER/.test(x.msg)));
   assert.ok(D.staticCheck('function f() {}\nfunction g() {}\nfunction f() {}').some((x) => x.level === 'warn' && x.line === 3));

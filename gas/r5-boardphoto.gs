@@ -18,6 +18,14 @@ function setup() {
   say_('준비 끝! 사진 올리기 폴더: ' + DriveApp.getFolderById(p.getProperty('INBOX')).getUrl() + '\n결과 폴더: ' + DriveApp.getFolderById(p.getProperty('NOTES')).getUrl() + '\n폰으로 찍은 칠판 사진을 첫 번째 폴더에 올리면 10분 안에 노트가 만들어집니다.');
 }
 
+// 이 도구는 웹 주소가 필요 없습니다(시트 메뉴와 드라이브 폴더로 씁니다). 그래도 누군가 웹 앱으로 배포해 주소를 열면
+// "함수(doGet)를 찾을 수 없습니다" 오류 대신 이 안내가 보이게 합니다. 폴더 주소는 누구나 열 수 있는 이 화면에 두지 않습니다.
+function doGet() {
+  return page_('칠판 사진 노트', '<div class="kick">BOARD · <span class="ko">칠판 노트</span></div><h1>이 도구는 웹 주소로 열지 않습니다</h1>' +
+    '<p class="muted">칠판 사진은 구글 드라이브의 "사진 올리기" 폴더에 올리면 됩니다. 10분 안에 노트가 생기고 교수님 메일로 알려 드립니다.</p>' +
+    '<p class="muted">교수님은 구글 시트 메뉴 [칠판 노트] → 폴더 주소 보기에서 폴더를 여세요. 웹 앱 배포는 하지 않아도 됩니다.</p>');
+}
+
 function showUrls() {
   var p = PropertiesService.getScriptProperties();
   var i = p.getProperty('INBOX'), n = p.getProperty('NOTES');

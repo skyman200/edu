@@ -92,6 +92,14 @@ function ss_() {
   return a;
 }
 
+// 학생이 웹 주소를 열었는데 교수가 아직 "처음 준비"(start)를 실행하지 않은 경우입니다. 오류 대신 안내 화면을 보입니다.
+function isReady_(sheetName) {
+  try { return !!ss_().getSheetByName(sheetName); } catch (e) { return false; }
+}
+function notReady_(title) {
+  return page_(title, '<div class="kick">READY · <span class="ko">준비 중</span></div><h1>아직 준비 중입니다</h1><p class="muted">교수님이 준비를 끝내면 이 화면이 열립니다. 교수님께 알려 주세요.</p><p class="muted">교수님은 시트 메뉴의 처음 준비(또는 편집기에서 start 실행)를 한 번 실행하세요.</p>');
+}
+
 function sheet_(name, header) {
   var ss = ss_(), sh = ss.getSheetByName(name);
   if (!sh) {
