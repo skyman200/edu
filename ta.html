@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24시간 수업 조교 · prof.kimcook</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&amp;display=swap">
+<style>
+:root{--paper:#fff;--sheet:#f2f2f0;--ink:#1a1a1a;--ink2:#4a4a4a;--mute:#8e8e8e;--line:#d2d2d2;--line2:#bcbcbc;--red:#e54536}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;word-break:keep-all;-webkit-font-smoothing:antialiased}
+main{max-width:760px;margin:0 auto;padding:36px 20px 96px}
+main[hidden],input[hidden],.big[hidden]{display:none}
+.kick{margin:0 0 18px;padding-left:10px;border-left:3px solid var(--red);font:700 11px/1.1 Montserrat,Pretendard,sans-serif;letter-spacing:.28em;color:var(--ink2)}
+h1{margin:0 0 14px;font-size:clamp(26px,6vw,36px);font-weight:800;letter-spacing:-.025em;line-height:1.25;text-wrap:balance}
+h2{margin:40px 0 12px;padding-top:12px;border-top:1px solid var(--ink);font:700 12px/1 Montserrat,Pretendard,sans-serif;letter-spacing:.22em;color:var(--ink2)}
+h2 .ko{letter-spacing:.04em}
+.lede{margin:0 0 22px;color:var(--ink2);max-width:600px}
+.muted{color:var(--mute);font-size:.9rem}
+a{color:inherit}
+input,textarea,select{display:block;width:100%;margin:6px 0 12px;padding:11px 13px;border:1px solid var(--line2);border-radius:2px;background:#fff;color:inherit;font:inherit;font-size:16px}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--ink);outline-offset:-1px;border-color:var(--ink)}
+textarea{min-height:110px;resize:vertical}
+label.f{display:block;font-weight:700;font-size:.92rem}
+button{padding:11px 22px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+button:hover{background:#000}button:disabled{opacity:.35;cursor:default}
+button.alt{background:transparent;color:var(--ink)}button.alt:hover{background:var(--sheet)}
+button.sm{padding:5px 12px;font-size:.88rem}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.drop{display:block;padding:34px 20px;border:2px dashed var(--line2);border-radius:2px;background:var(--sheet);text-align:center;cursor:pointer;transition:border-color .2s,transform .2s}
+.drop:hover,.drop.over{border-color:var(--ink)}
+.drop.over{transform:scale(1.01)}
+.drop b{display:block;font-size:1.15rem;margin-bottom:4px}
+.drop small{display:block;color:var(--mute);font-size:.86rem}
+.files{list-style:none;margin:12px 0 0;padding:0}
+.files li{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.files .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.files .nt{flex:none;color:var(--mute);font-size:.86rem}
+.files .bad{color:#8a1f12}
+.files li.busy .nm:after{content:" · 읽는 중…";color:var(--mute);font-weight:400}
+.msg{margin:14px 0;padding:11px 15px;border-left:3px solid var(--ink);background:var(--sheet);white-space:pre-wrap}
+.msg.err{border-left-color:var(--red);color:#8a1f12}
+.meter{height:6px;margin:6px 0 4px;background:var(--line)}.meter i{display:block;height:100%;background:var(--ink)}.meter.full i{background:var(--red)}
+.card{padding:16px 18px;margin:12px 0;border:1px solid var(--line);background:#fff}
+.card.wait{border-color:var(--red)}
+.card .q{margin:0 0 6px;font-weight:700}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;font-size:.82rem;color:var(--ink2)}
+.tags span{padding:1px 8px;border:1px solid var(--line2)}.tags .hot{border-color:var(--red);color:var(--red)}
+.ans{margin:8px 0 0;padding:10px 14px;background:var(--sheet);white-space:pre-wrap;font-size:.96rem}
+.share{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.share .qr{flex:none;width:176px;height:176px;border:1px solid var(--line)}
+.share .qr svg{display:block;width:100%;height:100%}
+.share .url{flex:1;min-width:220px}
+.url code{display:block;margin:6px 0 10px;padding:10px 12px;border:1px solid var(--line2);background:var(--sheet);font:13.5px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.big{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#fff;padding:20px}
+.big[hidden]{display:none}
+.big svg{width:min(78vh,86vw);height:min(78vh,86vw)}
+.big p{margin:0;font-size:clamp(18px,3vw,30px);font-weight:800;text-align:center}
+.big button{position:absolute;top:16px;right:16px}
+.steps{margin:0 0 22px;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;position:relative;padding:3px 0 12px 44px}
+.steps li:before{content:counter(s);position:absolute;left:0;top:2px;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font:800 15px/30px Montserrat,Pretendard,sans-serif;text-align:center}
+.steps b{display:block}
+.steps span{color:var(--ink2);font-size:.95rem}
+.gl{margin-top:14px;font:700 11px/1.4 Montserrat,Pretendard,sans-serif;letter-spacing:.14em;color:var(--ink2)}
+.gauge{height:6px;margin:6px 0 18px;background:var(--line)}
+.gauge i{display:block;width:0;height:100%;background:var(--ink);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.gauge.hot i{background:var(--red)}
+.toast{position:fixed;left:50%;bottom:28px;z-index:90;display:flex;align-items:flex-start;gap:12px;width:max-content;max-width:min(560px,calc(100vw - 32px));padding:12px 16px 14px;overflow:hidden;background:#141414;color:#fff;border-radius:2px;font-size:15px;line-height:1.5;transform:translate(-50%,14px);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .25s}
+.toast.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.toast b{flex:none;padding-right:12px;border-right:1px solid rgba(255,255,255,.35);font-size:12px;font-weight:800;letter-spacing:.12em;line-height:23px}
+.toast span{white-space:pre-wrap;overflow-wrap:anywhere}
+.toast i{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--red);transform-origin:0 50%;transform:scaleX(0)}
+.toast.run i{animation:tbar 3s linear forwards}@keyframes tbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.toast.bad{background:var(--red)}.toast.bad i{display:none}
+.toast button{flex:none;margin:-3px -6px -3px 4px;padding:3px 11px;border:1px solid #fff;background:transparent;color:#fff;font-size:13px}
+.toast button:hover{background:#fff;color:var(--red)}
+.rise{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<!-- 1. 처음 화면: 파일을 올리면 조교가 만들어집니다 -->
+<main id="vNew" hidden>
+  <div class="kick">24H · <span class="ko" style="letter-spacing:.04em">수업 조교</span></div>
+  <h1>강의계획서를 올리면,<br>학생 질문에 24시간 답하는 조교가 생깁니다</h1>
+  <p class="lede">코드도, 구글 시트도, 배포도 필요 없습니다. 파일을 올리고 버튼 한 번이면 학생에게 나눠 줄 QR이 나옵니다. 자료에 없는 질문과 성적·상담 같은 개인 사정은 AI가 답하지 않고 교수님께 넘깁니다.</p>
+
+  <ol class="steps">
+    <li><b>파일을 올립니다</b><span>강의계획서, 평가 기준, 공지 파일을 한꺼번에 놓으세요.</span></li>
+    <li><b>이름을 정하고 만듭니다</b><span>수업 이름만 적으면 됩니다.</span></li>
+    <li><b>QR을 학생에게 보여 줍니다</b><span>만들어진 화면에서 QR을 띄우거나 주소를 LMS에 붙입니다.</span></li>
+  </ol>
+
+  <label class="drop" id="newDrop"><input type="file" id="newFile" multiple hidden accept=".pdf,.docx,.pptx,.hwpx,.xlsx,.txt,.md,.csv,.tsv,.png,.jpg,.jpeg,.webp">
+    <b>파일 올리기 또는 여기로 끌어다 놓기</b>
+    <small>PDF · Word · PPT · 한글(hwpx) · 엑셀 · 텍스트 · 공지 사진(JPG, PNG)</small></label>
+  <ul class="files" id="newList"></ul>
+
+  <label class="f" for="newName">수업 이름</label>
+  <input id="newName" maxlength="40" placeholder="예: 교육공학 수업 조교" autocomplete="off">
+  <div id="newCodeBox"><label class="f" for="newCode">수업 코드 <span class="muted">(연수에서 안내받은 코드. 한 번만 넣으면 이 브라우저가 기억합니다)</span></label>
+  <input id="newCode" autocomplete="off" placeholder="수업 코드"></div>
+  <div class="row"><button id="newGo" disabled>조교 만들기</button><span class="muted" id="newHint">파일을 하나 이상 올리면 눌러집니다.</span></div>
+  <div id="newErr"></div>
+
+  <div id="mine" hidden><h2>내가 만든 <span class="ko">조교</span></h2><div id="mineList"></div></div>
+</main>
+
+<!-- 2. 교수 화면 -->
+<main id="vProf" hidden>
+  <div class="kick">24H · <span class="ko" style="letter-spacing:.04em">교수 화면</span></div>
+  <h1 id="pName">…</h1>
+  <p class="lede" id="pLede"></p>
+
+  <h2><span class="ko">학생에게</span> 나눠 주기</h2>
+  <div class="share">
+    <div class="qr" id="pQr"></div>
+    <div class="url">
+      <span class="muted">학생용 주소 (QR을 찍거나 LMS에 붙여 넣으세요)</span>
+      <code id="pUrl"></code>
+      <div class="row"><button id="pCopy" class="sm">주소 복사</button><button id="pOpen" class="sm alt">학생 화면 열기</button><button id="pBig" class="sm alt">큰 QR 띄우기</button></div>
+    </div>
+  </div>
+
+  <h2><span class="ko">자료</span> · 조교가 읽는 내용</h2>
+  <p class="muted" style="margin:0 0 10px">조교는 아래 자료에 적힌 내용만 근거로 답합니다. 자료를 바꾸면 바로 반영됩니다.</p>
+  <div class="meter" id="pMeter"><i></i></div>
+  <div class="muted" id="pChars"></div>
+  <ul class="files" id="pDocs"></ul>
+  <label class="drop" id="pDrop" style="margin-top:14px"><input type="file" id="pFile" multiple hidden accept=".pdf,.docx,.pptx,.hwpx,.xlsx,.txt,.md,.csv,.tsv,.png,.jpg,.jpeg,.webp">
+    <b>파일 더 올리기 또는 여기로 끌어다 놓기</b>
+    <small>새 공지가 생기면 파일이나 공지 사진을 올리세요</small></label>
+  <ul class="files" id="pList"></ul>
+  <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700">파일이 없으면 공지를 직접 써서 넣기</summary>
+    <textarea id="pNote" placeholder="예: 11월 20일 중간고사는 3관 201호에서 봅니다. 시험 범위는 1~7주차입니다."></textarea>
+    <button id="pNoteAdd" class="sm">공지로 추가</button></details>
+
+  <h2><span class="ko">질문함</span> <span id="pWaiting"></span></h2>
+  <div class="row" style="margin-bottom:6px"><button id="pReload" class="sm alt">새로고침</button><button id="pDigest" class="sm alt">자주 묻는 것 정리</button><span class="muted" id="pAuto">20초마다 저절로 새로고침됩니다.</span></div>
+  <div id="pDigestOut"></div>
+  <div id="pQs"></div>
+
+  <h2><span class="ko">설정</span></h2>
+  <label class="f" for="sName">조교 이름</label>
+  <div class="row"><input id="sName" maxlength="40" style="max-width:340px;margin:6px 0"><button id="sNameSave" class="sm alt">바꾸기</button></div>
+  <label class="f" for="sP" style="margin-top:14px">AI가 바로 답하는 기준</label>
+  <select id="sP" style="max-width:340px"><option value="0.9">조심스럽게: 확실할 때만 답하고 나머지는 교수님께</option><option value="0.8">보통</option><option value="0.65">적극적으로: 웬만하면 AI가 답하기</option></select>
+  <div class="row" style="margin-top:6px"><button id="sOpen" class="sm alt"></button><button id="sRemove" class="sm alt">이 조교 지우기</button></div>
+  <div class="msg" style="margin-top:24px"><b>교수용 주소를 저장해 두세요.</b> 이 브라우저에는 저절로 기억됩니다. 다른 컴퓨터에서 관리하려면 아래 주소를 북마크하세요. 이 주소를 아는 사람은 누구나 질문함을 볼 수 있으니 학생에게 주지 마세요.
+    <code id="sKeyUrl" style="display:block;margin-top:8px;font:12.5px/1.5 ui-monospace,Menlo,monospace;word-break:break-all"></code>
+    <button id="sKeyCopy" class="sm alt" style="margin-top:8px">교수용 주소 복사</button></div>
+</main>
+
+<!-- 3. 학생 화면 -->
+<main id="vAsk" hidden>
+  <div class="kick">24H · <span class="ko" style="letter-spacing:.04em">수업 조교</span></div>
+  <h1 id="aName">…</h1>
+  <p class="muted" style="margin:0 0 16px">수업 자료에 있는 내용은 바로 답해 드리고, 교수님이 직접 답할 내용은 전달해 드립니다. 이름이나 학번은 쓰지 마세요.</p>
+  <textarea id="aQ" maxlength="300" placeholder="궁금한 것을 적어 주세요"></textarea>
+  <div class="row"><button id="aGo">질문하기</button></div>
+  <div id="aOut"></div>
+  <h2>교수님 <span class="ko">답변 확인</span></h2>
+  <div class="row"><input id="aId" maxlength="6" placeholder="질문 번호 6자리" style="width:200px;margin:0;text-transform:uppercase"><button id="aCheck" class="alt">확인</button></div>
+  <div id="aRes"></div>
+</main>
+
+<div class="big" id="big" hidden><button id="bigX" class="alt">닫기</button><div id="bigQr"></div><p id="bigT"></p></div>
+<div class="toast" id="toast" aria-live="polite"></div>
+<script src="vendor/qrcode/qrcode.js"></script>
+<script src="doc-reader.js"></script>
+<script>
+(function () {
+'use strict';
+var API = location.protocol.indexOf('http') === 0 ? '/api/ta' : 'https://kimcook-edu.pages.dev/api/ta';
+var $ = function (s) { return document.querySelector(s); };
+var Q = new URLSearchParams(location.search), ROOM = (Q.get('r') || '').toLowerCase();
+var KEY = (location.hash.match(/k=([a-z0-9]+)/) || [])[1] || '';
+
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+function lsGet(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+var nf = function (n) { return Number(n).toLocaleString('ko-KR'); };
+
+var tt = 0;
+function toast(msg, bad) {
+  var t = $('#toast'); clear(t); clearTimeout(tt);
+  t.className = 'toast' + (bad ? ' bad' : '');
+  t.appendChild(el('b', null, bad ? '확인' : '완료')); t.appendChild(el('span', null, msg));
+  if (bad) { var x = el('button', null, '닫기'); x.onclick = function () { t.classList.remove('on'); }; t.appendChild(x); }
+  else { t.appendChild(el('i')); }
+  void t.offsetWidth; t.classList.add('on'); if (!bad) { t.classList.add('run'); tt = setTimeout(function () { t.classList.remove('on', 'run'); }, 3000); }
+}
+function fail(msg) { toast(msg, true); }
+
+function api(payload) {
+  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (!r.ok || j.error) { var e = new Error(j.error || '요청을 처리하지 못했습니다. 잠시 뒤에 다시 해 주세요.'); e.code = j.code; throw e; }
+      return j;
+    });
+  });
+}
+function show(id) { ['#vNew', '#vProf', '#vAsk'].forEach(function (s) { $(s).hidden = s !== id; }); }
+
+function qrSvg(text) {
+  var qr = qrcode(0, 'M'); qr.addData(text); qr.make();
+  var n = qr.getModuleCount(), d = '';
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (qr.isDark(y, x)) d += 'M' + x + ',' + y + 'h1v1h-1z';
+  var box = el('div'); box.innerHTML = '<svg viewBox="-3 -3 ' + (n + 6) + ' ' + (n + 6) + '" shape-rendering="crispEdges" role="img" aria-label="QR 코드"><rect x="-3" y="-3" width="' + (n + 6) + '" height="' + (n + 6) + '" fill="#fff"/><path d="' + d + '" fill="#000"/></svg>';
+  return box.firstChild;
+}
+function copy(text, done) {
+  var ok = function () { toast(done); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, function () { fail('복사를 못했어요. 주소를 직접 선택해서 복사하세요.'); });
+  else fail('복사를 못했어요. 주소를 직접 선택해서 복사하세요.');
+}
+
+/* ---------- 파일 읽기와 올리기 (공통) ---------- */
+// files: FileList. 파일마다 한 줄을 만들어 list 에 보여 주고, 읽은 문서를 onDoc({name,text|images,note,nt}) 로 넘깁니다.
+// onDoc 은 줄 끝에 보일 글(성공)을 돌려주거나 오류를 던집니다. 사진과 글자 없는 스캔 PDF 는 images 로 옵니다.
+function ingest(files, list, onDoc) {
+  var chain = Promise.resolve();
+  Array.prototype.forEach.call(files, function (f) {
+    var li = el('li', 'busy'); li.appendChild(el('span', 'nm', f.name)); var nt = el('span', 'nt', ''); li.appendChild(nt); list.appendChild(li);
+    chain = chain.then(function () {
+      return DocReader.read(f).then(function (r) { return onDoc({ name: f.name.replace(/\.[^.]+$/, ''), text: r.text, images: r.images, note: r.note, nt: nt }); })
+        .then(function (note) { li.className = ''; nt.textContent = note || ''; })
+        .catch(function (e) { li.className = ''; nt.className = 'nt bad'; nt.textContent = e.message || '읽지 못했습니다.'; var x = el('button', 'sm alt', '지우기'); x.onclick = function () { li.remove(); }; li.appendChild(x); });
+    });
+  });
+  return chain;
+}
+function dropzone(box, input, handler) {
+  input.onchange = function () { handler(input.files); input.value = ''; };
+  ['dragenter', 'dragover'].forEach(function (ev) { box.addEventListener(ev, function (e) { e.preventDefault(); box.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (ev) { box.addEventListener(ev, function (e) { e.preventDefault(); box.classList.remove('over'); }); });
+  box.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) handler(e.dataTransfer.files); });
+}
+
+/* ---------- 내 조교 목록 (이 브라우저) ---------- */
+function mineGet() { try { var a = JSON.parse(lsGet('acl-ta', '[]')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function mineSave(room, key, name) {
+  var a = mineGet().filter(function (x) { return x.room !== room; }); a.unshift({ room: room, key: key, name: name }); lsSet('acl-ta', JSON.stringify(a.slice(0, 20)));
+}
+function mineDrop(room) { lsSet('acl-ta', JSON.stringify(mineGet().filter(function (x) { return x.room !== room; }))); }
+function profUrl(room, key) { return location.origin + location.pathname + '?r=' + room + '#k=' + key; }
+function studentUrl(room) { return location.origin + location.pathname + '?r=' + room; }
+
+/* ---------- 처음 화면 ---------- */
+function newView() {
+  show('#vNew');
+  var pending = [], code = lsGet('acl-aicode', '');
+  $('#newCodeBox').hidden = !!code; if (code) $('#newCode').value = code;
+  var mine = mineGet();
+  if (mine.length) {
+    $('#mine').hidden = false; var box = $('#mineList');
+    mine.forEach(function (m) {
+      var c = el('div', 'card'); c.appendChild(el('p', 'q', m.name));
+      var r = el('div', 'row'); var a = el('a', null, '교수 화면 열기'); a.href = '?r=' + m.room + '#k=' + m.key; a.className = 'sm'; a.style.fontWeight = '700';
+      r.appendChild(a); c.appendChild(r); box.appendChild(c);
+    });
+  }
+  function sync() {
+    var n = pending.length;
+    $('#newGo').disabled = !n;
+    $('#newHint').textContent = n ? '파일 ' + n + '개를 올렸어요. 이름을 확인하고 눌러 주세요.' : '파일을 하나 이상 올리면 눌러집니다.';
+  }
+  dropzone($('#newDrop'), $('#newFile'), function (files) {
+    ingest(files, $('#newList'), function (d) {
+      pending.push(d); sync();
+      return d.images ? '사진입니다. 조교를 만들 때 글로 옮겨 적습니다' : [d.note, nf(d.text.length) + '자'].filter(Boolean).join(' · ');
+    }).then(sync);
+  });
+  $('#newGo').onclick = function () {
+    var c = ($('#newCode').value || code).trim();
+    if (!c) { fail('조교를 만들지 못했어요. 수업 코드를 넣어 주세요.'); return; }
+    $('#newGo').disabled = true; $('#newHint').textContent = '조교를 만드는 중…';
+    api({ op: 'create', code: c, name: $('#newName').value.trim() }).then(function (r) {
+      lsSet('acl-aicode', c); mineSave(r.room, r.key, $('#newName').value.trim() || '수업 조교');
+      var chain = Promise.resolve(), cut = 0, bad = 0;
+      pending.forEach(function (d) {
+        chain = chain.then(function () {
+          var text = d.images ? api({ op: 'ocr', room: r.room, key: r.key, images: d.images.map(function (u, i) { return { name: d.name + ' ' + (i + 1), url: u }; }) }).then(function (o) { return o.text; }) : Promise.resolve(d.text);
+          return text.then(function (t) { return api({ op: 'addDoc', room: r.room, key: r.key, name: d.name, text: t }); }).then(function (x) { if (x.cut) cut++; }).catch(function () { bad++; });
+        });
+      });
+      return chain.then(function () { location.replace('?r=' + r.room + '#k=' + r.key + (cut ? '&cut=1' : '') + (bad ? '&bad=' + bad : '')); });
+    }).catch(function (e) {
+      if (e.code === 'bad_code') { lsSet('acl-aicode', ''); $('#newCodeBox').hidden = false; }
+      $('#newGo').disabled = false; $('#newHint').textContent = ''; fail('조교를 만들지 못했어요. ' + e.message);
+    });
+  };
+}
+
+/* ---------- 교수 화면 ---------- */
+var S = null, poll = 0;
+function profView() {
+  show('#vProf');
+  var base = { room: ROOM, key: KEY };
+  var call = function (p) { return api(Object.assign({}, base, p)); };
+  var url = studentUrl(ROOM);
+  $('#pUrl').textContent = url; $('#pQr').appendChild(qrSvg(url));
+  $('#sKeyUrl').textContent = profUrl(ROOM, KEY);
+  $('#pCopy').onclick = function () { copy(url, '학생용 주소를 복사했어요.'); };
+  $('#pOpen').onclick = function () { window.open(url, '_blank'); };
+  $('#sKeyCopy').onclick = function () { copy(profUrl(ROOM, KEY), '교수용 주소를 복사했어요. 학생에게는 주지 마세요.'); };
+  $('#pBig').onclick = function () { clear($('#bigQr')); $('#bigQr').appendChild(qrSvg(url)); $('#bigT').textContent = (S ? S.name : '수업 조교') + ' · 질문은 QR로'; $('#big').hidden = false; };
+  $('#bigX').onclick = function () { $('#big').hidden = true; };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('#big').hidden = true; });
+
+  function render() {
+    $('#pName').textContent = S.name; document.title = S.name + ' · 교수 화면';
+    $('#pLede').textContent = S.docs.length ? '학생이 질문하면 조교가 아래 자료에서 답을 찾습니다. 자료에 없거나 개인 사정이면 질문함에 쌓입니다.' : '아직 자료가 없습니다. 아래에 강의계획서를 올려 주세요.';
+    var pct = Math.min(100, Math.round(S.chars / S.maxChars * 100));
+    $('#pMeter').firstChild.style.width = pct + '%'; $('#pMeter').className = 'meter' + (pct >= 90 ? ' full' : '');
+    $('#pChars').textContent = '자료 ' + nf(S.chars) + '자 / ' + nf(S.maxChars) + '자 (한글 기준 A4 약 ' + Math.round(S.maxChars / 1800) + '장)';
+    var dl = $('#pDocs'); clear(dl);
+    S.docs.forEach(function (d) {
+      var li = el('li'); li.appendChild(el('span', 'nm', d.name)); li.appendChild(el('span', 'nt', nf(d.chars) + '자'));
+      var x = el('button', 'sm alt', '지우기'); x.onclick = function () { if (!confirm('"' + d.name + '" 자료를 지울까요? 조교가 이 내용을 더 이상 쓰지 않습니다.')) return; call({ op: 'delDoc', id: d.id }).then(function () { toast('자료를 지웠어요.'); return load(); }).catch(function (e) { fail('자료를 지우지 못했어요. ' + e.message); }); };
+      li.appendChild(x); dl.appendChild(li);
+    });
+    $('#pWaiting').textContent = S.waiting ? '· 답을 기다리는 질문 ' + S.waiting + '개' : '';
+    $('#pWaiting').style.color = S.waiting ? 'var(--red)' : '';
+    var box = $('#pQs'); clear(box);
+    if (!S.qs.length) box.appendChild(el('p', 'muted', '아직 질문이 없습니다. 학생에게 QR을 보여 주세요.'));
+    S.qs.forEach(function (q) {
+      var wait = !q.auto && !q.answer, c = el('div', 'card' + (wait ? ' wait' : ''));
+      c.appendChild(el('p', 'q', q.q));
+      var tg = el('div', 'tags'); tg.appendChild(el('span', wait ? 'hot' : '', q.auto ? '조교가 답함' : wait ? '교수님 답 필요' : '교수님이 답함'));
+      tg.appendChild(el('span', '', q.kind)); tg.appendChild(el('span', '', '자료로 답할 수 있을 확률 ' + Math.round(q.p * 100) + '%'));
+      tg.appendChild(el('span', '', '번호 ' + q.code)); tg.appendChild(el('span', '', new Date(q.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })));
+      c.appendChild(tg);
+      if (q.answer) c.appendChild(el('div', 'ans', q.answer));
+      if (!q.auto) {
+        var ta = el('textarea'); ta.placeholder = wait ? '여기에 답을 쓰면 학생이 질문 번호로 확인합니다.' : '답을 고치려면 여기에 다시 쓰세요.'; ta.style.minHeight = '80px'; c.appendChild(ta);
+        var b = el('button', 'sm', wait ? '답 보내기' : '답 고치기');
+        b.onclick = function () { if (!ta.value.trim()) { fail('답을 보내지 못했어요. 답을 먼저 써 주세요.'); return; } b.disabled = true; call({ op: 'reply', id: q.id, answer: ta.value }).then(function () { toast('답을 보냈어요. 학생이 질문 번호 ' + q.code + '로 확인합니다.'); return load(); }).catch(function (e) { b.disabled = false; fail('답을 보내지 못했어요. ' + e.message); }); };
+        c.appendChild(b);
+      }
+      box.appendChild(c);
+    });
+    $('#sName').value = S.name; $('#sP').value = String(S.minP >= 0.85 ? 0.9 : S.minP >= 0.72 ? 0.8 : 0.65);
+    $('#sOpen').textContent = S.open ? '질문 받는 중 · 누르면 멈춥니다' : '질문 멈춤 · 누르면 다시 받습니다';
+  }
+  function load() { return call({ op: 'state' }).then(function (r) { S = r; render(); }); }
+  load().then(function () {
+    var nb = (location.hash.match(/bad=(\d+)/) || [])[1];
+    if (nb) fail('파일 ' + nb + '개를 넣지 못했어요. 아래 자료 칸에서 다시 올려 주세요.');
+    else if (/cut=1/.test(location.hash)) fail('자료가 10만 자를 넘어 일부는 앞부분만 들어갔어요. 필요 없는 파일은 지워 주세요.');
+    else if (!S.docs.length) toast('먼저 자료를 올려 주세요.');
+  }).catch(function (e) {
+    if (e.code === 'no_room' || e.code === 'bad_key') { mineDrop(ROOM); }
+    $('#vProf').innerHTML = ''; var m = el('div', 'msg err', e.message); $('#vProf').appendChild(m); var a = el('a', null, '처음 화면으로'); a.href = location.pathname; $('#vProf').appendChild(a);
+  });
+  clearInterval(poll); poll = setInterval(function () { if (!document.hidden && !$('#vProf').hidden) load().catch(function () {}); }, 20000);
+  $('#pReload').onclick = function () { load().then(function () { toast('새로고침했어요.'); }).catch(function (e) { fail('새로고침을 못했어요. ' + e.message); }); };
+
+  function upload(files) {
+    ingest(files, $('#pList'), function (d) {
+      var text = d.images ? (d.nt.textContent = '사진의 글을 옮겨 적는 중…', call({ op: 'ocr', images: d.images.map(function (u, i) { return { name: d.name + ' ' + (i + 1), url: u }; }) }).then(function (o) { return o.text; })) : Promise.resolve(d.text);
+      return text.then(function (t) { return call({ op: 'addDoc', name: d.name, text: t }); }).then(function (x) { return nf(x.chars) + '자 넣었어요' + (x.cut ? ' (자료가 가득 차서 앞부분만)' : ''); });
+    }).then(function () { return load(); }).then(function () { setTimeout(function () { clear($('#pList')); }, 4000); });
+  }
+  dropzone($('#pDrop'), $('#pFile'), upload);
+  $('#pNoteAdd').onclick = function () {
+    var t = $('#pNote').value.trim(); if (!t) { fail('공지를 넣지 못했어요. 내용을 먼저 써 주세요.'); return; }
+    var d = new Date(); call({ op: 'addDoc', name: '공지 ' + (d.getMonth() + 1) + '/' + d.getDate(), text: t }).then(function () { $('#pNote').value = ''; toast('공지를 넣었어요. 학생 질문에 바로 쓰입니다.'); return load(); }).catch(function (e) { fail('공지를 넣지 못했어요. ' + e.message); });
+  };
+  $('#pDigest').onclick = function () {
+    var b = $('#pDigest'); b.disabled = true; var out = $('#pDigestOut'); clear(out); out.appendChild(el('p', 'muted', '지난 7일 질문을 읽는 중…'));
+    call({ op: 'digest' }).then(function (r) { clear(out); out.appendChild(el('div', 'ans', r.text)); }).catch(function (e) { clear(out); fail('정리를 못했어요. ' + e.message); }).then(function () { b.disabled = false; });
+  };
+  $('#sNameSave').onclick = function () { var n = $('#sName').value.trim(); if (!n) { fail('이름을 바꾸지 못했어요. 이름을 써 주세요.'); return; } call({ op: 'settings', name: n }).then(function () { mineSave(ROOM, KEY, n); toast('조교 이름을 바꿨어요.'); return load(); }).catch(function (e) { fail('이름을 바꾸지 못했어요. ' + e.message); }); };
+  $('#sP').onchange = function () { call({ op: 'settings', minP: Number($('#sP').value) }).then(function () { toast('바꿨어요. 다음 질문부터 이 기준으로 답합니다.'); return load(); }).catch(function (e) { fail('바꾸지 못했어요. ' + e.message); }); };
+  $('#sOpen').onclick = function () { call({ op: 'settings', open: !S.open }).then(function () { toast(S.open ? '질문 받기를 멈췄어요.' : '질문을 다시 받습니다.'); return load(); }).catch(function (e) { fail('바꾸지 못했어요. ' + e.message); }); };
+  $('#sRemove').onclick = function () {
+    if (!confirm('이 조교와 자료, 학생 질문을 모두 지웁니다. 되돌릴 수 없습니다. 지울까요?')) return;
+    call({ op: 'remove' }).then(function () { mineDrop(ROOM); location.replace(location.pathname); }).catch(function (e) { fail('지우지 못했어요. ' + e.message); });
+  };
+}
+
+/* ---------- 학생 화면 ---------- */
+function typeOut(node, text) {
+  node.textContent = text;
+  if (typeof requestAnimationFrame !== 'function') return;
+  var n = text.length, t0 = Date.now(), dur = Math.min(2800, 500 + n * 26); node.textContent = '';
+  (function step() { var i = Math.ceil(n * Math.min(1, (Date.now() - t0) / dur)); node.textContent = text.slice(0, i); if (i < n) requestAnimationFrame(step); })();
+}
+function askView() {
+  show('#vAsk');
+  var sid = lsGet('acl-ta-sid', ''); if (!sid) { sid = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8); lsSet('acl-ta-sid', sid); }
+  var waiting = false, STEPS = ['자료를 훑어 읽는 중', '근거 문장을 찾는 중', '답을 쓰는 중'];
+  function say(box, text, cls) { clear(box); var p = el('p', cls || 'msg', text); box.appendChild(p); return p; }
+  function cycle(n) { if (!waiting) return; say($('#aOut'), STEPS[n % 3] + '…'); setTimeout(function () { cycle(n + 1); }, 1500); }
+  api({ op: 'info', room: ROOM }).then(function (r) {
+    $('#aName').textContent = r.name; document.title = r.name;
+    if (!r.open) { $('#aGo').disabled = true; say($('#aOut'), '지금은 질문을 받지 않습니다.'); }
+    else if (!r.ready) { $('#aGo').disabled = true; say($('#aOut'), '아직 수업 자료가 준비되지 않았습니다. 교수님께 알려 주세요.'); }
+  }).catch(function (e) { $('#aName').textContent = '조교를 찾지 못했어요'; $('#aGo').disabled = true; say($('#aOut'), e.message, 'msg err'); });
+  function meter(r) {
+    $('#aOut').appendChild(el('div', 'gl', 'JEV 판정 · ' + r.kind + ' · 자료로 답할 수 있을 확률 ' + r.p + '%'));
+    var g = el('div', 'gauge' + (r.auto ? '' : ' hot')), f = el('i'); g.appendChild(f); $('#aOut').appendChild(g); setTimeout(function () { f.style.width = r.p + '%'; }, 80);
+  }
+  $('#aGo').onclick = function () {
+    var t = $('#aQ').value; if (t.trim().length < 4) { fail('질문하기를 못했어요. 네 글자 이상 적어 주세요.'); return; }
+    $('#aGo').disabled = true; waiting = true; cycle(0);
+    api({ op: 'ask', room: ROOM, q: t, sid: sid }).then(function (r) {
+      waiting = false; $('#aGo').disabled = false;
+      if (!r.ok) { clear($('#aOut')); fail('질문하기를 못했어요. ' + r.msg); return; }
+      $('#aQ').value = '';
+      if (r.auto) { typeOut(say($('#aOut'), '', 'msg'), r.answer); toast('답을 받았어요.'); }
+      else { say($('#aOut'), '수업 자료만으로는 답하기 어려워 교수님께 전달했습니다. 질문 번호 ' + r.id + ' 를 적어 두고 나중에 아래에서 확인하세요.'); toast('교수님께 전달했어요. 질문 번호 ' + r.id); }
+      meter(r);
+    }).catch(function (e) { waiting = false; $('#aGo').disabled = false; clear($('#aOut')); fail('질문하기를 못했어요. ' + e.message); });
+  };
+  $('#aCheck').onclick = function () {
+    api({ op: 'check', room: ROOM, id: $('#aId').value }).then(function (r) {
+      if (!r.found) { clear($('#aRes')); fail('답변 확인을 못했어요. 해당하는 질문 번호가 없습니다.'); return; }
+      say($('#aRes'), r.answer || '아직 답변이 없습니다. 조금 뒤에 다시 확인하세요.'); toast(r.answer ? '교수님 답변을 찾았어요.' : '질문을 찾았어요. 아직 답변은 없습니다.');
+    }).catch(function (e) { fail('답변 확인을 못했어요. ' + e.message); });
+  };
+}
+
+if (!ROOM) newView();
+else if (KEY) profView();
+else askView();
+})();
+</script>
+</body>
+</html>

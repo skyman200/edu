@@ -89,7 +89,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
 
   <section id="s0">
     <div class="k">0 · 어떻게 쓸까요?</div>
-    <div class="row" id="modeRow"><button id="modeSolo" class="g">혼자 쓰기 (내 AI 키 · 강사 없이)</button><button id="modeClass" class="g">연수 현장 (수업 코드)</button></div>
+    <div class="row" id="modeRow"><button id="modeClass" class="g">연수 현장 (수업 코드만, 키 필요 없음)</button><button id="modeSolo" class="g">나중에 혼자 쓰기 (내 AI 키)</button></div>
     <div id="s0solo">
       <p class="sub">강사도 수업 서버도 필요 없습니다. 내 구글 계정으로 무료 AI 키(Gemini) 하나만 만들면, 만든 도구 안의 AI가 그 키로 일합니다. 키는 내 스크립트 속성에만 저장되고 코드에는 들어가지 않습니다.</p>
       <ol class="sub" style="margin:0 0 6px 20px">
@@ -100,7 +100,8 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
       <p class="sub">이 화면의 "AI ONE으로 만들기·고치기"와 Jev 시험대는 연수 현장에서만 켜집니다. 혼자 쓸 때는 "ChatGPT·Gemini에 붙일 프롬프트 복사" 버튼으로 같은 일을 할 수 있습니다.</p>
     </div>
     <div id="s0class">
-    <p class="sub">강사가 알려 준 수업 코드를 한 번만 넣으세요. 복사하는 코드에 자동으로 들어가서, 구글 시트에서 따로 입력할 필요가 없습니다.</p>
+    <p class="sub">강사가 알려 준 수업 코드를 한 번만 넣으세요. 복사하는 코드에 자동으로 들어가서, 구글 시트에서 따로 입력할 필요가 없습니다. AI 키도 필요 없습니다. 연수가 끝난 뒤 혼자 다시 할 때는 6번의 PDF 키트를 받아 "나중에 혼자 쓰기"로 하세요.</p>
+    <p class="sub"><b>가장 쉬운 24시간 조교</b>: 시트도 코드도 없이 강의계획서와 공지 파일(PDF, 워드, 한글 hwpx, 파워포인트, 사진)만 올리면 학생 주소가 나옵니다. <a href="ta.html" target="_blank" rel="noopener">파일만 올려 조교 만들기</a></p>
     <div class="row"><input id="code" style="max-width:260px" placeholder="수업 코드" autocomplete="off"><button id="codeSave">저장하고 확인</button><span id="codeState" class="sub" style="margin:0"></span></div>
     </div>
   </section>
@@ -179,8 +180,8 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
   var FULL = '브라우저 저장 공간이 가득 찼어요. 다른 결과물을 지우고 다시 하세요.';
   var aiCode = lsGet('acl-aicode', '');
-  // 혼자 쓰기(강사 서버·수업 코드 없이 내 Gemini 키)가 기본입니다. 예전에 수업 코드를 저장해 둔 브라우저만 연수 현장 방식으로 시작합니다.
-  var solo = lsGet('acl-gas-mode', aiCode ? 'class' : 'solo') === 'solo';
+  // 연수 현장(수업 코드, 키 필요 없음)이 기본입니다. 혼자 쓰기(내 Gemini 키)는 연수가 끝난 뒤 PDF 키트를 보며 다시 해 볼 때 고릅니다.
+  var solo = lsGet('acl-gas-mode', 'class') === 'solo';
   // 혼자 쓰기 화면의 글에서 수업 코드·Jev 말을 내 키·AI 말로 바꿉니다(gas/build.mjs 의 SOLO_WORDS 와 같은 규칙)
   function S(t) { return solo ? String(t).replace(/수업 코드 입력/g, 'AI 키 넣기').replace(/Jev가/g, 'AI가').replace(/JEV 판정/g, 'AI 판정').replace(/Jev/g, 'AI') : t; }
   var cur = 0, original = '', history = [], lastSig = '', fixCount = 0, ctl = null;

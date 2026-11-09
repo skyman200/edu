@@ -10,7 +10,7 @@ node vibe/build.mjs
 S=$(mktemp -d /tmp/kimcook-edu-deploy.XXXXXX)
 trap 'rm -rf "$S"' EXIT
 mkdir -p "$S/public"
-cp index.html live.html check.html gas.html kit.html studio.html vibe-kit.js doc-reader.js gas-diag.js gas-recipes.js ping.js ai-class-slides.pdf ppt-kit.js office-kit.js "$S/public/"
+cp index.html live.html check.html gas.html kit.html ta.html studio.html vibe-kit.js doc-reader.js gas-diag.js gas-recipes.js ping.js ai-class-slides.pdf ppt-kit.js office-kit.js "$S/public/"
 cp -R vendor "$S/public/vendor"
 find "$S" -name '._*' -delete
 cp -R functions "$S/functions"
