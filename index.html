@@ -610,6 +610,7 @@ body.focus section.keep{padding:28px 0;border:0}
             <button class="btn ghostb" id="vDownload">HTML 파일로 내려받기</button>
             <button class="btn ghostb" id="vToMine">내 결과물에 기록</button>
           </div>
+          <div class="row" style="margin-top:10px"><button class="btn red" id="vKit">내 결과물 PDF로 저장 <span class="k">KIT</span></button><span class="note" id="vKitNote">만든 앱의 코드·내가 AI에게 한 말·학생 링크를 GAS(구글 시트 자동화)에서 만든 결과물과 한 권의 PDF로 묶습니다. 수업 서버 없이 혼자 다시 돌릴 수 있는 판으로 담깁니다.</span></div>
           <ol class="vvers" id="vVers"></ol>
           <p class="note" style="margin:12px 0 0">내려받은 파일은 메일이나 LMS로 학생에게 보내면 더블클릭으로 열립니다. 링크로 나눠 주려면 AI에게 "이 HTML 파일을 무료로 웹에 올리는 방법"을 물어보세요.</p>
         </div>
@@ -1914,7 +1915,7 @@ function sheetFor_(name, header) {
   $('#clearMine').onclick = () => {
     flushResults();
     if (!confirm('이 컴퓨터에 저장된 결과물 ' + saved().length + '개와 내 수업 정보, 완료 표시, 바이브코딩 작업을 모두 지울까요?\n내려받지 않았다면 먼저 내려받으세요.')) return;
-    try { ['acl-results', 'acl-course', 'acl-done', 'acl-vibe'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    try { ['acl-results', 'acl-course', 'acl-done', 'acl-vibe', 'acl-vibe-results'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
     vReset();
     results = {}; done.clear(); course = {};
     fields.forEach(f => { if (f.tagName !== 'SELECT') f.value = ''; });
@@ -1965,7 +1966,7 @@ function sheetFor_(name, header) {
   ];
   const FIXES = ['글자를 프로젝터용으로 더 크게 해 줘', '휴대폰에서도 버튼이 크게, 잘 눌리게 해 줘', '디자인을 단정하게: 밝은 배경, 강조색 하나, 얇은 선만',
     '처음 쓰는 사람을 위한 사용법 안내를 화면 위에 한 줄 넣어 줘', '새로고침해도 입력과 결과가 남게 브라우저에 저장해 줘', '결과를 CSV 파일로 내려받는 버튼을 넣어 줘'];
-  let vibe = Object.assign({ plan: null, code: '', versions: [] }, store.get('acl-vibe', {}));
+  let vibe = Object.assign({ plan: null, code: '', versions: [], asks: [], base: 'plan' }, store.get('acl-vibe', {}));
   const vStore = () => store.set('acl-vibe', vibe);
   const vFields = $$('#vPlan [data-v]');
   const readPlan = () => { const p = {}; vFields.forEach(f => { p[f.dataset.v] = f.value; }); return p; };
@@ -1999,7 +2000,7 @@ function sheetFor_(name, header) {
     const d = IDEAS[i];
     fillPlan({ name: d.name, who: d.who, does: d.does, screen: d.screen, feat: d.feat.join('\n'), content: d.content() });
     $$('#vIdeas .chip').forEach((c, k) => c.classList.toggle('on', k === i));
-    vibe.plan = readPlan(); vStore(); vPromptEdited = false; vPromptRefresh();
+    vibe.plan = readPlan(); vibe.base = 'plan'; vibe.asks = []; vStore(); vPromptEdited = false; vPromptRefresh();
   }
 
   // AI answers wrap the code in prose and ``` fences: keep only the page itself
@@ -2048,6 +2049,11 @@ function sheetFor_(name, header) {
   });
   // 고칠 때는 바뀐 곳만 받습니다(VibePatch): 답이 짧아 토큰이 덜 들고, 받은 답은 지금 코드에 끼워 넣습니다.
   const fixText = (ask, withCode) => VibePatch.fixPrompt(ask, withCode ? $('#vCode').value : '');
+  // 내가 AI에게 고쳐 달라고 한 말을 순서대로 남겨 두었다가 '내 결과물'(PDF 키트)에 넣습니다.
+  function vAsked(text) {
+    text = String(text || '').trim().slice(0, 300); if (!text) return;
+    vibe.asks = (vibe.asks || []).concat(text).slice(-30); vStore();
+  }
 
   function renderVersions() {
     $('#vVers').innerHTML = vibe.versions.slice().reverse().map(x => '<li><b class="num">v' + x.n + '</b><span>' + esc(x.name) + ' · ' + x.lines + '줄 · '
@@ -2055,7 +2061,7 @@ function sheetFor_(name, header) {
       + '<button class="mini" data-vload="' + x.n + '">불러오기</button><button class="mini" data-vdel="' + x.n + '">지우기</button></li>').join('');
   }
   function vReset() {
-    vibe = { plan: null, code: '', versions: [] };
+    vibe = { plan: null, code: '', versions: [], asks: [], base: 'plan' };
     $('#vCode').value = ''; $('#vFrame').srcdoc = ''; $('#vFix').hidden = true; vStatus('아직 실행하지 않았습니다.');
     chooseIdea(0); renderVersions();
   }
@@ -2064,9 +2070,9 @@ function sheetFor_(name, header) {
   $('#vFixes').innerHTML = FIXES.map((t, i) => '<button class="chip" data-vfix="' + i + '">' + esc(t) + '</button>').join('');
   $('#vAi').innerHTML = AI.map(a => '<button class="btn ghostb" data-vai="' + a.name + '"><span class="k">OPEN</span>' + aiName(a) + '</button>').join('');
   $('#vRunKey').textContent = paste === '⌘V' ? '⌘↵' : 'CTRL↵';
-  vFields.forEach(f => f.addEventListener('input', () => { vibe.plan = readPlan(); vStore(); vPromptEdited = false; vPromptRefresh(); $$('#vIdeas .chip').forEach(c => c.classList.remove('on')); }));
+  vFields.forEach(f => f.addEventListener('input', () => { vibe.plan = readPlan(); vibe.base = 'plan'; vStore(); vPromptEdited = false; vPromptRefresh(); $$('#vIdeas .chip').forEach(c => c.classList.remove('on')); }));
   $('#vPrompt').addEventListener('input', () => { vPromptEdited = true; });
-  $('#vCode').addEventListener('input', () => { clearTimeout(vCodeTimer); vCodeTimer = setTimeout(() => { vibe.code = $('#vCode').value; vStore(); }, 500); });
+  $('#vCode').addEventListener('input', () => { clearTimeout(vCodeTimer); vCodeTimer = setTimeout(() => { if (!VibePatch.has($('#vCode').value)) { vibe.code = $('#vCode').value; vStore(); } }, 500); });
   $('#vCode').addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); vRun(); }
     else if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); document.execCommand('insertText', false, '  '); }
@@ -2074,6 +2080,7 @@ function sheetFor_(name, header) {
   $('#vIdeas').addEventListener('click', e => { const b = e.target.closest('[data-videa]'); if (b) chooseIdea(Number(b.dataset.videa)); });
   $('#vFixes').addEventListener('click', e => {
     const b = e.target.closest('[data-vfix]'); if (!b) return;
+    vAsked(FIXES[Number(b.dataset.vfix)]);
     if ($('#vUseAi').checked) { vAiGenerate(fixText(FIXES[Number(b.dataset.vfix)], true)); return; }
     copy(fixText(FIXES[Number(b.dataset.vfix)], $('#vWithCode').checked), '복사했습니다. 코드를 받았던 AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   });
@@ -2092,7 +2099,7 @@ function sheetFor_(name, header) {
     const b = e.target.closest('[data-vsample]'); if (!b) return;
     const x = VIBE_SAMPLES[Number(b.dataset.vsample)];
     $$('#vSamples .chip').forEach(c => c.classList.toggle('on', c === b));
-    $('#vCode').value = x.code; vRun(); samplePub(x.name, x.desc);
+    $('#vCode').value = x.code; vibe.base = x.name; vibe.asks = []; vStore(); vRun(); samplePub(x.name, x.desc);
     $('#vSampleNote').textContent = x.tag + ' · ' + x.desc + ' · 03에서 이렇게 바꿔 보세요: "' + x.ask + '"';
     $('#vAsk').placeholder = '예: ' + x.ask;
   });
@@ -2110,11 +2117,12 @@ function sheetFor_(name, header) {
   }));
   $('#vFull').onclick = () => { const box = $('#vFrameBox'); if (box.requestFullscreen) box.requestFullscreen().catch(() => {}); };
   const errAsk = () => VibePatch.errorPrompt(vErrors, $('#vCode').value);
-  $('#vAskFix').onclick = () => $('#vUseAi').checked ? vAiGenerate(errAsk())
+  $('#vAskFix').onclick = () => (vAsked('오류 고치기: ' + (vErrors[0] || '')), $('#vUseAi').checked) ? vAiGenerate(errAsk())
     : copy(errAsk(), '오류와 코드를 복사했습니다. AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   $('#vAskCopy').onclick = () => {
     const ask = $('#vAsk').value;
     if (!ask.trim()) { $('#vAsk').focus(); toast('고칠 점을 한 문장으로 적어 주세요.'); return; }
+    vAsked(ask);
     if ($('#vUseAi').checked) { vAiGenerate(fixText(ask, true)); return; }
     copy(fixText(ask, $('#vWithCode').checked), '복사했습니다. 코드를 받았던 AI 대화창에 ' + paste + ' 로 붙여 넣으세요.');
   };
@@ -2136,16 +2144,18 @@ function sheetFor_(name, header) {
     const code = extractHtml($('#vCode').value);
     if (!code) { toast('내려받을 코드가 없습니다.'); return; }
     saveFile(new Blob([code], { type: 'text/html;charset=utf-8' }), (readPlan().name.trim() || '수업도구').replace(/[\\/:*?"<>|\s]+/g, '_') + '.html');
-    toast('HTML 파일을 내려받았습니다. 더블클릭하면 브라우저에서 열립니다.');
+    const rec = vRecord();
+    toast('HTML 파일을 내려받았습니다. 더블클릭하면 브라우저에서 열립니다.' + (rec && !rec.fail ? ' 내 결과물(PDF)에도 담았습니다.' : ''));
   };
   $('#vToMine').onclick = () => {
     const p = readPlan(), ta = $('#r-s4-4');
     const note = ['[바이브코딩] ' + (p.name.trim() || '수업 도구') + ' · ' + stamp(), '하는 일: ' + p.does.trim(),
       '기능: ' + p.feat.split('\n').map(s => s.trim()).filter(Boolean).join(', '),
-      '저장한 버전 ' + vibe.versions.length + '개 · 코드는 \'HTML 파일로 내려받기\'로 따로 저장'].join('\n');
+      '저장한 버전 ' + vibe.versions.length + '개 · 코드와 고친 말은 \'내 결과물 PDF로 저장\'(AI 수업 자동화 키트)에 들어갑니다'].join('\n');
     ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n\n' + note : note;
     saveResult('s4-4', ta.value);
-    toast('내 결과물(4–4)에 기록했습니다.');
+    const rec = vRecord();
+    toast('내 결과물(4–4)에 기록했습니다.' + (rec && !rec.fail ? ' 코드와 고친 말은 PDF 키트에 들어갑니다.' : ' ' + (rec ? rec.fail : '')));
   };
 
   /* ---------- AI ONE: run the prompt on the instructor's gateway account (no subscription needed) ---------- */
@@ -2886,7 +2896,7 @@ function sheetFor_(name, header) {
   $('#vUseAi').checked = !!store.get('acl-vuseai', false);
   $('#vUseAi').addEventListener('change', () => { store.set('acl-vuseai', $('#vUseAi').checked); vAiMode(); });
   vAiMode();
-  $('#vRunAi').onclick = () => { if (vAiCtl) vAiCtl.abort(); else vAiGenerate($('#vPrompt').value); };
+  $('#vRunAi').onclick = () => { if (vAiCtl) { vAiCtl.abort(); return; } vibe.asks = []; vibe.base = 'plan'; vStore(); vAiGenerate($('#vPrompt').value); };
 
   /* ---------- live board (/live, /api/live): mission 1 scores and the mission 2 gallery ---------- */
   // Same class code as AI ONE. Only the score (no name, course or assignment) and the apps the professor chooses to publish leave this browser.
@@ -2990,7 +3000,7 @@ function sheetFor_(name, header) {
         update ? { token: pub.token, edit: pub.edit } : {}));
       if (!j) { $('#pubState').textContent = ''; return; }
       pub = { token: j.token, edit: j.edit, title, at: Date.now() }; store.set('acl-pub', pub);
-      pubShow();
+      pubShow(); vRecord();
       toast(j.updated ? '전시판의 앱을 새 버전으로 바꿨습니다. 링크는 그대로입니다.' : '전시판에 올렸습니다. 학생 링크가 생겼습니다.');
     } catch (e) { $('#pubState').textContent = e.message; }
     finally { btn.disabled = false; }
@@ -3004,6 +3014,43 @@ function sheetFor_(name, header) {
     } catch (e) { $('#pubState').textContent = e.message; }
   };
   $('#pubCopy').onclick = () => { if (pub) copy(LIVE_PAGE + '?app=' + pub.token, '학생용 링크를 복사했습니다. 메시지나 LMS에 붙여 넣으세요.'); };
+
+  /* ---------- mission 2 → 내 결과물(PDF 키트): 앱 코드, 내가 AI에게 한 말, 학생 링크를 acl-vibe-results 에 담습니다 ---------- */
+  // kit.html 이 이 값을 읽어 GAS(acl-gas-results)와 한 권의 PDF로 묶습니다. 같은 앱 이름은 갱신하고, 서버에는 아무것도 보내지 않습니다.
+  const VIBE_RES_KEY = 'acl-vibe-results', VIBE_RES_MAX = 20;
+  function vRecord() {
+    const src = $('#vCode').value;
+    if (VibePatch.has(src)) return { fail: '바뀐 곳 형식의 글이 코드 칸에 있어 담지 않았습니다. 02에서 실행해 앱이 바뀐 뒤 다시 눌러 주세요.' };
+    const code = extractHtml(src);
+    if (!code || !/<(!doctype|html|body|div|main|script|button|canvas)\b/i.test(code)) return { fail: '먼저 02 실행 칸에서 앱을 만들어 실행해 주세요.' };
+    const p = readPlan(), title = ($('#pubTitle').value.trim() || p.name.trim() || '수업 앱').slice(0, 60), now = Date.now();
+    const first = vibe.base && vibe.base !== 'plan' ? '(예시 앱 "' + vibe.base + '"에서 시작)' : $('#vPrompt').value.trim().slice(0, 6000);
+    const prompts = [first].concat((vibe.asks || []).map((a, i) => '고쳐 달라고 한 말 ' + (i + 1) + ': ' + a)).filter(Boolean);
+    let all = store.get(VIBE_RES_KEY, []); if (!Array.isArray(all)) all = [];
+    let hit = all.find(x => x && x.title === title);
+    const fresh = !hit; if (!hit) { hit = { id: now.toString(36) + Math.random().toString(36).slice(2, 8), title, t: now }; all.push(hit); }
+    Object.assign(hit, { does: p.does.trim().slice(0, 400), feat: p.feat.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 12), code: code.slice(0, 400000), prompts,
+      url: pub && pub.title === title ? LIVE_PAGE + '?app=' + pub.token : (hit.url || ''), u: now });
+    all = all.slice(-VIBE_RES_MAX);
+    try { localStorage.setItem(VIBE_RES_KEY, JSON.stringify(all)); } catch (e) { return { fail: '브라우저 저장 공간이 가득 차서 내 결과물에 담지 못했습니다. 전시판이나 이전 결과물을 지우고 다시 눌러 주세요.' }; }
+    vKitCount(); return { item: hit, fresh, total: all.length };
+  }
+  function vKitCount() {
+    const apps = store.get(VIBE_RES_KEY, []), gas = store.get('acl-gas-results', []);
+    $('#vKitNote').textContent = '수업 앱 ' + (Array.isArray(apps) ? apps.length : 0) + '개와 GAS(구글 시트 자동화) 결과물 ' + (Array.isArray(gas) ? gas.length : 0) + '개가 한 권의 PDF로 묶입니다. 코드는 수업 서버 없이 혼자 다시 돌릴 수 있는 판으로 담깁니다.';
+  }
+  $('#vKit').onclick = () => {
+    const r = vRecord();
+    if (r.fail) { toast(r.fail); return; }
+    const nm = $('#pubName').value.trim().replace(/\s*교수(님)?$/, ''), org = $('#pubDept').value.trim();
+    if (nm && !store.get('acl-kit-name', '')) store.set('acl-kit-name', nm);
+    if (org && !store.get('acl-kit-org', '')) store.set('acl-kit-org', org);
+    const w = window.open('kit.html?auto=1&mine=1', '_blank');
+    if (w) toast((r.fresh ? '내 결과물에 담았습니다. ' : '내 결과물을 갱신했습니다. ') + '새 탭에서 PDF 인쇄 창이 열립니다. 대상을 "PDF로 저장"으로 두세요.');
+    else toast('새 탭이 막혔습니다. 주소창 오른쪽에서 팝업을 허용하고 다시 눌러 주세요.');
+  };
+  vKitCount();
+  window.addEventListener('storage', e => { if (e.key === VIBE_RES_KEY || e.key === 'acl-gas-results') vKitCount(); });
   function liveInit() {
     scoreInit();
     pubPrefill();

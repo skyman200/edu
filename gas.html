@@ -156,7 +156,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
   <section id="s6">
     <div class="k">6 · 가져가기</div>
     <h2>가져가기: 강의 자료와 내 결과물 키트 (PDF)</h2>
-    <p class="sub">모든 레시피의 "와 포인트", 시작 순서, <b>프롬프트 기록</b>(이 코드가 어떤 말로 만들어졌는지), 예제 프롬프트, 막혔을 때 처방, 코드 전문을 한 권으로 묶습니다. 위에서 만든 <b>내 결과물</b>은 이름, 웹 앱 주소와 QR, 내가 AI에게 한 말, 고친 코드까지 함께 들어갑니다. 성함과 소속은 적지 않아도 됩니다. 적으면 표지와 모든 쪽 아래에 들어갑니다.</p>
+    <p class="sub">모든 레시피의 "와 포인트", 시작 순서, <b>프롬프트 기록</b>(이 코드가 어떤 말로 만들어졌는지), 예제 프롬프트, 막혔을 때 처방, 코드 전문을 한 권으로 묶습니다. 위에서 만든 <b>내 결과물</b>은 이름, 웹 앱 주소와 QR, 내가 AI에게 한 말, 고친 코드까지 함께 들어갑니다. 메인 페이지 미션 2에서 만든 <b>수업 앱</b>(코드, 고친 말, 학생 링크)도 같은 PDF에 들어갑니다. 코드는 모두 수업 서버 없이 혼자 다시 돌릴 수 있는 판(내 AI 키 또는 아무 AI 채팅)으로 바꿔 담기니, 내 API가 아닌 내 계정으로만 움직입니다. 성함과 소속은 적지 않아도 됩니다. 적으면 표지와 모든 쪽 아래에 들어갑니다.</p>
     <div id="resBox"></div>
     <div class="row"><input id="kitName" style="max-width:220px" placeholder="성함 (선택)" autocomplete="off"><input id="kitOrg" style="max-width:300px" placeholder="소속 (선택)" autocomplete="off"><button id="kitGo">내 결과물 PDF로 저장 (0개 포함)</button></div>
     <div class="row" style="margin-top:4px"><a class="btn" href="ai-class-slides.pdf" download="부산외대_AI특강_prof.kimcook.pdf">강의 자료 PDF 바로 받기 (59쪽 · 9MB)</a><span class="sub" style="margin:0">오늘 강의 슬라이드입니다. 안의 OPEN 버튼을 누르면 실습실로 바로 열립니다.</span></div>
@@ -375,7 +375,7 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     if ((x.r === here ? hasUnsavedWork() : draftUnsaved(x.r)) && !confirm('지금 작업 중인 코드와 프롬프트가 결과물에 저장되지 않았습니다. 그래도 열까요?')) return;
     pick(ri, x.url);
     setPrompts(x.r, Array.isArray(x.prompts) ? x.prompts : []);
-    setSrc(x.code || original, true);
+    setSrc(x.code ? (solo ? DATA.toSolo(x.code) : x.code) : original, true);
     $('#s1').scrollIntoView({ behavior: 'smooth' }); toast('결과물을 열었어요. 코드는 아래 3번 칸에 있습니다.');
   }
   function resultRow(x) {
@@ -411,12 +411,40 @@ button.big,a.btn.big{font-size:16px;padding:12px 22px}
     var all = loadResults(), box = clear($('#resBox')), cnt = {};
     all.forEach(function (x) { cnt[x.r] = (cnt[x.r] || 0) + 1; });
     DATA.recipes.forEach(function (r, i) { tabSmall[i].textContent = r.tag + (cnt[r.id] ? ' · ' + cnt[r.id] + '개' : ''); });
-    $('#kitGo').textContent = '내 결과물 PDF로 저장 (' + all.length + '개 포함)';
-    box.appendChild(el('h3', 'rh', '내 결과물 ' + all.length + '개'));
-    if (!all.length) { box.appendChild(el('p', 'sub', "아직 결과물이 없습니다. 웹 앱 주소를 붙여 넣거나 '내 결과물로 저장'을 누르면 여기에 쌓입니다.")); return; }
-    var list = el('div', 'rl');
-    all.slice().reverse().forEach(function (x) { list.appendChild(resultRow(x)); });
-    box.appendChild(list);
+    var apps = loadApps(), n = all.length + apps.length;
+    $('#kitGo').textContent = '내 결과물 PDF로 저장 (' + n + '개 포함)';
+    box.appendChild(el('h3', 'rh', '내 결과물 ' + n + '개'));
+    if (!n) { box.appendChild(el('p', 'sub', "아직 결과물이 없습니다. 웹 앱 주소를 붙여 넣거나 '내 결과물로 저장'을 누르면 여기에 쌓입니다. 미션 2에서 만든 수업 앱도 '내 결과물 PDF로 저장'을 누르면 여기에 함께 담깁니다.")); return; }
+    if (all.length) {
+      var list = el('div', 'rl');
+      all.slice().reverse().forEach(function (x) { list.appendChild(resultRow(x)); });
+      box.appendChild(list);
+    }
+    if (apps.length) {
+      box.appendChild(el('h3', 'rh', '수업 앱(미션 2) ' + apps.length + '개 · 같은 PDF에 들어갑니다'));
+      var al = el('div', 'rl');
+      apps.slice().reverse().forEach(function (x) { al.appendChild(appRow(x)); });
+      box.appendChild(al);
+    }
+  }
+  // 미션 2(메인 페이지 #vibe)에서 담은 수업 앱입니다(acl-vibe-results). 여기서는 목록과 지우기만 하고, 코드는 PDF 키트에 들어갑니다.
+  window.addEventListener('storage', function (e) { if (e.key === 'acl-vibe-results' || e.key === RES_KEY) renderResults(); });
+  function loadApps() {
+    var a = lsGet('acl-vibe-results', []);
+    return Array.isArray(a) ? a.filter(function (x) { return x && typeof x.id === 'string' && typeof x.title === 'string' && typeof x.code === 'string'; }) : [];
+  }
+  function appRow(x) {
+    var row = el('div', 'rs'), main = el('div'), nl = el('div', 'nl');
+    nl.appendChild(el('span', 'nm', x.title)); main.appendChild(nl);
+    main.appendChild(el('div', 'meta', '수업용 웹앱 · 코드 ' + Math.round(x.code.length / 100) / 10 + 'KB' + (typeof x.t === 'number' ? ' · ' + fmtT(x.t) : '')));
+    if (x.url) main.appendChild(el('div', 'meta', x.url));
+    var act = el('div', 'act'), dl = el('button', 'g', '지우기');
+    dl.onclick = function () {
+      if (!confirm('"' + x.title + '" 수업 앱을 이 목록에서 지울까요?\n이 브라우저의 목록에서만 사라지고, 내려받은 HTML 파일과 전시판의 앱은 그대로 남습니다.')) return;
+      if (lsSet('acl-vibe-results', loadApps().filter(function (y) { return y.id !== x.id; }))) { renderResults(); toast('수업 앱을 목록에서 지웠어요.'); } else fail('지우기를 못했어요. ' + FULL);
+    };
+    act.appendChild(dl); row.appendChild(main); row.appendChild(act);
+    return row;
   }
 
   function qrSvg(text) {

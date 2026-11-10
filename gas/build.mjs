@@ -218,16 +218,28 @@ export function soloRecipe(code) {
   return SOLO_WORDS.reduce((c, [from, to]) => c.split(from).join(to), code);
 }
 
+// 브라우저(키트 PDF)에서 연수용 코드를 혼자 쓰는 판으로 바꾸는 함수. 이 함수 본문이 gas-recipes.js 에 그대로 들어가므로 D 외의 바깥 변수를 쓰지 않습니다.
+function makeToSolo(D) {
+  return function toSolo(code) {
+    var c = String(code == null ? '' : code), had = c.indexOf(D.common.code) === 0;
+    if (had) c = D.solo.code + c.slice(D.common.code.length);
+    else c = c.replace(new RegExp(D.serverBlock), function () { return D.soloBlock; });
+    D.soloWords.forEach(function (w) { c = c.split(w[0]).join(w[1]); });
+    return c;
+  };
+}
+
 export function buildRecipes() {
   const common = read('00-common.gs');
   const out = {
+    soloWords: SOLO_WORDS, serverBlock: SERVER_BLOCK.source, soloBlock: read('solo.gs').replace(/\s+$/, '') + '\n',
     common: { code: common, version: (common.match(/CODE_VERSION = '([^']+)'/) || [])[1] }, solo: { code: soloCommon(common, read('solo.gs')) }, promptRule: PROMPT_RULE, trouble: TROUBLE, soloTrouble: SOLO_TROUBLE,
     recipes: RECIPES.map((r) => ({
       id: r.id, web: r.web, wow: EXTRA[r.id].wow, story: EXTRA[r.id].story, name: r.name, tag: r.tag, short: r.short, jev: r.jev, steps: r.steps, examples: r.examples,
       code: r.file ? read(r.file) : '', soloCode: r.file ? soloRecipe(read(r.file)) : '', jevPreset: r.jevPreset,
     })),
   };
-  return '/* 자동 생성 파일: node gas/build.mjs 로 gas/*.gs 에서 만듭니다. 직접 고치지 마세요. */\nwindow.GAS_RECIPES = ' + JSON.stringify(out) + ';\n';
+  return '/* 자동 생성 파일: node gas/build.mjs 로 gas/*.gs 에서 만듭니다. 직접 고치지 마세요. */\nwindow.GAS_RECIPES = ' + JSON.stringify(out) + ';\nwindow.GAS_RECIPES.toSolo = (' + makeToSolo.toString() + ')(window.GAS_RECIPES);\n';
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -20,8 +20,31 @@ function boot(recipe, opts) {
 }
 const bare = (opts) => { const e = boot('r1-board.gs', opts); e.props.delete('GEMINI_KEY'); return e; };
 
+// gas-recipes.js 와 같은 글을 브라우저처럼 실행해 window.GAS_RECIPES(toSolo 포함)를 얻습니다.
+function loadBuilt() { const w = {}; new Function('window', buildRecipes())(w); return w.GAS_RECIPES; }
+const LEFT = /kimcook-edu\.pages\.dev|CLASS_CODE|setClassCode|EMBEDDED_CODE|\/api\/(ai|jev|live|ta)|Jev|AI ONE/;
+
+test('kit: class-mode code saved from the web tool (shared class helper + recipe) becomes the solo version without any class server, class code or Jev', () => {
+  const d = loadBuilt();
+  for (const r of d.recipes.filter((x) => x.soloCode)) {
+    const out = d.toSolo(d.common.code + r.code);
+    assert.equal(out, d.solo.code + r.soloCode, r.id + ': same as the solo build');
+    assert.ok(!LEFT.test(out), r.id + ': leftover ' + (out.match(LEFT) || [])[0]);
+    new Function(out);
+  }
+  assert.equal(d.toSolo(d.solo.code + 'x'), d.solo.code + 'x', 'already-solo code is unchanged');
+});
+
+test('kit: edited class code (shared helper not at the very start) still loses the class server block', () => {
+  const d = loadBuilt(), r = d.recipes[0];
+  const out = d.toSolo('// my note\n' + d.common.code + r.code + '\nfunction mine() {}\n');
+  assert.ok(!LEFT.test(out), 'leftover ' + (out.match(LEFT) || [])[0]);
+  assert.ok(out.includes('function mine() {}') && out.includes('setApiKey'));
+  new Function(out);
+});
+
 test('build: the solo code has no class server, class code or Jev left, in the shared part or in any recipe', () => {
-  const d = JSON.parse(buildRecipes().replace(/^[\s\S]*?window\.GAS_RECIPES = /, '').replace(/;\s*$/, ''));
+  const d = loadBuilt();
   const all = [d.solo.code, ...d.recipes.map((r) => r.soloCode)];
   for (const c of all) {
     assert.ok(!/kimcook-edu|CLASS_CODE|setClassCode|\/api\/(ai|jev)|Jev/.test(c), 'leftover: ' + (c.match(/kimcook-edu|CLASS_CODE|setClassCode|\/api\/(ai|jev)|Jev/) || [])[0]);
