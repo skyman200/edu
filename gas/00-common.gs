@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.26-c';
+var CODE_VERSION = 'v2026.11.26-d';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    ai_    : 글을 쓰는 AI에게 부탁합니다.
@@ -38,13 +38,15 @@ function setClassCode() {
   }
 }
 
-function post_(path, body) {
+function post_(path, body, beforeSend) {
   var code = PropertiesService.getScriptProperties().getProperty('CLASS_CODE') || (typeof EMBEDDED_CODE === 'string' ? EMBEDDED_CODE : '');
   if (!code) throw new Error('수업 코드가 아직 없습니다. 웹 도구에서 수업 코드를 넣고 코드를 다시 복사하거나, 시트 메뉴의 "수업 코드 입력"을 실행하세요.');
   body.code = code;
   var last;
   for (var i = 0; i < 3; i++) {
-    var res = UrlFetchApp.fetch(SERVER + path, { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
+    var req = { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true };
+    if (beforeSend) beforeSend();
+    var res = UrlFetchApp.fetch(SERVER + path, req);
     var status = res.getResponseCode(), text = res.getContentText();
     if (status === 200) return text;
     var msg = text.slice(0, 200), wait = 0;
@@ -68,7 +70,7 @@ function ai_(prompt, opts) {
   var body = { ex: 'gas-run', messages: typeof prompt === 'string' ? [{ role: 'user', content: prompt }] : prompt };
   if (opts.images) body.images = opts.images;
   if (opts.files) body.files = opts.files;
-  var lines = post_('/api/ai', body).split('\n'), out = '';
+  var lines = post_('/api/ai', body, opts.beforeSend).split('\n'), out = '';
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf('data:') !== 0) continue;
     var ev;

@@ -68,14 +68,17 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.ok(env.sheet('설정') && env.sheet('응답'));
   const studentHtml = env.call('doGet', { parameter: {} }).html;
   assert.ok(studentHtml.includes('submitAnswer'));
-  assert.ok(studentHtml.includes('답을 이름 없이 ' + (SOLO ? 'Gemini' : '수업 AI(DIT AI ONE)') + '에 한 건씩 보내 묶음을 고르거나 광고·욕설 등을 확인합니다.'));
-  assert.ok(studentHtml.includes('교수가 동의하면 같은 AI에 응답을 한꺼번에 보내 새 묶음을 만들 수 있습니다. 이름·연락처는 적지 마십시오.'));
   assert.match(studentHtml, /id="ai-notice"[^>]*>[^<]*<\/p><textarea[^>]*aria-describedby="ai-notice"/);
   const boardHtml = env.call('doGet', { parameter: { v: 'board' } }).html;
   assert.ok(boardHtml.includes('getBoard'));
   assert.ok(boardHtml.includes('응답을 한꺼번에 보내 새 묶음을 만드는 기능을 켜시겠습니까?'));
-  assert.ok(boardHtml.includes('안내해 주십시오.'));
-  assert.equal(boardHtml.includes('이 동의와 별도로 답을 Gemini에 한 건씩 보내 기존 묶음에 분류'), SOLO);
+  const batch = '새 묶음을 만들기 위해 질문·기존 묶음 이름과 응답 최대 80건의 앞 80자씩을 ' + (SOLO ? 'Gemini' : 'DIT AI ONE') + '에 한꺼번에 보냅니다. 이때 답의 이메일·전화번호 패턴을 가립니다.';
+  const single = '일괄 분류에서 빠진 답을 나눌 때는 ' + (SOLO ? 'Gemini' : '수업 AI(DIT AI ONE의 Jev)') + '에 답 원문 전체를 가리지 않고 한 건씩 보낼 수 있습니다. 답에 적은 이름도 전송될 수 있습니다.';
+  const studentNotice = /id="ai-notice">([^<]*)/.exec(studentHtml)[1], instructorNotice = /id="ai-desc">([^<]*)/.exec(boardHtml)[1];
+  assert.ok(studentNotice.startsWith('교수가 동의하면 ' + batch));
+  assert.ok(studentNotice.endsWith(single + ' 이름·연락처는 적지 마십시오.'));
+  assert.ok(instructorNotice.startsWith(batch));
+  assert.ok(instructorNotice.endsWith(single + ' 이름·연락처를 적지 않도록 안내해 주십시오.'));
   const gq = env.call('getQuestion');
   assert.deepEqual([gq.q, gq.open, gq.round], ['AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', true, env.sheet('응답').getSheetId()]);
   const r = env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다', 'sid1');
@@ -856,7 +859,7 @@ test('r1 [분류] without a word grouping: opt in for AI; only what AI missed go
   assert.ok(tbl.rows('응답').every((x) => !String(x[2]).includes('|')), 'no pipe in a saved name');
 });
 
-test('r1 [분류]: turning off invalidates pending consent and prevents a batch still preparing its prompt', () => {
+function pendingBatch() {
   const env = boot('r1-board.gs');
   env.setup();
   env.ctx.clusterAnswers_ = () => [];
@@ -865,8 +868,13 @@ test('r1 [분류]: turning off invalidates pending consent and prevents a batch 
   for (let i = 1; i <= 4; i++) sh.appendRow([new Date(), '합성 답 ' + i, '', '', '표시', i, '']);
   const pending = env.call('classifyBoard', pin);
   assert.ok(pending.confirmKey);
+  return { env, pending };
+}
+
+test('r1 [분류]: turning off invalidates pending consent and prevents a batch even after JSON serialization', () => {
+  const { env, pending } = pendingBatch();
   env.call('disableBoardAiGrouping');
-  assert.match(env.log.alerts.at(-1), /이미 전송을 시작한 요청은 취소할 수 없습니다/);
+  assert.match(env.log.alerts.at(-1), /이미 전송이 승인된 요청은 전송될 수 있으며, 전송된 요청은 취소할 수 없습니다/);
   const before = env.log.requests.length;
   const stale = env.call('classifyBoard', pending.token, pending.confirmKey);
   assert.equal(stale.ok, false);
@@ -876,15 +884,80 @@ test('r1 [분류]: turning off invalidates pending consent and prevents a batch 
   assert.ok(fresh.confirmKey && fresh.confirmKey !== pending.confirmKey);
   assert.equal(env.call('classifyBoard', pending.token, pending.confirmKey).ok, false);
 
-  const mask = env.ctx.maskContact_;
-  env.ctx.maskContact_ = (t) => {
-    assert.equal(env.props.get('BOARD_AI_GROUPING'), '1', 'activation precedes prompt assembly');
-    env.call('disableBoardAiGrouping');
-    env.ctx.maskContact_ = mask;
-    return mask(t);
-  };
+  let serialized = false, fetched = 0;
+  env.ctx.JSON = Object.assign(Object.create(JSON), { stringify(value) {
+    const payload = JSON.stringify(value);
+    if (payload.includes('[답 목록]')) {
+      serialized = true;
+      assert.equal(env.props.get('BOARD_AI_GROUPING'), '1');
+      env.call('disableBoardAiGrouping');
+    }
+    return payload;
+  } });
+  env.ctx.UrlFetchApp.fetch = () => { fetched++; throw new Error('unexpected fetch after revocation'); };
   const revoked = env.call('classifyBoard', fresh.token, fresh.confirmKey);
+  assert.equal(serialized, true);
+  assert.equal(fetched, 0);
   assert.deepEqual([revoked.auto, revoked.aiOff, revoked.confirmKey, env.props.get('BOARD_AI_GROUPING'), env.log.requests.length], [null, true, undefined, '0', before]);
+});
+
+test('r1 [분류]: revocation during 429/503 backoff blocks retries even if a new generation is active', () => {
+  for (const status of [429, 503]) {
+    const { env, pending } = pendingBatch();
+    let locked = false, fetched = 0, waited = 0;
+    env.ctx.LockService.getScriptLock = () => ({
+      waitLock() { assert.equal(locked, false); locked = true; },
+      tryLock() { this.waitLock(); return true; },
+      releaseLock() { assert.equal(locked, true); locked = false; },
+    });
+    env.ctx.UrlFetchApp.fetch = () => {
+      assert.equal(locked, false, 'fetch does not hold the lock');
+      fetched++;
+      return { getResponseCode: () => status, getContentText: () => '{}' };
+    };
+    env.ctx.Utilities.sleep = () => {
+      assert.equal(locked, false, 'backoff does not hold the lock');
+      waited++;
+      env.call('disableBoardAiGrouping');
+      if (status === 503) env.props.set('BOARD_AI_GROUPING', '1'); // a different approval generation
+    };
+    const r = env.call('classifyBoard', pending.token, pending.confirmKey);
+    assert.deepEqual([fetched, waited, r.auto, r.askAi, r.confirmKey, r.autoErr], [1, 1, null, true, undefined, '']);
+  }
+});
+
+test('common: non-batch AI and Jev still retry 429/503 without batch consent', () => {
+  for (const fn of ['ai_', 'jev_']) {
+    const env = boot('r1-board.gs');
+    env.props.set('BOARD_AI_GROUPING', '0');
+    env.ctx.LockService.getScriptLock = () => assert.fail('no batch consent lock');
+    const fetch = env.ctx.UrlFetchApp.fetch;
+    let attempts = 0;
+    env.ctx.UrlFetchApp.fetch = (...args) => {
+      const status = [429, 503, 200][attempts++];
+      return status === 200 ? fetch(...args) : { getResponseCode: () => status, getContentText: () => '{}' };
+    };
+    const result = fn === 'ai_' ? env.call(fn, '합성 질문') : env.call(fn, '합성 답', { a: { type: 'noul', instructions: '합성 질문' } });
+    assert.ok(result);
+    assert.deepEqual([attempts, env.log.sleeps], [3, 2]);
+  }
+});
+
+test('r1 [분류]: consent lock timeout does not change state or consume a pending key', () => {
+  const { env, pending } = pendingBatch();
+  const msg = '다른 작업이 진행 중이라 동의 상태를 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.';
+  const lock = env.ctx.LockService.getScriptLock, before = env.log.requests.length;
+  env.ctx.LockService.getScriptLock = () => ({ tryLock: () => false, releaseLock: () => assert.fail('no lock acquired') });
+  const timedOut = env.call('classifyBoard', pending.token, pending.confirmKey);
+  assert.deepEqual([timedOut.ok, timedOut.msg, timedOut.consentBusy, env.log.requests.length], [false, msg, true, before]);
+  assert.equal(env.props.has('BOARD_AI_GROUPING'), false);
+  assert.equal(env.cache.get('board-ai:' + pending.token + ':' + pending.confirmKey), '0');
+  env.ctx.LockService.getScriptLock = lock;
+  assert.equal(env.call('classifyBoard', pending.token, pending.confirmKey).ok, true);
+  assert.equal(env.props.get('BOARD_AI_GROUPING'), '1');
+  env.ctx.LockService.getScriptLock = () => ({ tryLock: () => false, releaseLock: () => assert.fail('no lock acquired') });
+  assert.equal(env.call('disableBoardAiGrouping'), false);
+  assert.deepEqual([env.props.get('BOARD_AI_GROUPING'), env.props.has('BOARD_AI_GENERATION'), env.log.alerts.at(-1)], ['1', false, msg]);
 });
 
 test('r1 [분류]: after the second range write fails, reload the partly saved sheet and never write a manual row', () => {
@@ -920,6 +993,42 @@ test('r1 [분류]: after the second range write fails, reload the partly saved s
     assert.deepEqual(r.board, env.call('getBoard'));
     assert.deepEqual([r.board.rev, r.board.mix], [before.rev + 1, before.mix + 1]);
     if (!batch) assert.deepEqual(r.board.items.map((item) => item.c), ['부정행위', '평가 방법', '기타', '기타', '기타']);
+  }
+});
+
+test('r1 [분류]: property failures after a sheet write still invalidate both caches and preserve the write result', () => {
+  for (const [batch, property] of [[false, 'BOARD_MIX'], [true, 'BOARD_REV']]) {
+    const env = boot('r1-board.gs');
+    env.setup();
+    const pin = env.call('pin_', 'board'), sh = env.sheet('응답');
+    if (batch) {
+      env.call('setBoard', pin, '합성 질문', '', true, false);
+      env.ctx.clusterAnswers_ = () => [{ name: '부정행위', idx: [0, 1] }, { name: '업무 부담', idx: [2, 3] }];
+    }
+    ['부정행위', '부정행위', '업무 부담', '업무 부담'].forEach((text, i) => sh.appendRow([new Date(), text, '', '', '표시', i + 1, '']));
+    env.cache.delete('board');
+    const before = env.call('getBoard');
+    env.call('getQuestion');
+    assert.ok(env.cache.has('board') && env.cache.has('q'));
+    const getProps = env.ctx.PropertiesService.getScriptProperties;
+    env.ctx.PropertiesService.getScriptProperties = () => {
+      const props = getProps(), set = props.setProperty;
+      props.setProperty = (k, v) => {
+        if (k === property) {
+          assert.equal(env.rows('응답')[0][2], '부정행위', 'write preceded the failing property update');
+          throw new Error('합성 속성 저장 실패');
+        }
+        set(k, v);
+      };
+      return props;
+    };
+    const r = env.call('classifyBoard', pin);
+    assert.deepEqual([r.ok, r.partial, r.needsReload, batch ? r.auto.moved : r.moved], [true, undefined, true, 4]);
+    assert.deepEqual(r.board.items.map((x) => x.c), ['부정행위', '부정행위', '업무 부담', '업무 부담']);
+    assert.deepEqual([r.board.mix, r.board.rev], [before.mix + Number(property !== 'BOARD_MIX'), before.rev + Number(property !== 'BOARD_REV')]);
+    assert.equal(env.cache.has('q'), false);
+    assert.deepEqual(env.call('getBoard'), r.board);
+    if (batch) assert.deepEqual(env.call('getQuestion').cats, ['부정행위', '업무 부담']);
   }
 });
 
@@ -1044,14 +1153,15 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
   const qr = fs.readFileSync(new URL('../vendor/qrcode/qrcode.js', import.meta.url), 'utf8');
   const pin = '2468';
   const board = { q: 'Q', cats: ['가', '나', '기타'], counts: { 가: 0, 나: 0, 기타: 1 }, open: true, refresh: 4, total: 1, round: 1, rev: 1, mix: 0, items: [{ i: 1, no: 1, h: '', t: '오류 시험 답', c: '기타' }], err: { n: 1, why: 'AI ONE 401: 수업 코드가 맞지 않습니다.' } };
-  const stub = `<script>(function(){var BOARD=${JSON.stringify(board)},log=[],T='t'+'0'.repeat(32);
+  const stub = `<script>(function(){var BOARD=${JSON.stringify(board)},log=[],T='t'+'0'.repeat(32),confirmed=0;
     function run(ok,bad){return new Proxy({},{get:function(_,n){if(n==='withSuccessHandler')return function(f){return run(f,bad)};if(n==='withFailureHandler')return function(f){return run(ok,f)};
       return function(){var a=[].slice.call(arguments);log.push([n,a[0],a[1]]);var askAi=!a[1]&&log.filter(function(x){return x[0]==='classifyBoard'}).length>=3;
         var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:!askAi,confirmKey:askAi?'fixture-confirm':'',aiOff:!a[1],partial:!!a[1],board:BOARD}:{ok:false,msg:'x'};
+        if(n==='classifyBoard'&&a[1]&&++confirmed===1)r={ok:false,token:T,consentBusy:true,msg:'다른 작업이 진행 중이라 동의 상태를 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.'};
         setTimeout(function(){ok&&ok(JSON.parse(JSON.stringify(r)))},20)}}})}
     window.google={script:{run:run()}};
     function key(k,t){document.dispatchEvent(new KeyboardEvent('keydown',{key:k,code:t||''}))}
-    function out(tag){var d=document.createElement('pre');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.getElementById('toast').textContent,dialog:document.getElementById('ai-confirm').open});document.body.appendChild(d)}
+    function out(tag){var d=document.createElement('pre'),err=document.getElementById('ai-error');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.getElementById('toast').textContent,dialog:document.getElementById('ai-confirm').open,consentError:err.hidden?'':err.textContent});document.body.appendChild(d)}
     setTimeout(function(){out('e')},150);
     setTimeout(function(){key('ㅊ','KeyC')},300);
     setTimeout(function(){out('a');var ep=document.getElementById('ep');ep.value=${JSON.stringify(pin)};ep.dispatchEvent(new Event('input'))},700);
@@ -1061,7 +1171,8 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
     setTimeout(function(){out('prompt');document.getElementById('ai-no').click()},2100);
     setTimeout(function(){out('declined');key('c','KeyC')},2400);
     setTimeout(function(){document.getElementById('ai-yes').click()},2700);
-    setTimeout(function(){out('accepted')},3000);
+    setTimeout(function(){out('busy');document.getElementById('ai-yes').click()},3000);
+    setTimeout(function(){out('accepted')},3300);
   })();</script>`;
   const file = path.join(os.tmpdir(), 'board-pin-' + process.pid + '.html');
   fs.writeFileSync(file, html.replace('<body>', '<body>' + stub)
@@ -1076,14 +1187,16 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
   assert.deepEqual(sent(a), [], 'nothing is sent before a PIN');
   assert.deepEqual(sent(b), [pin], 'the fourth digit runs [분류] at once');
   assert.deepEqual(sent(d), [pin, '5678', 't' + '0'.repeat(32)], 'Enter in the PIN box runs it too; the box [분류] button then reuses the saved ticket, no PIN');
-  const prompt = res('prompt'), declined = res('declined'), accepted = res('accepted');
+  const prompt = res('prompt'), declined = res('declined'), busy = res('busy'), accepted = res('accepted');
   assert.equal(prompt.dialog, true, 'the projector shows an in-page confirmation');
   assert.equal(declined.dialog, false);
   assert.match(declined.toast, /응답을 한꺼번에 보내 새 묶음을 만드는 기능이 꺼져 있습니다/);
   assert.deepEqual(sent(declined), sent(d), 'declining sends no follow-up request');
+  assert.equal(busy.dialog, true);
+  assert.equal(busy.consentError, '다른 작업이 진행 중이라 동의 상태를 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.');
   assert.equal(accepted.dialog, false);
   assert.match(accepted.toast, /일부만 저장되었을 수 있습니다\. 화면을 다시 불러옵니다\./);
-  assert.deepEqual(accepted.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[2]), ['', '', '', '', 'fixture-confirm']);
+  assert.deepEqual(accepted.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[2]), ['', '', '', '', 'fixture-confirm', 'fixture-confirm']);
 });
 
 test('web app address: never getUrl(); the board QR uses the saved /exec or the wizard join, nothing anonymous is saved', () => {

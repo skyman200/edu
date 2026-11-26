@@ -6,6 +6,7 @@
 var BOARD_HEAD = ['시간', '응답', '묶음', '확신도', '상태', '번호', '자동 묶음'];
 var BOARD_AI_PROP = 'BOARD_AI_GROUPING', BOARD_AI_GEN = 'BOARD_AI_GENERATION';
 var BOARD_SOLO = typeof ensureKey_ === 'function', BOARD_AI_NAME = BOARD_SOLO ? 'Gemini' : CLASS_AI_NAME;
+var BOARD_AI_BUSY = '다른 작업이 진행 중이라 동의 상태를 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.';
 var AUTO_EMPTY = '미분류 (자동, 묶음 없음)'; // 쉼표를 쓸 수 없는 실제 묶음 이름과 구분합니다.
 
 function onOpen() {
@@ -17,12 +18,12 @@ function onOpen() {
 function disableBoardAiGrouping() {
   menuOnly_();
   var props = PropertiesService.getScriptProperties(), lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  if (!lock.tryLock(10000)) { say_(BOARD_AI_BUSY); return false; }
   try {
     props.setProperty(BOARD_AI_PROP, '0');
     props.setProperty(BOARD_AI_GEN, String(Number(props.getProperty(BOARD_AI_GEN) || 0) + 1));
   } finally { lock.releaseLock(); }
-  say_('응답을 한꺼번에 보내 새 묶음을 만드는 기능을 껐습니다. 이미 전송을 시작한 요청은 취소할 수 없습니다. 다시 켜려면 큰 화면의 [분류]에서 동의해 주십시오.');
+  say_('응답을 한꺼번에 보내 새 묶음을 만드는 기능을 껐습니다. 이미 전송이 승인된 요청은 전송될 수 있으며, 전송된 요청은 취소할 수 없습니다. 다시 켜려면 큰 화면의 [분류]에서 동의해 주십시오.');
 }
 
 function setup() {
@@ -50,10 +51,14 @@ function setup() {
 
 // 화면이 다시 그려야 하는 변화(질문 바꾸기, 보관)마다 1씩 올립니다. 큰 화면은 이보다 낮은 번호의 늦게 온 응답을 버립니다.
 function bump_() {
-  var p = PropertiesService.getScriptProperties(), r = Number(p.getProperty('BOARD_REV') || 0) + 1;
-  p.setProperty('BOARD_REV', String(r));
-  CacheService.getScriptCache().remove('board'); CacheService.getScriptCache().remove('q');
-  return r;
+  try {
+    var p = PropertiesService.getScriptProperties(), r = Number(p.getProperty('BOARD_REV') || 0) + 1;
+    p.setProperty('BOARD_REV', String(r));
+    return r;
+  } finally {
+    var cache = CacheService.getScriptCache();
+    try { cache.remove('board'); } finally { cache.remove('q'); }
+  }
 }
 
 // 지금까지의 응답을 [응답_월일_시분초] 시트로 옮겨 보관하고, 빈 [응답] 시트를 새로 만듭니다. 지우지 않습니다.
@@ -296,7 +301,7 @@ function classifyBoard(cred, confirmKey) {
   if (cache.get('classifying')) return { ok: false, busy: true, msg: '이미 분류하고 있습니다. 끝나면 결과가 뜹니다.', token: chk.token };
   if (confirmKey) {
     var lock = LockService.getScriptLock();
-    lock.waitLock(10000);
+    if (!lock.tryLock(10000)) return { ok: false, msg: BOARD_AI_BUSY, token: chk.token, consentBusy: true };
     try {
       generation = props.getProperty(BOARD_AI_GEN) || '0';
       var consent = typeof confirmKey === 'string' && /^[0-9a-f-]{36}$/.test(confirmKey) ? prefix + confirmKey : '';
@@ -334,7 +339,7 @@ function seenAdd_(props, key, ids) {
 
 // 시트에 씁니다(잠금 안). Jev를 기다리는 사이 줄이 지워지거나 정렬되었을 수 있어 번호(F)로 다시 찾고, 그사이 누가 고친 줄은 건너뜁니다.
 // o: {key, q} 읽을 때의 묶음 목록·질문(그사이 바뀌었으면 쓰지 않음), cats 새 묶음 목록(주면 함께 저장), judged Jev가 기타로 본 번호, seenKey 기억에 쓸 목록.
-// 바뀐 줄은 연속한 범위마다 C:G를 씁니다. 돌려주는 값: {moved, aborted, partial}
+// 바뀐 줄은 연속한 범위마다 C:G를 씁니다. partial은 쓰기 오류, needsReload는 화면 동기화 오류입니다.
 function commit_(sh, changes, o) {
   var props = PropertiesService.getScriptProperties(), res = { moved: 0, aborted: '' };
   if (!changes.length && !o.cats && !(o.judged || []).length) return res;
@@ -376,7 +381,11 @@ function commit_(sh, changes, o) {
     try { SpreadsheetApp.flush(); } catch (ignored) {} // 앞서 성공한 쓰기는 남을 수 있습니다.
   } finally {
     try {
-      if (writing) { props.setProperty('BOARD_MIX', String(Number(props.getProperty('BOARD_MIX') || 0) + 1)); bump_(); }
+      if (writing) {
+        try { props.setProperty('BOARD_MIX', String(Number(props.getProperty('BOARD_MIX') || 0) + 1)); }
+        catch (e) { res.needsReload = true; }
+        try { bump_(); } catch (e) { res.needsReload = true; }
+      }
     } finally { lock.releaseLock(); }
   }
   return res;
@@ -413,21 +422,29 @@ function classify_(token, generation) {
   var res = commit_(sh, changes, { key: key, q: c.q, judged: judged });
   out.moved = res.moved;
   if (res.partial) out.partial = true;
+  if (res.needsReload) out.needsReload = true;
   if (res.aborted) { out.stopped = out.stopped || res.aborted; changes = []; }
-  var board = getBoard(), left = grouped ? board.counts['기타'] || 0 : board.total;
+  function readBoard() {
+    try { return getBoard(); } catch (e) {
+      if (!out.partial && !out.needsReload) throw e;
+      out.needsReload = true;
+      return null;
+    }
+  }
+  var board = readBoard(), left = board ? (grouped ? board.counts['기타'] || 0 : board.total) : 0;
   // (나) 묶음이 없거나 기타가 많으면 스스로 묶습니다. 위에서 막혔거나(stopped) 아직 남은 답이 있으면(more) 먼저 그것부터 끝냅니다.
-  if (!out.partial && !res.aborted && !out.stopped && !out.more && (!grouped || (left >= 4 && left >= board.total * 0.25))) {
+  if (!out.partial && !out.needsReload && !res.aborted && !out.stopped && !out.more && (!grouped || (left >= 4 && left >= board.total * 0.25))) {
     try {
       var a = autoGroup_(c, sh, key, t0, generation);
+      if (a.needsReload) out.needsReload = true;
       if (a.askAi) { out.askAi = true; out.aiOff = true; }
       else if (a.partial) out.partial = true;
       else if (a.none) { out.autoNone = true; out.autoFull = !!a.full; }
       else if (a.err) out.autoErr = a.err;
       else { out.auto = { kind: a.kind, groups: a.groups, moved: a.moved }; out.jev += a.jev; out.more += a.more; if (a.stopped) out.stopped = a.stopped; }
     } catch (e) { out.autoErr = String(e && e.message || e).slice(0, 160); }
-    board = getBoard();
-    left = board.counts['기타'] || 0;
-    if (!board.cats.length) left = board.total;
+    board = readBoard();
+    left = board ? (board.cats.length ? board.counts['기타'] || 0 : board.total) : 0;
   }
   out.board = board; out.left = left;
   return out;
@@ -448,7 +465,7 @@ function maskContact_(text) {
       function (s, prefix) { return prefix + mask(s.slice(prefix.length)); });
 }
 
-// 스스로 묶기. {none:true}(묶을 답이 적음) | {askAi:true}(동의 없음) | {partial:true} | {err} | {kind, groups, moved, jev, more, stopped}
+// 스스로 묶기. {none:true}(묶을 답이 적음) | {askAi:true}(동의 없음) | {partial:true} | {err} | {kind, groups, moved, jev, more, stopped}. 화면 동기화 오류는 needsReload로 따로 알립니다.
 // 묶을 답: 숨김이 아니고 건드려도 되며, 묶음이 있으면 그 밖의 답. 쓰기는 commit_ 한 번(묶음 목록 저장 + 답 옮기기)입니다.
 function autoGroup_(c, sh, key, t0, generation) {
   var room = Math.min(6, 10 - c.cats.length), grouped = c.cats.length >= 2;
@@ -471,15 +488,25 @@ function autoGroup_(c, sh, key, t0, generation) {
     if (!throttle_('all', CLASSIFY_RATE, 60) || !throttle_('autogroup', 3, 60)) return { err: '잠시 뒤에 다시 눌러 주세요. (' + LIMIT_MSG + ')' };
     var recent = pool.map(function (r, i) { return i; }).sort(function (a, b) { return Number(pool[a][5]) - Number(pool[b][5]); }).slice(-AUTO_LIST);
     var list = recent.map(function (i) { return texts[i]; });
-    var prompt = '아래는 수업에서 학생 ' + list.length + '명이 이름 없이 쓴 "' + maskContact_(c.q) + '"에 대한 답이야. 하나도 빠뜨리지 말고 비슷한 것끼리 3~' + Math.max(3, room) + '개 묶음으로 정리해 줘.\n' +
+    var prompt = '아래는 수업에서 학생 ' + list.length + '명이 쓴 "' + maskContact_(c.q) + '"에 대한 답이야. 하나도 빠뜨리지 말고 비슷한 것끼리 3~' + Math.max(3, room) + '개 묶음으로 정리해 줘.\n' +
       '형식을 정확히 지켜. 한 줄에 묶음 하나, 다른 말은 쓰지 마.\n묶음 이름 | 답 번호들(쉼표로 구분)\n' +
       '규칙:\n- 묶음 이름은 공백 포함 12글자 안쪽입니다.\n- 번호는 아래 목록의 번호입니다. 모든 번호를 어느 한 묶음에 넣으세요.\n- "기타"라는 묶음은 만들지 않습니다.' +
       (c.cats.length ? '\n- 이미 있는 묶음 이름(' + maskContact_(c.cats.join(', ')) + ')은 다시 쓰지 않습니다.' : '') + '\n\n[답 목록]\n' +
       list.map(function (t, i) { return (i + 1) + '. ' + maskContact_(t.replace(/\s+/g, ' ')).slice(0, 80); }).join('\n');
-    var raw;
-    // 프롬프트를 준비하는 사이 동의가 철회되었을 수 있습니다. 외부 호출 중에는 잠금을 잡지 않습니다.
-    if (props.getProperty(BOARD_AI_PROP) !== '1' || (props.getProperty(BOARD_AI_GEN) || '0') !== generation) return { askAi: true };
-    try { raw = ai_(prompt); } catch (e) { return { err: 'AI가 묶음을 만들지 못했습니다. ' + String(e && e.message || e).slice(0, 160) }; }
+    var raw, withdrawn = {};
+    try {
+      raw = ai_(prompt, { beforeSend: function () {
+        // 완성된 본문을 보내기 직전(재시도 포함)에만 끄기와 승인 읽기를 직렬화합니다.
+        var lock = LockService.getScriptLock();
+        if (!lock.tryLock(1000)) throw new Error('전송 동의를 확인하지 못했습니다. 잠시 후 다시 시도하십시오.');
+        try {
+          if (props.getProperty(BOARD_AI_PROP) !== '1' || (props.getProperty(BOARD_AI_GEN) || '0') !== generation) throw withdrawn;
+        } finally { lock.releaseLock(); }
+      } });
+    } catch (e) {
+      if (e === withdrawn) return { askAi: true };
+      return { err: 'AI가 묶음을 만들지 못했습니다. ' + String(e && e.message || e).slice(0, 160) };
+    }
     var used = {};
     String(raw).split('\n').forEach(function (line) {
       // Markdown 표('| 이름 | 1, 2 |')로 답해도 읽도록 줄 앞뒤의 '|'를 먼저 뗍니다.
@@ -506,9 +533,9 @@ function autoGroup_(c, sh, key, t0, generation) {
     } catch (e) { stopped = String(e && e.message || e).slice(0, 160); more++; }
   });
   var res = commit_(sh, changes, { key: key, q: c.q, cats: cats, judged: judged, seenKey: cats.join('|') });
-  if (res.partial) return { partial: true };
+  if (res.partial) return { partial: true, needsReload: res.needsReload };
   if (res.aborted) return { err: res.aborted };
-  return { kind: kind, groups: names.length, moved: res.moved, jev: jev, more: more, stopped: stopped };
+  return { kind: kind, groups: names.length, moved: res.moved, jev: jev, more: more, stopped: stopped, needsReload: res.needsReload };
 }
 
 // 큰 화면의 "AI로 묶음 만들기": 질문을 보고 묶음 후보를 줄 단위로 돌려줍니다. 저장은 하지 않고, 교수가 고쳐서 바꾸기를 눌러야 반영됩니다.
@@ -725,10 +752,13 @@ function askClient_() {
   count(); drawMine(false); load();
 }
 
+var BOARD_BATCH_NOTICE = '새 묶음을 만들기 위해 질문·기존 묶음 이름과 응답 최대 80건의 앞 80자씩을 ' + BOARD_AI_NAME + '에 한꺼번에 보냅니다. 이때 답의 이메일·전화번호 패턴을 가립니다.';
+var BOARD_SINGLE_NOTICE = '기존 묶음에 분류하거나 광고·욕설을 확인할 때, 또는 일괄 분류에서 빠진 답을 나눌 때는 ' +
+  (BOARD_SOLO ? 'Gemini' : '수업 AI(' + BOARD_AI_NAME + '의 Jev)') + '에 답 원문 전체를 가리지 않고 한 건씩 보낼 수 있습니다. 답에 적은 이름도 전송될 수 있습니다.';
 var ASK_HTML = '<main class="ask"><div class="bar"><span>LIVE BOARD</span><span id="st">받는 중</span></div>' +
   '<p class="qk">Q.</p><h1 id="q">…</h1>' +
-  '<div class="card" id="card"><div class="ch"><span>MY THOUGHT</span><span>이름 없이 보냅니다</span></div>' +
-  '<p class="ai-notice" id="ai-notice">기존 묶음이 있을 때 답을 이름 없이 ' + (BOARD_SOLO ? 'Gemini' : '수업 AI(' + BOARD_AI_NAME + ')') + '에 한 건씩 보내 묶음을 고르거나 광고·욕설 등을 확인합니다. 교수가 동의하면 같은 AI에 응답을 한꺼번에 보내 새 묶음을 만들 수 있습니다. 이름·연락처는 적지 마십시오.</p>' +
+  '<div class="card" id="card"><div class="ch"><span>MY THOUGHT</span><span>이름 입력란 없음</span></div>' +
+  '<p class="ai-notice" id="ai-notice">교수가 동의하면 ' + BOARD_BATCH_NOTICE + ' ' + BOARD_SINGLE_NOTICE + ' 이름·연락처는 적지 마십시오.</p>' +
   '<textarea id="t" maxlength="140" aria-describedby="ai-notice" placeholder="한두 문장으로 적어 주세요"></textarea><div class="chips" id="chips" hidden></div>' +
   '<div class="cf"><div class="meter" id="meter"><i id="mt"></i></div><span class="cnt" id="n">0 / 140</span></div></div>' +
   '<button id="b">보내기<i>→</i></button><div id="m"></div>' +
@@ -795,7 +825,7 @@ var BOARD_CSS = [
   '.edit .ck{display:flex;align-items:center;gap:10px;font-weight:600}.edit .ck input{width:18px;height:18px;margin:0;accent-color:#141414}',
   '.edit .row,.ai-confirm .row{display:flex;gap:8px;margin-top:22px}.edit button,.ai-confirm button{padding:11px 18px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:var(--bg);font:700 15px Pretendard,sans-serif;cursor:pointer}',
   '.edit button.g,.ai-confirm button.g{background:transparent;color:var(--ink)}.edit .msg{min-height:1.4em;margin:14px 0 0;font-size:14px;color:var(--mut)}.edit .msg.err{color:var(--red)}',
-  '.ai-confirm{width:min(520px,94vw);padding:26px;border:1px solid var(--ink);background:var(--bg);color:var(--ink)}.ai-confirm h2{margin:0;font-size:24px}'
+  '.ai-confirm{width:min(520px,94vw);padding:26px;border:1px solid var(--ink);background:var(--bg);color:var(--ink)}.ai-confirm h2{margin:0;font-size:24px}.ai-confirm #ai-error{color:var(--red)}'
 ].join('');
 
 function boardClient_() {
@@ -1056,6 +1086,11 @@ function boardClient_() {
     // 서버가 비슷한 답끼리 스스로 묶어 바로 저장합니다. 생성형 AI가 필요하면 동의한 뒤에만 이어서 합니다.
     // 교수 PIN이 필요해 편집 칸이 열린 경우(pending)에는 PIN이 다 들어오면(4자리, 또는 Enter) 바로 이어서 합니다.
     var aiConfirm = $('#ai-confirm'), aiToken = '', aiKey = '';
+    function showAiConfirm(token, key, msg) {
+      aiToken = token; aiKey = key;
+      var err = $('#ai-error'); err.textContent = msg || ''; err.hidden = !msg;
+      aiConfirm.showModal();
+    }
     $('#ai-no').onclick = function () { aiConfirm.close(); };
     $('#ai-yes').onclick = function () { aiConfirm.close(); if (aiKey) runClassify(aiToken, aiKey); aiKey = ''; };
     function classify() {
@@ -1079,9 +1114,11 @@ function boardClient_() {
         end();
         if (r.expired) { keep(''); $('#epl').hidden = false; }
         if (r.token) keep(r.token);
+        if (r.consentBusy) { showAiConfirm(r.token, confirmKey, r.msg); return; }
         if (!r.ok) { if (r.expired || !r.token) { open(); pending = 'classify'; $('#em').textContent = r.msg; $('#em').className = 'msg err'; } fail('분류를 못했어요. ' + r.msg); return; }
         if (ed.classList.contains('on')) close();
         if (r.board) update(r.board);
+        if (r.needsReload) { fail((r.partial ? '일부만 저장되었을 수 있습니다. 화면 동기화에 실패했습니다.' : '시트에는 저장했지만 화면 동기화에 실패했습니다.') + ' 화면을 새로고침하십시오.'); return; }
         if (r.partial) { fail('일부만 저장되었을 수 있습니다. 화면을 다시 불러옵니다.'); return; }
         var tot = (r.moved || 0) + (r.auto ? r.auto.moved : 0), msg = '';
         if (r.grouped && r.moved) msg = r.moved + '개를 묶음으로 옮겼어요. ';
@@ -1095,7 +1132,7 @@ function boardClient_() {
         if (r.autoErr) fail('묶음을 만들지 못했어요. ' + r.autoErr + (tot ? ' (' + tot + '개는 옮겼어요.)' : '') + off);
         else if (r.stopped) fail('분류를 다 못 했어요. ' + r.stopped + (r.more ? ' ' + r.more + '개를 그대로 두었어요.' : '') + (tot || r.words ? ' (' + (tot || r.words) + '개는 옮겼어요.)' : '') + off);
         else toast((msg + off).trim());
-        if (r.confirmKey) { aiToken = r.token; aiKey = r.confirmKey; aiConfirm.showModal(); }
+        if (r.confirmKey) showAiConfirm(r.token, r.confirmKey);
       }).withFailureHandler(function (e) { end(); fail('분류를 못했어요. ' + e.message); })
         .classifyBoard(cred, confirmKey);
     }
@@ -1144,9 +1181,9 @@ var BOARD_HTML = '<div class="stage"><header class="top" id="top"><div class="he
   '<label id="epl">교수 PIN<small>시트 메뉴 반응판 → 주소와 교수 PIN 보기. 한 번 맞으면 이 창을 닫을 때까지 다시 묻지 않습니다.</small><input type="password" id="ep" inputmode="numeric" maxlength="4" autocomplete="off"></label>' +
   '<div class="row"><button id="es">바꾸기</button><button id="ek" class="g">분류</button><button id="ex" class="g">닫기</button></div><p class="msg" id="em"></p></aside>' +
   '<dialog class="ai-confirm" id="ai-confirm" aria-labelledby="ai-title" aria-describedby="ai-desc"><h2 id="ai-title">응답을 한꺼번에 보내 새 묶음을 만드는 기능을 켜시겠습니까?</h2>' +
-  '<p id="ai-desc">비슷한 답을 묶기 위해 질문·기존 묶음 이름과 최근 분류 대상 응답 최대 80건의 앞 80자씩을 ' + BOARD_AI_NAME + '에 보냅니다. 학생 이름은 따로 수집하거나 보내지 않으며, 답에 적힌 이메일·전화번호 패턴은 가립니다. 답에 이름을 적지 않도록 안내해 주십시오.' +
-    (BOARD_SOLO ? ' 기존 묶음이 있을 때는 이 동의와 별도로 답을 Gemini에 한 건씩 보내 기존 묶음에 분류하거나 광고·욕설 등을 확인합니다.' : '') + '</p>' +
+  '<p id="ai-desc">' + BOARD_BATCH_NOTICE + ' ' + BOARD_SINGLE_NOTICE + ' 이름·연락처를 적지 않도록 안내해 주십시오.</p>' +
   '<p>동의는 저장되며 시트 메뉴 반응판 → AI 묶기 끄기에서 취소할 수 있습니다.</p>' +
+  '<p id="ai-error" role="alert" hidden></p>' +
   '<div class="row"><button type="button" class="g" id="ai-no" autofocus>지금은 사용하지 않기</button><button type="button" id="ai-yes">동의하고 기능 켜기</button></div></dialog>' +
   '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' + STAGE_JS + '<script>var BOOT = /*BOOT*/null;</script>' +
   '<script>(' + boardClient_.toString() + ')();</script>';
