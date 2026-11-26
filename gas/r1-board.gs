@@ -42,14 +42,14 @@ function setup() {
   }
   var gh = sheet_('응답', BOARD_HEAD).getRange(1, 7);
   if (String(gh.getValue()) === '') gh.setValue('자동 묶음').setFontWeight('bold'); // 옛 6열 사본의 빈 머리글
-  // 수업 서버판이면 판정 서버 연결을 확인합니다. 실패해도 준비는 계속하고, 이유를 알립니다(수업 코드 없이 시작하면 답이 모두 기타로 보이기 때문).
+  // 판정 서버 연결에 실패해도 경고하고 준비는 계속합니다.
   var warn = '';
   var why = typeof checkServer_ === 'function' ? checkServer_() : '';
   if (why) warn = '\n\n※ 판정 서버에 연결하지 못했습니다: ' + why + '\n시트 메뉴 반응판 → 수업 코드 입력을 하세요. 그대로 두면 답은 받지만 묶음을 고르지 못해 기타로 보입니다. 큰 화면 [분류]로 나중에 다시 나눌 수 있습니다.';
   say_('준비 끝! 이제 웹 도구 화면의 다음 단계(배포)를 따라 하세요.\n큰 화면에서 질문을 바꿀 때 쓰는 교수 PIN: ' + pin_('board') + ' — 학생에게 알리지 마세요. 시트 메뉴 반응판 → 주소와 교수 PIN 보기에서 다시 볼 수 있습니다.' + warn);
 }
 
-// 화면이 다시 그려야 하는 변화(질문 바꾸기, 보관)마다 1씩 올립니다. 큰 화면은 이보다 낮은 번호의 늦게 온 응답을 버립니다.
+// 큰 화면이 뒤늦게 온 옛 응답을 버리도록 판 번호를 올립니다.
 function bump_() {
   try {
     var p = PropertiesService.getScriptProperties(), r = Number(p.getProperty('BOARD_REV') || 0) + 1;
@@ -61,8 +61,7 @@ function bump_() {
   }
 }
 
-// 지금까지의 응답을 [응답_월일_시분초] 시트로 옮겨 보관하고, 빈 [응답] 시트를 새로 만듭니다. 지우지 않습니다.
-// 부르는 쪽이 스크립트 잠금을 잡고 있어야 합니다(그 사이 들어온 답이 머리글 없는 시트로 가지 않게).
+// 잠금 안에서 [응답]을 보관하고 새 시트로 교체합니다.
 function archive_() {
   var ss = ss_(), sh = ss.getSheetByName('응답');
   if (!sh || sh.getLastRow() <= 1) return false;
@@ -89,7 +88,7 @@ function showUrls() {
   say_((url ? '학생용: ' + url + '\n강의장 화면: ' + url + '?v=board\n' : '웹 앱 주소가 아직 없습니다. 배포 → 배포 관리에서 웹 앱 URL(/exec)을 복사해 메뉴 반응판 → 웹 앱 주소 넣기에 붙여 넣으세요.\n') + '질문 바꾸기 PIN: ' + pin_('board'));
 }
 
-// 묶음 정리: 줄바꿈이나 쉼표로 나누고, 빈 것, 같은 이름, '기타'(따로 붙음)를 빼고 10개까지. 시트에서 고쳐도 같은 규칙입니다.
+// 묶음은 줄바꿈·쉼표로 나누고 빈 값·중복·기타를 뺍니다.
 function cats_(text) {
   var seen = {};
   return String(text || '').split(/[\n,]/).map(function (x) { return x.replace(/\s+/g, ' ').trim().slice(0, 24); })
@@ -103,7 +102,7 @@ function cfg_() {
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.v === 'board') {
-    // 참여 QR 주소: 시트 메뉴로 넣어 둔 주소가 먼저이고, 없으면 웹 도구가 큰 화면 주소에 붙여 준 join 을 이 화면에서만 씁니다(저장하지 않음).
+    // 시트 주소가 우선이며, 이 화면에서만 join을 대체 주소로 씁니다.
     var saved = webUrl_(), asked = execUrl_(e.parameter.join), id = function (u) { var m = /\/s\/([\w-]+)\/exec$/.exec(u); return m ? m[1] : ''; };
     var boot = { join: saved || asked, warn: !!(saved && asked && id(saved) !== id(asked)) };
     var html = BOARD_HTML.replace('/*BOOT*/null', function () { return JSON.stringify(boot).replace(/</g, '\\u003c'); });
@@ -115,9 +114,8 @@ function doGet(e) {
 function rev_() { return Number(PropertiesService.getScriptProperties().getProperty('BOARD_REV') || 0); }
 function round_() { var sh = ss_().getSheetByName('응답'); return sh ? sh.getSheetId() : 0; }
 
-// 학생 폰이 12초마다 묻습니다. cats는 폰에 칩으로 보이는 묶음입니다(두 개 미만이면 묶지 않는 질문이라 빈 목록). 사람이 많아도 시트를 매번 읽지 않게 5초 동안 기억합니다.
-// round: 지금 [응답] 시트. 보관 뒤에는 바뀌므로, 폰은 이전 질문에 쓴 답을 새 판에 보내지 않습니다.
-// 읽는 사이 질문이 바뀌었으면(rev) 기억하지 않습니다.
+// 학생용 질문은 5초간 캐시합니다. 읽는 중 rev가 바뀌면 캐시하지 않습니다.
+// round([응답] 시트 ID)로 보관 전 질문의 답이 새 시트에 들어가지 않게 합니다.
 function getQuestion() {
   var cache = CacheService.getScriptCache(), hit = cache.get('q');
   if (hit) return JSON.parse(hit);
@@ -126,9 +124,7 @@ function getQuestion() {
   return out;
 }
 
-// ===== API 없이 묶기: 낱말 맞추기와 비슷한 답 묶기 (AI를 부르지 않아 두 판 모두 비용이 없습니다) =====
-// 뜻이 같아도 낱말이 다르면('시험 때 몰래' ↔ '부정행위') 맞추지 못합니다. 그런 답은 Jev가 고릅니다.
-// 묶음 이름의 낱말이라도 너무 흔한 말(방법, 효과, 부담, 학생…)은 혼자서는 묶음을 정하지 못합니다('사용 방법을 몰라서'가 '평가 방법'으로 가지 않게).
+// API 없이 낱말로 묶습니다. 흔한 말만 겹치거나 낱말이 다르면 Jev에 맡깁니다.
 var WORD_STOP = ('방법 문제 효과 부분 관련 사용 활용 증가 감소 부족 저하 향상 부담 정도 내용 생각 걱정 우려 기타 능력 시간 결과 과정 ' +
   '학생 교수 수업 강의 대한 때문 같은 같아 같다 정말 너무 그냥 진짜 조금 많이 많아 아직 모르 몰라 어떻 어려 하는 하기 하고 해서 ' +
   '해요 했다 되는 되고 될까 있는 있을 없는 없을 싶은 싶어 만들 바꾸 바꿔 늘리 줄이 주기 받기 좋겠 좋을 추가 변경 더욱 지금 이번 다음 ai ' +
@@ -143,13 +139,10 @@ function words_(s) {
 }
 function compact_(s) { return String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]+/g, ''); }
 
-// 낱말 맞추기: 답이 묶음 하나에만 분명히 맞으면 그 묶음 번호, 아니면 -1(Jev로 넘김).
-// 맞음(묶음 이름이 한 낱말): 이름 낱말(흔한 말·질문에 나온 말·다른 묶음과 겹치는 말은 제외)로 시작하는 낱말이 답에 있음. 이름이 답 낱말 안에 들어 있기만 한 것('정보' ↔ '개인정보')은 맞지 않습니다.
-// 맞음(이름이 두 낱말 이상): 띄어쓰기를 뺀 답에 이름이 통째로 있거나, 이름의 낱말 머리가 둘 이상 답에 있고 그중 하나는 이 묶음만 쓰는 낱말임. 흔한 말·질문 낱말로만 된 이름은 낱말 규칙을 따르지 않습니다.
-//   낱말 하나만 맞는 것('AI 학습에 쓰이는 것' ↔ '학습 효과 저하')은 뜻이 다를 수 있어 Jev가 정합니다.
-// 부정·반대 낱말(안/않/없/못/괜찮/아니/아닌/아냐/줄/덜/오히려/별로/딱히/쉬웠·쉽·편했, 붙여 쓴 '안함' '안해' '없음' 포함)이 있으면 뜻이 뒤집힐 수 있어 정하지 않습니다.
+// 한 낱말 이름은 고유한 낱말 머리로, 여러 낱말 이름은 전체나 머리 둘 이상으로 맞춥니다.
+// 부정·반대 표현이 있거나 묶음 하나를 확정할 수 없으면 Jev에 맡깁니다.
 var NEG_RE = /^(안$|안(함|해|하|했|돼|되|된|써|쓰|봐|본|갈|가|느|넣)|않|없|못|괜찮|아니|아닌|아냐|줄|덜|오히려|별로|딱히|쉬웠|쉬워|쉬운|쉬움|쉽|편했|편해)/;
-// 낱말 안쪽이나 붙여 쓴 꼴('걱정없음', '안될', '아닐', '~보다는', '좋아질')도 띄어쓰기를 뺀 답 전체에서 찾아 Jev로 넘깁니다.
+// 붙여 쓴 부정·반대 표현도 찾습니다.
 var NEG_IN_RE = /없|않|못|안[되됨될돼된생]|아닐|아니|괜찮|별로|딱히|오히려|덜|줄[어었을]|보다|말고|빼고|대신|좋아|높아|늘[어었]|향상|개선|감소|가벼/;
 function matchCat_(text, cats, q) {
   var ws = words_(text), flat = compact_(text);
@@ -176,9 +169,8 @@ function matchCat_(text, cats, q) {
   return hits.length === 1 ? hits[0] : -1;
 }
 
-// 비슷한 답 묶기: 여러 답에 함께 나오는 낱말 머리(2글자 이상)를 찾아, 가장 많은 답이 나누는 것부터 한 묶음씩 떼어 냅니다.
-// 질문에 나온 말, 흔한 말(로 시작하는 말: 늘리기, 만들어서…), 답의 40%를 넘게 덮는 말은 쓰지 않습니다. 묶음 이름은 그 묶음 답의 60% 이상에 나오는 가장 긴 낱말 머리(12글자 안)입니다.
-// 묶이지 않은 답은 기타로 둡니다. 돌려주는 값: [{name, idx: [답 번호…]}] (큰 묶음부터)
+// 공통 낱말 머리로 큰 묶음부터 뽑되 질문·흔한 말과 40% 초과 머리는 제외합니다.
+// 묶음 60% 이상에 나오는 가장 긴 머리를 이름으로 씁니다(최대 12자).
 function clusterAnswers_(texts, q, max, avoid) {
   var n = texts.length, minSize = n >= 20 ? 3 : 2, stems = texts.map(words_), banned = {}, out = [], left = {};
   words_(q).forEach(function (w) { for (var k = 2; k <= w.length; k++) banned[w.slice(0, k)] = 1; });
@@ -215,7 +207,7 @@ function clusterAnswers_(texts, q, max, avoid) {
   return out;
 }
 
-// 학생 답 하나를 Jev로 묶음에 넣습니다. 돌려주는 값: {cat, conf, bad}. 확신도가 JEV_MIN보다 낮으면 '기타'.
+// Jev의 확신도가 기준에 못 미치면 기타입니다.
 var JEV_MIN = 0.45;
 function jevCat_(c, text, withBad) {
   var crit = {};
@@ -236,10 +228,8 @@ function jevCat_(c, text, withBad) {
 }
 function errMark_(err) { return '오류: ' + String(err && err.message || err).replace(/\s+/g, ' ').slice(0, 80); }
 
-// pick: 학생이 칩으로 고른 묶음(없으면 빈 값). 지금 묶음 목록에 있는 이름이나 '기타'일 때만 받고, 그러면 묶음은 Jev로 고르지 않습니다(스팸 판정만 합니다).
-// 칩이 없으면 먼저 낱말 맞추기(API 없음, 확신도 칸 '낱말'), 못 정하면 Jev가 고릅니다. 스팸 판정은 어느 길이든 Jev 한 번으로 합니다.
-// Jev가 실패하면 답은 그대로 받고 묶음을 비운 채 확신도 칸에 '오류: 이유'를 남깁니다. 큰 화면의 [분류]가 이 답을 다시 나눕니다.
-// 자동 묶음 칸(G): 이 코드가 쓴 묶음 또는 미분류 표시. 교수의 수동 분류는 [분류]가 건드리지 않습니다.
+// 묶음은 칩 선택 → 낱말 → Jev 순으로 결정합니다. 실패한 답도 저장하고 오류를 남깁니다.
+// 자동 묶음 칸(G)과 비교해 수동 분류는 보호합니다.
 function submitAnswer(text, sid, round, pick) {
   var c = cfg_();
   if (!c.open) return { ok: false, msg: '지금은 답을 받지 않습니다.' };
@@ -330,7 +320,7 @@ function isFree_(r) {
 }
 function isErr_(r) { return /^오류/.test(String(r[3])) || (String(r[2]) === '' && String(r[3]) === ''); }
 
-// Jev가 '기타'라고 본 답 번호를 이 묶음 목록(key)에 붙여 기억합니다(최근 800개). 부르는 쪽이 스크립트 잠금을 잡고 있어야 합니다.
+// 잠금 안에서 이 목록의 Jev 기타 판정을 기억합니다(최근 800개).
 function seenAdd_(props, key, ids) {
   var seen = {};
   try { seen = JSON.parse(props.getProperty('CLASSIFY_SEEN') || '{}'); } catch (e) {}
@@ -465,8 +455,7 @@ function maskContact_(text) {
       function (s, prefix) { return prefix + mask(s.slice(prefix.length)); });
 }
 
-// 스스로 묶기. {none:true}(묶을 답이 적음) | {askAi:true}(동의 없음) | {partial:true} | {err} | {kind, groups, moved, jev, more, stopped}. 화면 동기화 오류는 needsReload로 따로 알립니다.
-// 묶을 답: 숨김이 아니고 건드려도 되며, 묶음이 있으면 그 밖의 답. 쓰기는 commit_ 한 번(묶음 목록 저장 + 답 옮기기)입니다.
+// 새 묶음과 옮긴 답을 한 번에 저장합니다. needsReload는 화면 동기화 오류입니다.
 function autoGroup_(c, sh, key, t0, generation) {
   var room = Math.min(6, 10 - c.cats.length), grouped = c.cats.length >= 2;
   var pool = (sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues() : []).filter(function (r) {
@@ -538,7 +527,7 @@ function autoGroup_(c, sh, key, t0, generation) {
   return { kind: kind, groups: names.length, moved: res.moved, jev: jev, more: more, stopped: stopped, needsReload: res.needsReload };
 }
 
-// 큰 화면의 "AI로 묶음 만들기": 질문을 보고 묶음 후보를 줄 단위로 돌려줍니다. 저장은 하지 않고, 교수가 고쳐서 바꾸기를 눌러야 반영됩니다.
+// 질문으로 묶음 후보만 만들고 저장하지 않습니다.
 function suggestCats(cred, q) {
   var chk = auth_(cred, 'board');
   if (!chk.ok) return chk;
@@ -554,8 +543,7 @@ function suggestCats(cred, q) {
   return { ok: true, cats: list.join('\n'), token: chk.token };
 }
 
-// 큰 화면에서 질문과 묶음을 바로 바꿉니다. cred는 교수 PIN, 또는 한 번 맞힌 뒤 받은 화면용 표입니다.
-// fresh가 참이면 지금까지의 응답을 먼저 보관하고 화면을 비웁니다(보관이 실패하면 질문도 바꾸지 않습니다).
+// fresh면 질문을 바꾸기 전에 지금 응답을 보관합니다.
 function setBoard(cred, q, cats, open, fresh) {
   var chk = auth_(cred, 'board');
   if (!chk.ok) return chk;
@@ -573,8 +561,7 @@ function setBoard(cred, q, cats, open, fresh) {
   return { ok: true, archived: archived, token: chk.token, board: getBoard() };
 }
 
-// 큰 화면용 자료: 묶음별 개수는 숨김을 뺀 모든 응답으로 세고, 글은 최근 240개만 보냅니다. 읽기만 하고 시트를 만들지 않습니다.
-// 묶음 이름이 바뀌어 지금 목록에 없는 예전 답은 '기타'로 셉니다. round는 [응답] 시트가 보관으로 바뀌면 달라집니다.
+// 전체 묶음별 개수와 최근 응답 240개를 돌려줍니다(숨김 제외).
 function getBoard() {
   var cache = CacheService.getScriptCache(), hit = cache.get('board');
   if (hit) return JSON.parse(hit);
@@ -600,8 +587,7 @@ function getBoard() {
   return out;
 }
 
-// 학생 폰 화면. 큰 화면과 같은 말씨: 종이 바탕 위의 흰 종이 한 장(슬립)에 생각을 적어 보냅니다.
-// 보내면 그 종이가 위로 날아가고, 아래 '내가 보낸 생각'에 번호와 묶음이 찍힌 종이로 남습니다. 큰 화면의 칸에도 같은 번호가 붙습니다.
+// 학생 화면에는 보낸 답의 번호와 묶음을 남깁니다.
 var ASK_CSS = [
   ':root{--bg:#ffffff;--ink:#111111;--mut:#6e6e6e;--hair:rgba(17,17,17,.14);--slip:#fff;--tile:#f2f2f0;--red:#e54536;--e:cubic-bezier(.2,.8,.2,1)}',
   '*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}',
