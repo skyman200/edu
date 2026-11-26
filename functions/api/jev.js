@@ -22,7 +22,9 @@ import {
 import { isAllowedOrigin, jsonResponse, errorResponse, preflightResponse } from '../_lib/cors.js';
 
 const DEFAULT_BASE = 'https://factchat-cloud.mindlogic.ai/v1/gateway';
-const DEFAULT_MODEL = 'jev-latest';
+// Pinned: jev-latest moved back to jev-1.13.0 on the gateway (2026-11-26) and 1.14.0 classifies the board answers better.
+// JEV_MODEL (a jev-* name) still overrides it.
+const DEFAULT_MODEL = 'jev-1.14.0';
 const TIMEOUT_MS = 25_000;
 
 export const JEV_LIMITS = {

@@ -1,8 +1,9 @@
 /* ===== 레시피 1. 실시간 교실 반응판 =====
    사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    질문과 묶음은 강의장 큰 화면에서 바로 바꿀 수 있습니다(교수 PIN 필요). [설정] 시트에서 바꿔도 됩니다.
-   답은 [응답] 시트에 쌓입니다. 학생이 폰에서 묶음 칩을 고르면 그 묶음으로, 안 고르면 Jev가 묶음을 고릅니다. */
-var BOARD_HEAD = ['시간', '응답', '묶음', '확신도', '상태', '번호'];
+   답은 [응답] 시트에 쌓입니다. 학생이 폰에서 묶음 칩을 고르면 그 묶음으로, 안 고르면 먼저 낱말 맞추기(API 없음)로, 그래도 못 정하면 Jev가 묶음을 고릅니다.
+   큰 화면의 [분류](교수 PIN)는 한 번 누르면 기타·미분류·오류인 답을 다시 나누고, 묶음이 없거나 기타가 많으면 비슷한 답끼리 알아서 묶어(API 없이, 모자라면 AI로) 묶음 이름을 저장하고 답을 옮깁니다. */
+var BOARD_HEAD = ['시간', '응답', '묶음', '확신도', '상태', '번호', '자동 묶음'];
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('반응판')
@@ -23,8 +24,13 @@ function setup() {
     ]);
     s.setColumnWidth(1, 220); s.setColumnWidth(2, 520);
   }
-  sheet_('응답', BOARD_HEAD);
-  say_('준비 끝! 이제 웹 도구 화면의 다음 단계(배포)를 따라 하세요.\n큰 화면에서 질문을 바꿀 때 쓰는 교수 PIN: ' + pin_('board') + ' — 학생에게 알리지 마세요. 시트 메뉴 반응판 → 주소와 교수 PIN 보기에서 다시 볼 수 있습니다.');
+  var gh = sheet_('응답', BOARD_HEAD).getRange(1, 7);
+  if (String(gh.getValue()) === '') gh.setValue('자동 묶음').setFontWeight('bold'); // 옛 6열 사본의 빈 머리글
+  // 수업 서버판이면 판정 서버 연결을 확인합니다. 실패해도 준비는 계속하고, 이유를 알립니다(수업 코드 없이 시작하면 답이 모두 기타로 보이기 때문).
+  var warn = '';
+  var why = typeof checkServer_ === 'function' ? checkServer_() : '';
+  if (why) warn = '\n\n※ 판정 서버에 연결하지 못했습니다: ' + why + '\n시트 메뉴 반응판 → 수업 코드 입력을 하세요. 그대로 두면 답은 받지만 묶음을 고르지 못해 기타로 보입니다. 큰 화면 [분류]로 나중에 다시 나눌 수 있습니다.';
+  say_('준비 끝! 이제 웹 도구 화면의 다음 단계(배포)를 따라 하세요.\n큰 화면에서 질문을 바꿀 때 쓰는 교수 PIN: ' + pin_('board') + ' — 학생에게 알리지 마세요. 시트 메뉴 반응판 → 주소와 교수 PIN 보기에서 다시 볼 수 있습니다.' + warn);
 }
 
 // 화면이 다시 그려야 하는 변화(질문 바꾸기, 보관)마다 1씩 올립니다. 큰 화면은 이보다 낮은 번호의 늦게 온 응답을 버립니다.
@@ -100,7 +106,120 @@ function getQuestion() {
   return out;
 }
 
+// ===== API 없이 묶기: 낱말 맞추기와 비슷한 답 묶기 (AI를 부르지 않아 두 판 모두 비용이 없습니다) =====
+// 뜻이 같아도 낱말이 다르면('시험 때 몰래' ↔ '부정행위') 맞추지 못합니다. 그런 답은 Jev가 고릅니다.
+// 묶음 이름의 낱말이라도 너무 흔한 말(방법, 효과, 부담, 학생…)은 혼자서는 묶음을 정하지 못합니다('사용 방법을 몰라서'가 '평가 방법'으로 가지 않게).
+var WORD_STOP = ('방법 문제 효과 부분 관련 사용 활용 증가 감소 부족 저하 향상 부담 정도 내용 생각 걱정 우려 기타 능력 시간 결과 과정 ' +
+  '학생 교수 수업 강의 대한 때문 같은 같아 같다 정말 너무 그냥 진짜 조금 많이 많아 아직 모르 몰라 어떻 어려 하는 하기 하고 해서 ' +
+  '해요 했다 되는 되고 될까 있는 있을 없는 없을 싶은 싶어 만들 바꾸 바꿔 늘리 줄이 주기 받기 좋겠 좋을 추가 변경 더욱 지금 이번 다음 ai ' +
+  '정리 작성 처리 관리 진행 제공 확인').split(' ');
+var JOSA_RE = /(으로써|으로서|에서는|에게서|이라도|까지|부터|처럼|보다|으로|에서|에게|한테|이랑|이나|하고|은|는|이|가|을|를|의|에|도|만|로|와|과|랑)$/;
+// 글자·숫자만 남기고 낱말로 나눕니다. 낱말 뒤 조사는 두 글자 이상 남을 때만 뗍니다(업무가 → 업무, 평가 → 평가).
+function words_(s) {
+  return String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]+/g, ' ').trim().split(' ').filter(String).map(function (w) {
+    var t = w.replace(JOSA_RE, '');
+    return t.length >= 2 ? t : w;
+  });
+}
+function compact_(s) { return String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]+/g, ''); }
+
+// 낱말 맞추기: 답이 묶음 하나에만 분명히 맞으면 그 묶음 번호, 아니면 -1(Jev로 넘김).
+// 맞음(묶음 이름이 한 낱말): 이름 낱말(흔한 말·질문에 나온 말·다른 묶음과 겹치는 말은 제외)로 시작하는 낱말이 답에 있음. 이름이 답 낱말 안에 들어 있기만 한 것('정보' ↔ '개인정보')은 맞지 않습니다.
+// 맞음(이름이 두 낱말 이상): 띄어쓰기를 뺀 답에 이름이 통째로 있거나, 이름의 낱말 머리가 둘 이상 답에 있고 그중 하나는 이 묶음만 쓰는 낱말임. 흔한 말·질문 낱말로만 된 이름은 낱말 규칙을 따르지 않습니다.
+//   낱말 하나만 맞는 것('AI 학습에 쓰이는 것' ↔ '학습 효과 저하')은 뜻이 다를 수 있어 Jev가 정합니다.
+// 부정·반대 낱말(안/않/없/못/괜찮/아니/아닌/아냐/줄/덜/오히려/별로/딱히/쉬웠·쉽·편했, 붙여 쓴 '안함' '안해' '없음' 포함)이 있으면 뜻이 뒤집힐 수 있어 정하지 않습니다.
+var NEG_RE = /^(안$|안(함|해|하|했|돼|되|된|써|쓰|봐|본|갈|가|느|넣)|않|없|못|괜찮|아니|아닌|아냐|줄|덜|오히려|별로|딱히|쉬웠|쉬워|쉬운|쉬움|쉽|편했|편해)/;
+// 낱말 안쪽이나 붙여 쓴 꼴('걱정없음', '안될', '아닐', '~보다는', '좋아질')도 띄어쓰기를 뺀 답 전체에서 찾아 Jev로 넘깁니다.
+var NEG_IN_RE = /없|않|못|안[되됨될돼된생]|아닐|아니|괜찮|별로|딱히|오히려|덜|줄[어었을]|보다|말고|빼고|대신|좋아|높아|늘[어었]|향상|개선|감소|가벼/;
+function matchCat_(text, cats, q) {
+  var ws = words_(text), flat = compact_(text);
+  if (!flat || NEG_IN_RE.test(flat) || ws.some(function (w) { return NEG_RE.test(w); })) return -1;
+  var qw = {}, own = {};
+  words_(q).forEach(function (w) { qw[w] = 1; });
+  var uniq = function (name) { return words_(name).filter(function (w, i, a) { return w.length >= 2 && a.indexOf(w) === i; }); };
+  var head = function (cw) { return ws.some(function (w) { return w.indexOf(cw) === 0; }); };
+  var all = cats.map(uniq), lists = all.map(function (l) { return l.filter(function (w) { return WORD_STOP.indexOf(w) < 0 && !qw[w]; }); });
+  lists.forEach(function (l) { l.forEach(function (w) { own[w] = (own[w] || 0) + 1; }); });
+  var hits = [];
+  cats.forEach(function (name, i) {
+    var nw = words_(name).length, multi = nw >= 2, mine = lists[i].filter(function (cw) { return own[cw] === 1; }), hit = false;
+    if (!lists[i].length) return;
+    if (!multi) hit = mine.some(head);
+    else {
+      var full = compact_(name);
+      hit = full.length >= 2 && flat.indexOf(full) >= 0;
+      // 세 낱말 이상인 이름은 통째로 있을 때만 맞춥니다(낱말 둘만 겹치면 뜻이 반대일 수 있음).
+      if (!hit && nw < 3 && mine.some(head)) hit = all[i].filter(function (cw) { return !qw[cw] && head(cw); }).length >= 2;
+    }
+    if (hit) hits.push(i);
+  });
+  return hits.length === 1 ? hits[0] : -1;
+}
+
+// 비슷한 답 묶기: 여러 답에 함께 나오는 낱말 머리(2글자 이상)를 찾아, 가장 많은 답이 나누는 것부터 한 묶음씩 떼어 냅니다.
+// 질문에 나온 말, 흔한 말(로 시작하는 말: 늘리기, 만들어서…), 답의 40%를 넘게 덮는 말은 쓰지 않습니다. 묶음 이름은 그 묶음 답의 60% 이상에 나오는 가장 긴 낱말 머리(12글자 안)입니다.
+// 묶이지 않은 답은 기타로 둡니다. 돌려주는 값: [{name, idx: [답 번호…]}] (큰 묶음부터)
+function clusterAnswers_(texts, q, max, avoid) {
+  var n = texts.length, minSize = n >= 20 ? 3 : 2, stems = texts.map(words_), banned = {}, out = [], left = {};
+  words_(q).forEach(function (w) { for (var k = 2; k <= w.length; k++) banned[w.slice(0, k)] = 1; });
+  // 이미 있는 묶음 이름은 통째로도, 이름의 낱말 머리로도('평가 방법' 옆에 '평가') 새 묶음 이름이 되지 못합니다.
+  (avoid || []).forEach(function (a) {
+    banned[compact_(a)] = 1;
+    words_(a).forEach(function (w) { if (w.length >= 2) for (var k = 2; k <= w.length; k++) banned[w.slice(0, k)] = 1; });
+  });
+  var stop = function (p) { return banned[p] || WORD_STOP.some(function (w) { return p.indexOf(w) === 0; }); };
+  var feats = stems.map(function (ws) {
+    var f = {};
+    ws.forEach(function (w) { for (var k = 2; k <= Math.min(w.length, 12); k++) if (!stop(w.slice(0, k))) f[w.slice(0, k)] = 1; });
+    return f;
+  });
+  var df = {};
+  feats.forEach(function (f) { Object.keys(f).forEach(function (k) { df[k] = (df[k] || 0) + 1; }); });
+  for (var i = 0; i < n; i++) left[i] = 1;
+  while (out.length < (max || 6)) {
+    var cnt = {};
+    Object.keys(left).forEach(function (i) { Object.keys(feats[i]).forEach(function (k) { if (df[k] <= Math.max(minSize, n * 0.4)) cnt[k] = (cnt[k] || 0) + 1; }); });
+    var best = Object.keys(cnt).filter(function (k) { return cnt[k] >= minSize; })
+      .sort(function (a, b) { return cnt[b] - cnt[a] || b.length - a.length || (a < b ? -1 : 1); })[0];
+    if (!best) break;
+    var idx = Object.keys(left).map(Number).filter(function (i) { return feats[i][best]; });
+    idx.forEach(function (i) { delete left[i]; });
+    var name = best, need = Math.ceil(idx.length * 0.6), longest = {};
+    idx.forEach(function (i) { stems[i].forEach(function (w) { if (w.indexOf(best) === 0) for (var k = best.length + 1; k <= Math.min(w.length, 12); k++) longest[w.slice(0, k)] = 1; }); });
+    Object.keys(longest).forEach(function (p) {
+      var c = idx.filter(function (i) { return stems[i].some(function (w) { return w.indexOf(p) === 0; }); }).length;
+      if (c >= need && (p.length > name.length || (p.length === name.length && p < name))) name = p;
+    });
+    out.push({ name: name, idx: idx });
+  }
+  return out;
+}
+
+// 학생 답 하나를 Jev로 묶음에 넣습니다. 돌려주는 값: {cat, conf, bad}. 확신도가 JEV_MIN보다 낮으면 '기타'.
+var JEV_MIN = 0.45;
+function jevCat_(c, text, withBad) {
+  var crit = {};
+  c.cats.forEach(function (name, i) { crit['c' + i] = name; });
+  crit.other = '위 항목 어디에도 맞지 않는 내용';
+  var qs = { cat: { type: 'choice', instructions: '교수의 질문에 대한 응답이 어느 묶음에 속하는지 고르세요.', criteria: crit } };
+  if (withBad) qs.bad = { type: 'noul', instructions: '응답이 질문과 무관한 광고, 욕설, 장난, 개인정보 노출인가?' };
+  var a = jev_({ 질문: c.q, 응답: text }, qs);
+  // 답 모양을 엄격히 봅니다: 'other'만 기타이고, 모르는 모양이면 오류로 던져 '오류:' 흔적을 남깁니다(조용히 기타로 가지 않게).
+  var k = a && a.cat && a.cat.choice, conf = a && a.cat && a.cat.confidence, n = -1;
+  if (typeof conf !== 'number' || !isFinite(conf)) throw new Error('Jev 답 형식이 다릅니다: confidence ' + conf);
+  if (k !== 'other') {
+    if (typeof k !== 'string' || !/^c\d+$/.test(k) || !c.cats[Number(k.slice(1))]) throw new Error('Jev 답 형식이 다릅니다: ' + String(k).slice(0, 20));
+    n = Number(k.slice(1));
+  }
+  conf = Math.round(conf * 100) / 100;
+  return { cat: conf < JEV_MIN || n < 0 ? '기타' : c.cats[n], conf: conf, bad: withBad ? a.bad.p > 0.8 : false };
+}
+function errMark_(err) { return '오류: ' + String(err && err.message || err).replace(/\s+/g, ' ').slice(0, 80); }
+
 // pick: 학생이 칩으로 고른 묶음(없으면 빈 값). 지금 묶음 목록에 있는 이름이나 '기타'일 때만 받고, 그러면 묶음은 Jev로 고르지 않습니다(스팸 판정만 합니다).
+// 칩이 없으면 먼저 낱말 맞추기(API 없음, 확신도 칸 '낱말'), 못 정하면 Jev가 고릅니다. 스팸 판정은 어느 길이든 Jev 한 번으로 합니다.
+// Jev가 실패하면 답은 그대로 받고 묶음을 비운 채 확신도 칸에 '오류: 이유'를 남깁니다. 큰 화면의 [분류]가 이 답을 다시 나눕니다.
+// 자동 묶음 칸(G): 이 코드가 쓴 묶음. 교수가 시트에서 묶음 칸을 고치면 두 칸이 달라지고, [분류]는 그 답을 건드리지 않습니다.
 function submitAnswer(text, sid, round, pick) {
   var c = cfg_();
   if (!c.open) return { ok: false, msg: '지금은 답을 받지 않습니다.' };
@@ -108,30 +227,22 @@ function submitAnswer(text, sid, round, pick) {
   if (text.length < 2) return { ok: false, msg: '두 글자 이상 써 주세요.' };
   sid = String(sid || 'x').slice(0, 40);
   if (!throttle_('s:' + sid, 6, 600) || !throttle_('all', 90, 60)) return { ok: false, msg: '잠시 뒤에 다시 보내 주세요.' };
-  var cat = '', conf = '', status = '표시';
+  var cat = '', conf = '', status = '표시', jevOther = false;
   pick = String(pick || '').trim();
   var picked = c.cats.length >= 2 && (pick === '기타' || c.cats.indexOf(pick) >= 0);
-  if (picked) {
-    cat = pick; conf = '직접';
+  var word = !picked && c.cats.length >= 2 ? matchCat_(text, c.cats, c.q) : -1;
+  if (picked || word >= 0) {
+    cat = picked ? pick : c.cats[word]; conf = picked ? '직접' : '낱말';
     try {
       var chk = jev_({ 질문: c.q, 응답: text }, { bad: { type: 'noul', instructions: '응답이 질문과 무관한 광고, 욕설, 장난, 개인정보 노출인가?' } });
       if (chk.bad.p > 0.8) status = '숨김';
     } catch (err) {}
   } else if (c.cats.length >= 2) {
     try {
-      var crit = {};
-      c.cats.forEach(function (name, i) { crit['c' + i] = name; });
-      crit.other = '위 항목 어디에도 맞지 않는 내용';
-      var a = jev_({ 질문: c.q, 응답: text }, {
-        cat: { type: 'choice', instructions: '교수의 질문에 대한 응답이 어느 묶음에 속하는지 고르세요.', criteria: crit },
-        bad: { type: 'noul', instructions: '응답이 질문과 무관한 광고, 욕설, 장난, 개인정보 노출인가?' }
-      });
-      var k = a.cat.choice, n = k && k.charAt(0) === 'c' ? Number(k.slice(1)) : -1;
-      cat = c.cats[n] || '기타';
-      conf = Math.round((a.cat.confidence || 0) * 100) / 100;
-      if (conf < 0.45) cat = '기타';
-      if (a.bad.p > 0.8) status = '숨김';
-    } catch (err) { cat = ''; }
+      var j = jevCat_(c, text, true);
+      cat = j.cat; conf = j.conf; jevOther = j.cat === '기타';
+      if (j.bad) status = '숨김';
+    } catch (err) { cat = ''; conf = errMark_(err); }
   }
   // 번호: 답마다 한 번만 붙는 고유 번호입니다. 교수가 시트에서 줄을 지우거나 정렬해도 큰 화면이 답을 헷갈리지 않습니다.
   var lock = LockService.getScriptLock(), no;
@@ -142,10 +253,195 @@ function submitAnswer(text, sid, round, pick) {
     var old = ss_().getSheetByName('응답');
     if (round && old && old.getSheetId() !== Number(round)) return { ok: false, stale: true, msg: '그사이 새 질문으로 넘어갔습니다. 질문을 확인하고 다시 보내 주세요.' };
     var sh = sheet_('응답', BOARD_HEAD);
-    row_(sh, [new Date(), text, cat, conf, status, id]);
+    row_(sh, [new Date(), text, cat, conf, status, id, cat]);
+    // Jev가 이 묶음 목록에서 기타로 본 답은 [분류]가 같은 목록으로 다시 묻지 않게 기억합니다(이미 잡은 잠금 안).
+    if (jevOther) seenAdd_(p, c.cats.join('|'), [id]);
     no = sh.getLastRow() - 1;
   } finally { lock.releaseLock(); }
   return { ok: true, cat: cat, no: no };
+}
+
+// 큰 화면의 [분류] (교수만): 한 번 누르면 알아서 묶입니다.
+// (가) 묶음이 있으면 '기타'·미분류·오류인 답(지금 목록에 없는 묶음 이름 포함)을 낱말 맞추기로, 그래도 못 정하면 Jev로 다시 나눠 시트에 씁니다.
+//     학생이 칩으로 고른 답('직접')과 교수가 시트에서 손으로 고친 묶음(자동 묶음 칸과 다름)은 건드리지 않습니다.
+//     Jev는 한 번에 CLASSIFY_MAX개, 시간은 CLASSIFY_SEC초까지만 부릅니다(Apps Script 6분 한도, 수업 API 한도). 남은 답은 다시 누르면 이어서 합니다.
+//     같은 묶음 목록에서 Jev가 이미 '기타'라고 본 답(제출 때 포함)은 다음에 또 묻지 않습니다.
+// (나) 묶음이 없거나 (가) 뒤에도 기타가 많으면(4개 이상, 25% 이상) 기타인 답끼리 스스로 묶어 바로 저장하고 답을 옮깁니다.
+//     먼저 API 없이 비슷한 낱말로 묶어 보고, 답의 60% 이상이 묶이면 그것을 씁니다(API 0번).
+//     그보다 적게 묶이면 AI 글쓰기(ai_) 한 번으로 3~6묶음을 만들게 하고, AI가 빠뜨린 답만 Jev로 나눕니다.
+//     실패하면 이유를 알리고 아무것도 저장하지 않습니다. 되돌리려면 질문 바꾸기에서 이번에 새로 생긴 묶음 이름만 지우고 바꾸기를 누릅니다(그 답은 기타로 돌아갑니다).
+var CLASSIFY_MAX = typeof ensureKey_ === 'function' ? 10 : 20, CLASSIFY_SEC = typeof ensureKey_ === 'function' ? 120 : 150;
+var CLASSIFY_RATE = typeof ensureKey_ === 'function' ? 30 : 90;
+var AUTO_SHARE = 0.6, AUTO_LIST = 80;
+function classifyBoard(cred) {
+  var chk = auth_(cred, 'board');
+  if (!chk.ok) return chk;
+  var cache = CacheService.getScriptCache();
+  if (cache.get('classifying')) return { ok: false, busy: true, msg: '이미 분류하고 있습니다. 끝나면 결과가 뜹니다.', token: chk.token };
+  if (!throttle_('classify', 4, 60)) return { ok: false, msg: '잠시 뒤에 다시 눌러 주세요.', token: chk.token };
+  cache.put('classifying', '1', 400);
+  try { return classify_(chk.token); } finally { cache.remove('classifying'); }
+}
+
+var LIMIT_MSG = typeof ensureKey_ === 'function' ? 'AI 사용 한도(1분 30번)에 닿았습니다. 1분쯤 뒤에 다시 눌러 주세요.' : '수업 API 한도(1분 90번)에 닿았습니다.';
+function isOther_(c, r) { return c.cats.length >= 2 && c.cats.indexOf(String(r[2])) < 0; }
+// 건드려도 되는 답: 학생이 칩으로 고른 것('직접')과 교수가 시트에서 손으로 고친 것(자동 묶음 칸과 다름)은 빼고 봅니다.
+function isFree_(r) { return String(r[3]) !== '직접' && !(String(r[6]) !== '' && String(r[2]) !== String(r[6])); }
+function isErr_(r) { return /^오류/.test(String(r[3])) || (String(r[2]) === '' && String(r[3]) === ''); }
+
+// Jev가 '기타'라고 본 답 번호를 이 묶음 목록(key)에 붙여 기억합니다(최근 800개). 부르는 쪽이 스크립트 잠금을 잡고 있어야 합니다.
+function seenAdd_(props, key, ids) {
+  var seen = {};
+  try { seen = JSON.parse(props.getProperty('CLASSIFY_SEEN') || '{}'); } catch (e) {}
+  props.setProperty('CLASSIFY_SEEN', JSON.stringify({ key: key, ids: (seen.key === key ? seen.ids || [] : []).concat(ids).slice(-800) }));
+}
+
+// 시트에 씁니다(잠금 안). Jev를 기다리는 사이 줄이 지워지거나 정렬되었을 수 있어 번호(F)로 다시 찾고, 그사이 누가 고친 줄은 건너뜁니다.
+// o: {key, q} 읽을 때의 묶음 목록·질문(그사이 바뀌었으면 쓰지 않음), cats 새 묶음 목록(주면 함께 저장), judged Jev가 기타로 본 번호, seenKey 기억에 쓸 목록.
+// 바뀐 줄은 C:G 한 덩어리로 한 번에 씁니다. 돌려주는 값: {moved, aborted}
+function commit_(sh, changes, o) {
+  var props = PropertiesService.getScriptProperties(), res = { moved: 0, aborted: '' };
+  if (!changes.length && !o.cats && !(o.judged || []).length) return res;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    // 그사이 새 질문으로 넘어가 [응답] 시트가 보관되었으면 아무것도 쓰지 않습니다.
+    var cur = ss_().getSheetByName('응답');
+    if (!cur || cur.getSheetId() !== sh.getSheetId()) { res.aborted = '그사이 새 질문으로 넘어가 아무것도 바꾸지 않았어요.'; return res; }
+    var cc = cfg_();
+    if (cc.cats.join('|') !== o.key || cc.q !== o.q) { res.aborted = '그사이 질문이나 묶음이 바뀌어 아무것도 바꾸지 않았어요. [분류]를 다시 누르세요.'; return res; }
+    var now = changes.length ? sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), 7).getValues() : [], at = {}, hit = [];
+    now.forEach(function (r, k) { if (String(r[5]) !== '') at[r[5]] = k; });
+    changes.forEach(function (ch) {
+      var k = at[ch.r[5]], r = k == null ? null : now[k];
+      if (!r || String(r[2]) !== String(ch.r[2]) || String(r[3]) !== String(ch.r[3])) return;
+      r[2] = ch.cat; r[3] = ch.conf; r[6] = ch.cat;
+      if (ch.hide) r[4] = '숨김';
+      hit.push(k);
+      if (ch.cat !== '기타' && !ch.hide) res.moved++;
+    });
+    if (hit.length) {
+      var lo = Math.min.apply(null, hit), hi = Math.max.apply(null, hit);
+      sh.getRange(lo + 2, 3, hi - lo + 1, 5).setValues(now.slice(lo, hi + 1).map(function (r) { return r.slice(2, 7).map(cell_); }));
+    }
+    if (o.cats) ss_().getSheetByName('설정').getRange('B2').setValue(cell_(o.cats.join(', ')));
+    if ((o.judged || []).length) seenAdd_(props, o.seenKey != null ? o.seenKey : o.key, o.judged);
+    if (hit.length || o.cats) { props.setProperty('BOARD_MIX', String(Number(props.getProperty('BOARD_MIX') || 0) + 1)); bump_(); }
+    SpreadsheetApp.flush();
+  } finally { lock.releaseLock(); }
+  return res;
+}
+
+function classify_(token) {
+  var c = cfg_(), sh = ss_().getSheetByName('응답'), t0 = Date.now(), grouped = c.cats.length >= 2, props = PropertiesService.getScriptProperties(), key = c.cats.join('|');
+  var out = { ok: true, token: token, grouped: grouped, moved: 0, words: 0, jev: 0, left: 0, more: 0, stopped: '', auto: null, autoErr: '', autoNone: false };
+  if (!sh) { out.board = getBoard(); out.left = grouped ? out.board.counts['기타'] || 0 : out.board.total; return out; }
+  var head = sh.getRange(1, 7);
+  if (String(head.getValue()) === '') head.setValue('자동 묶음').setFontWeight('bold');
+  var rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues() : [];
+  var seen = {}, done = {};
+  try { seen = JSON.parse(props.getProperty('CLASSIFY_SEEN') || '{}'); } catch (e) {}
+  if (seen.key === key) (seen.ids || []).forEach(function (i) { done[i] = 1; });
+  var visible = rows.filter(function (r) { return r[4] !== '숨김' && String(r[1]) !== '' && String(r[5]) !== ''; });
+  var changes = [], judged = [];
+  if (grouped) {
+    visible.filter(function (r) { return isOther_(c, r) && isFree_(r); }).forEach(function (r) {
+      var w = matchCat_(r[1], c.cats, c.q);
+      if (w >= 0) { changes.push({ r: r, cat: c.cats[w], conf: '낱말' }); out.words++; return; }
+      var err = isErr_(r);
+      if (!err && String(r[2]) === '기타' && done[r[5]]) return;
+      if (out.stopped || out.jev >= CLASSIFY_MAX || Date.now() - t0 > CLASSIFY_SEC * 1000) { out.more++; return; }
+      if (!throttle_('all', CLASSIFY_RATE, 60)) { out.stopped = LIMIT_MSG; out.more++; return; }
+      try {
+        var j = jevCat_(c, String(r[1]), err);
+        out.jev++;
+        changes.push({ r: r, cat: j.cat, conf: j.conf, hide: j.bad });
+        if (j.cat === '기타') judged.push(r[5]);
+      } catch (e) { out.stopped = String(e && e.message || e).slice(0, 160); out.more++; }
+    });
+  }
+  var res = commit_(sh, changes, { key: key, q: c.q, judged: judged });
+  out.moved = res.moved;
+  if (res.aborted) { out.stopped = out.stopped || res.aborted; changes = []; }
+  var board = getBoard(), left = grouped ? board.counts['기타'] || 0 : board.total;
+  // (나) 묶음이 없거나 기타가 많으면 스스로 묶습니다. 위에서 막혔거나(stopped) 아직 남은 답이 있으면(more) 먼저 그것부터 끝냅니다.
+  if (!res.aborted && !out.stopped && !out.more && (!grouped || (left >= 4 && left >= board.total * 0.25))) {
+    try {
+      var a = autoGroup_(c, sh, key, t0);
+      if (a.none) { out.autoNone = true; out.autoFull = !!a.full; }
+      else if (a.err) out.autoErr = a.err;
+      else { out.auto = { kind: a.kind, groups: a.groups, moved: a.moved }; out.jev += a.jev; out.more += a.more; if (a.stopped) out.stopped = a.stopped; }
+    } catch (e) { out.autoErr = String(e && e.message || e).slice(0, 160); }
+    board = getBoard();
+    left = board.counts['기타'] || 0;
+    if (!board.cats.length) left = board.total;
+  }
+  out.board = board; out.left = left;
+  return out;
+}
+
+// 묶음 이름은 12글자 안: 넘으면 12글자 안에서 낱말 단위로 자르고 끝의 조사('및')를 뗍니다.
+function shortName_(nm) {
+  if (nm.length <= 12) return nm;
+  var cut = nm.slice(0, 12), sp = cut.lastIndexOf(' ');
+  return (sp >= 3 ? cut.slice(0, sp) : cut).replace(/\s*(및|와|과|의|,)$/, '').trim();
+}
+
+// 스스로 묶기. 돌려주는 값: {none:true}(묶을 답이 적음) | {err} | {kind:'words'|'ai', groups, moved, jev, more, stopped}
+// 묶을 답: 숨김이 아니고 건드려도 되며, 묶음이 있으면 그 밖의 답. 쓰기는 commit_ 한 번(묶음 목록 저장 + 답 옮기기)입니다.
+function autoGroup_(c, sh, key, t0) {
+  var room = Math.min(6, 10 - c.cats.length), grouped = c.cats.length >= 2;
+  var pool = (sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues() : []).filter(function (r) {
+    return r[4] !== '숨김' && String(r[1]) !== '' && String(r[5]) !== '' && isFree_(r) && (!grouped || isOther_(c, r));
+  });
+  if (room < 2) return { none: true, full: true };
+  if (pool.length < 4) return { none: true };
+  var texts = pool.map(function (r) { return String(r[1]); }), assign = {}, names = [], kind = 'words';
+  var cl = clusterAnswers_(texts, c.q, room, c.cats), covered = 0;
+  cl.forEach(function (g) { covered += g.idx.length; });
+  if (cl.length >= 2 && covered >= pool.length * AUTO_SHARE) {
+    cl.forEach(function (g) { names.push(g.name); g.idx.forEach(function (i) { assign[i] = g.name; }); });
+  } else {
+    kind = 'ai';
+    // AI는 기다림이 길어(재시도 포함 수 분) 6분 한도를 넘지 않게 시작 1분 안에만 부릅니다.
+    if (Date.now() - t0 > Math.min(60, CLASSIFY_SEC) * 1000) return { err: '시간이 모자라 AI로 묶지 못했어요. [분류]를 한 번 더 누르세요.' };
+    if (!throttle_('all', CLASSIFY_RATE, 60) || !throttle_('autogroup', 3, 60)) return { err: '잠시 뒤에 다시 눌러 주세요. (' + LIMIT_MSG + ')' };
+    var first = Math.max(0, pool.length - AUTO_LIST), list = texts.slice(first);
+    var prompt = '아래는 수업에서 학생 ' + list.length + '명이 이름 없이 쓴 "' + c.q + '"에 대한 답이야. 하나도 빠뜨리지 말고 비슷한 것끼리 3~' + Math.max(3, room) + '개 묶음으로 정리해 줘.\n' +
+      '형식을 정확히 지켜. 한 줄에 묶음 하나, 다른 말은 쓰지 마.\n묶음 이름 | 답 번호들(쉼표로 구분)\n' +
+      '규칙:\n- 묶음 이름은 공백 포함 12글자 안쪽입니다.\n- 번호는 아래 목록의 번호입니다. 모든 번호를 어느 한 묶음에 넣으세요.\n- "기타"라는 묶음은 만들지 않습니다.' +
+      (c.cats.length ? '\n- 이미 있는 묶음 이름(' + c.cats.join(', ') + ')은 다시 쓰지 않습니다.' : '') + '\n\n[답 목록]\n' +
+      list.map(function (t, i) { return (i + 1) + '. ' + t.replace(/\s+/g, ' ').slice(0, 80); }).join('\n');
+    var raw;
+    try { raw = ai_(prompt); } catch (e) { return { err: 'AI가 묶음을 만들지 못했습니다. ' + String(e && e.message || e).slice(0, 160) }; }
+    var used = {};
+    String(raw).split('\n').forEach(function (line) {
+      // Markdown 표('| 이름 | 1, 2 |')로 답해도 읽도록 줄 앞뒤의 '|'를 먼저 뗍니다.
+      var m = /^\s*(?:#+\s*|[-*•·]\s*|\d+[.)]\s*)?(.+?)\s*[|｜]\s*(.+)$/.exec(line.replace(/^\s*[|｜]\s*|\s*[|｜]\s*$/g, ''));
+      if (!m || names.length >= room) return;
+      var nm = shortName_(cats_(m[1].replace(/\*\*/g, ''))[0] || ''), nums = (m[2].match(/\d+/g) || []).map(Number).filter(function (n, k, a) { return n >= 1 && n <= list.length && !used[n] && a.indexOf(n) === k; });
+      if (!nm || c.cats.indexOf(nm) >= 0 || names.indexOf(nm) >= 0 || nums.length < 2) return;
+      names.push(nm); nums.forEach(function (n) { used[n] = 1; assign[first + n - 1] = nm; });
+    });
+    if (names.length < 2) return { err: 'AI 답에서 묶음을 찾지 못했습니다. 다시 눌러 주세요.' };
+  }
+  var cats = c.cats.concat(names).slice(0, 10), c2 = { q: c.q, cats: cats }, changes = [], judged = [], jev = 0, more = 0, stopped = '', moved = 0;
+  pool.forEach(function (r, i) {
+    if (assign[i]) { changes.push({ r: r, cat: assign[i], conf: kind === 'ai' ? 'AI' : '낱말' }); return; }
+    if (kind !== 'ai') return;
+    // AI가 빠뜨린 답만 Jev로 나눕니다(새 묶음 목록으로).
+    if (stopped || jev >= CLASSIFY_MAX || Date.now() - t0 > CLASSIFY_SEC * 1000) { more++; return; }
+    if (!throttle_('all', CLASSIFY_RATE, 60)) { stopped = LIMIT_MSG; more++; return; }
+    try {
+      var j = jevCat_(c2, String(r[1]), isErr_(r));
+      jev++;
+      changes.push({ r: r, cat: j.cat, conf: j.conf, hide: j.bad });
+      if (j.cat === '기타') judged.push(r[5]);
+    } catch (e) { stopped = String(e && e.message || e).slice(0, 160); more++; }
+  });
+  var res = commit_(sh, changes, { key: key, q: c.q, cats: cats, judged: judged, seenKey: cats.join('|') });
+  if (res.aborted) return { err: res.aborted };
+  return { kind: kind, groups: names.length, moved: res.moved, jev: jev, more: more, stopped: stopped };
 }
 
 // 큰 화면의 "AI로 묶음 만들기": 질문을 보고 묶음 후보를 줄 단위로 돌려줍니다. 저장은 하지 않고, 교수가 고쳐서 바꾸기를 눌러야 반영됩니다.
@@ -193,14 +489,19 @@ function getBoard() {
   var rows = n > 0 ? sh.getRange(2, 1, n, 6).getValues() : [], items = [];
   var cats = c.cats.length >= 2 ? c.cats.concat(['기타']) : [], counts = {};
   cats.forEach(function (k) { counts[k] = 0; });
+  var bad = 0, why = '';
   rows.forEach(function (r, k) {
     if (r[4] === '숨김' || String(r[1]) === '') return;
+    if (cats.length && /^오류/.test(String(r[3]))) { bad++; why = String(r[3]).replace(/^오류:?\s*/, '').slice(0, 60); }
     var cat = '';
     if (cats.length) { cat = String(r[2] || ''); if (cats.indexOf(cat) < 0) cat = '기타'; counts[cat]++; }
     items.push({ i: Number(r[5]) || k + 2, no: k + 1, h: r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'HH:mm') : '', t: String(r[1]), c: cat });
   });
+  // mix: [분류]가 답을 옮길 때마다 1씩 올라갑니다. 화면은 이 값이 바뀌면 막대를 처음부터 다시 그립니다(옮겨진 칸이 제 묶음으로 가게).
   var out = { q: c.q, cats: cats, counts: counts, open: c.open, refresh: c.refresh, total: items.length,
-    round: sh ? sh.getSheetId() : 0, rev: rev, items: items.slice(-240) };
+    round: sh ? sh.getSheetId() : 0, rev: rev, mix: Number(PropertiesService.getScriptProperties().getProperty('BOARD_MIX') || 0), items: items.slice(-240) };
+  // err: 판정에 실패해 '오류:' 흔적이 남은 답의 수와 가장 최근 이유(큰 화면이 한 번 알립니다). 학생 폰 화면은 getBoard를 부르지 않습니다.
+  if (bad) out.err = { n: bad, why: why };
   if (rev_() === rev) cache.put('board', JSON.stringify(out), 3);
   return out;
 }
@@ -387,6 +688,8 @@ var BOARD_CSS = [
   '.field{position:relative;display:grid;grid-template-rows:minmax(0,1fr) auto auto;min-height:0}',
   '.cols,.labs{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:0 clamp(10px,1.5vw,28px)}',
   '.cols{min-height:0}',
+  '.labs{padding:0 0 clamp(40px,6.5vh,64px)}', // 오른쪽 아래 단추 줄이 마지막 막대 이름을 가리지 않게 이름을 위로 올립니다
+  '.wall .toast{bottom:auto;top:clamp(150px,34vh,360px);z-index:60}', // 큰 화면 알림은 막대 이름과 겹치지 않는 가운데 빈 자리에 띄웁니다
   '.col{display:flex;flex-direction:column;justify-content:flex-end;min-height:0;overflow:hidden}',
   '.stack{display:flex;flex-direction:column;transform-origin:50% 100%;transition:transform 1s var(--e)}',
   '.intro .stack{transform:scaleY(0);transition-duration:.5s}',
@@ -429,7 +732,8 @@ function boardClient_() {
   var $ = function (s) { return document.querySelector(s); };
   var live = !!(document.body && document.documentElement && typeof requestAnimationFrame === 'function');
   var S = { key: null, round: null, rev: -1, gen: 0, redraw: null, cols: {}, names: [], seen: 0, data: null, queue: [], busy: false, shownTotal: 0, };
-  var MAXSLIPS = 60;
+  var MAXSLIPS = 60, sortBtn = null;
+  if (live) document.body.classList.add('wall');
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   // 예약한 일은 화면을 다시 그리면(세대 S.gen이 바뀌면) 버립니다. 이전 질문의 도착 연출이 새 화면을 건드리지 않게 합니다.
   function later(f, ms) { var g = S.gen; return setTimeout(function () { if (g === S.gen) f(); }, ms); }
@@ -577,11 +881,19 @@ function boardClient_() {
     var last = S.queue.shift();
     arrive(last, function () { S.busy = false; pump(); });
   }
-  function keyOf(d) { return d.q + '\u0001' + d.cats.join('\u0001'); }
+  // 판정 연결 오류: '오류:' 흔적이 있는 답이 새로 생기거나 이유가 바뀔 때 한 번만 알립니다(실패 알림은 8초 뒤 접힙니다).
+  function alertErr(d) {
+    var why = d.err ? d.err.why || '이유를 알 수 없음' : '';
+    if (why === S.errWhy) return;
+    S.errWhy = why;
+    if (why && typeof fail === 'function') fail('판정 연결 오류 ' + d.err.n + '개: ' + why + ' · [분류]로 다시 나눌 수 있어요');
+  }
+  function keyOf(d) { return d.q + '\u0001' + d.cats.join('\u0001') + '\u0001' + (d.mix || 0); }
   function update(d) {
     // 늦게 도착한 예전 응답(질문을 바꾸기 전에 보낸 요청)은 버립니다.
     if (d.rev < S.rev) return;
     S.rev = d.rev;
+    alertErr(d);
     // 다시 그리는 중이면 가장 새 자료만 기억했다가 그것으로 그립니다.
     if (S.redraw) { S.redraw.d = d; return; }
     S.data = d;
@@ -630,9 +942,9 @@ function boardClient_() {
       $('#ep').value = ''; $('#epl').hidden = !!tok();
       cls(ed, 'on', true); later(function () { $('#eq').focus(); }, 80);
     }
-    function close() { cls(ed, 'on', false); }
+    function close() { cls(ed, 'on', false); pending = ''; }
     // PIN이 한 번 맞으면 서버가 이 화면용 표를 줍니다. 창을 닫을 때까지 PIN을 다시 묻지 않습니다.
-    var touched = false;
+    var touched = false, sorting = false, pending = '';
     function tok() { try { return sessionStorage.getItem('board-tok') || ''; } catch (e) { return ''; } }
     function keep(t) { try { if (t) sessionStorage.setItem('board-tok', t); else sessionStorage.removeItem('board-tok'); } catch (e) {} }
     $('#eq').oninput = function () { if (!touched && S.data) $('#ef').checked = this.value.trim() !== S.data.q; };
@@ -670,8 +982,49 @@ function boardClient_() {
       }).withFailureHandler(function (e) { b.disabled = false; $('#es').disabled = false; m.textContent = e.message; m.className = 'msg err'; fail('묶음 만들기를 못했어요. ' + e.message); })
         .suggestCats(cred, $('#eq').value);
     };
+    // [분류](C): 한 번 누르면 알아서 묶입니다. 기타·미분류·오류인 답은 낱말 맞추기 → Jev로 다시 나누고, 묶음이 없거나 기타가 많으면
+    // 서버가 비슷한 답끼리 스스로 묶어(API 없이, 모자라면 AI로) 묶음을 저장하고 답을 옮깁니다. 결과는 막대에 바로 보입니다.
+    // 교수 PIN이 필요해 편집 칸이 열린 경우(pending)에는 PIN이 다 들어오면(4자리, 또는 Enter) 바로 이어서 합니다.
+    function classify() {
+      if (sorting) { toast('분류하는 중이에요. 잠시만 기다려 주세요.'); return; }
+      var pin = ed.classList.contains('on') ? $('#ep').value.trim() : '', cred = pin || tok();
+      if (!cred) {
+        open(); pending = 'classify'; $('#em').textContent = '분류는 교수만 할 수 있어요. 교수 PIN 4자리를 넣으면 바로 분류합니다.'; $('#em').className = 'msg err';
+        later(function () { $('#ep').focus(); }, 120);
+        fail('분류를 못했어요. 교수 PIN 4자리를 넣어 주세요.'); return;
+      }
+      if (pin && !/^\d{4}$/.test(pin)) { fail('분류를 못했어요. PIN은 숫자 4자리입니다.'); return; }
+      pending = '';
+      sorting = true; if (sortBtn) sortBtn.label('분류 중…');
+      toast('분류하는 중이에요. 기타에 있는 답을 다시 나누고, 묶음이 없으면 알아서 묶습니다.');
+      var end = function () { sorting = false; if (sortBtn) sortBtn.label('분류'); };
+      google.script.run.withSuccessHandler(function (r) {
+        end();
+        if (r.expired) { keep(''); $('#epl').hidden = false; }
+        if (r.token) keep(r.token);
+        if (!r.ok) { if (r.expired || !r.token) { open(); pending = 'classify'; $('#em').textContent = r.msg; $('#em').className = 'msg err'; } fail('분류를 못했어요. ' + r.msg); return; }
+        if (ed.classList.contains('on')) close();
+        if (r.board) update(r.board);
+        var tot = (r.moved || 0) + (r.auto ? r.auto.moved : 0), msg = '';
+        if (r.grouped && r.moved) msg = r.moved + '개를 묶음으로 옮겼어요. ';
+        if (r.auto) msg += r.auto.kind === 'ai' ? 'AI로 ' + r.auto.groups + '묶음으로 묶었어요. ' : 'AI 없이 ' + r.auto.groups + '묶음으로 묶었어요. ';
+        else if (r.grouped && !msg) msg = '묶음으로 옮긴 답은 없어요. ';
+        if (r.auto || r.grouped) msg += '기타에 ' + r.left + '개가 남았어요.';
+        if (r.autoNone) msg += (msg ? ' ' : '') + (r.autoFull ? '묶음이 거의 꽉 차서 새 묶음은 만들지 않았어요.' : '새로 묶을 답이 아직 적어요(4개 이상 필요). 답이 더 모이면 다시 눌러 주세요.');
+        if (r.more) msg += ' ' + r.more + '개는 이번에 다 못 나눴어요. [분류]를 한 번 더 누르세요.';
+        // 멈춘 이유(r.stopped)와 묶기 실패(r.autoErr)는 몇 개를 처리했든 알립니다. 실패한 묶기는 아무것도 저장하지 않았습니다.
+        if (r.autoErr) fail('묶음을 만들지 못했어요. ' + r.autoErr + (tot ? ' (' + tot + '개는 옮겼어요.)' : ' 아무것도 바꾸지 않았어요.'));
+        else if (r.stopped) fail('분류를 다 못 했어요. ' + r.stopped + (r.more ? ' ' + r.more + '개를 그대로 두었어요.' : '') + (tot || r.words ? ' (' + (tot || r.words) + '개는 옮겼어요.)' : ''));
+        else toast(msg);
+      }).withFailureHandler(function (e) { end(); fail('분류를 못했어요. ' + e.message); })
+        .classifyBoard(cred);
+    }
+    // PIN이 모자라 열린 편집 칸: 4자리가 다 들어오거나 Enter를 치면 바로 분류합니다.
+    $('#ep').oninput = function () { if (pending === 'classify' && /^\d{4}$/.test(this.value.trim())) classify(); };
+    $('#ep').onkeydown = function (e) { if (e.key === 'Enter' && pending === 'classify') { e.preventDefault(); classify(); } };
+    $('#ek').onclick = classify;
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-    return function () { if (ed.classList.contains('on')) close(); else open(); };
+    return { toggle: function () { if (ed.classList.contains('on')) close(); else open(); }, classify: classify };
   }
   // 참여 QR: 페이지를 만들 때 서버가 넣어 준 주소(BOOT.join)로 한 번 그립니다. 믿을 주소가 없으면 깨진 QR 대신 안내를 띄웁니다.
   var boot = (typeof BOOT === 'object' && BOOT) || {};
@@ -682,10 +1035,11 @@ function boardClient_() {
   } else if (typeof fail === 'function') fail('참여 QR을 만들 주소가 없어요. 웹 도구에서 받은 "강의장 큰 화면 주소"로 이 화면을 다시 열거나, 시트 메뉴 반응판 → 웹 앱 주소 넣기에 /exec 주소를 넣으세요.');
   if (boot.warn && typeof fail === 'function') fail('이 화면을 연 주소와 시트에 저장된 웹 앱 주소가 다릅니다. QR은 시트에 저장된 주소로 만들었습니다. 바꾸려면 시트 메뉴 반응판 → 웹 앱 주소 넣기를 하세요.');
   if (live) {
-    var toggle = editor();
+    var ed = editor();
     try { if (localStorage.getItem('board-theme') === 'dark') document.body.classList.add('dark'); } catch (e) {}
     if (window.stage) {
-      window.stage.add('질문 바꾸기', 'E', toggle);
+      window.stage.add('질문 바꾸기', 'E', ed.toggle);
+      sortBtn = window.stage.add('분류', 'C', ed.classify);
       var th = window.stage.add(document.body.classList.contains('dark') ? '밝게' : '어둡게', 'T', function () {
         var dk = document.body.classList.toggle('dark'); th.label(dk ? '밝게' : '어둡게'); toast(dk ? '어두운 화면으로 바꿨어요.' : '밝은 화면으로 바꿨어요.');
         try { localStorage.setItem('board-theme', dk ? 'dark' : 'light'); } catch (e) {}
@@ -708,6 +1062,6 @@ var BOARD_HTML = '<div class="stage"><header class="top" id="top"><div class="he
   '<label class="ck"><input type="checkbox" id="eo">답 받는 중</label>' +
   '<label class="ck"><input type="checkbox" id="ef">지금까지 응답은 시트에 보관하고 화면을 비웁니다</label>' +
   '<label id="epl">교수 PIN<small>시트 메뉴 반응판 → 주소와 교수 PIN 보기. 한 번 맞으면 이 창을 닫을 때까지 다시 묻지 않습니다.</small><input type="password" id="ep" inputmode="numeric" maxlength="4" autocomplete="off"></label>' +
-  '<div class="row"><button id="es">바꾸기</button><button id="ex" class="g">닫기</button></div><p class="msg" id="em"></p></aside>' +
+  '<div class="row"><button id="es">바꾸기</button><button id="ek" class="g">분류</button><button id="ex" class="g">닫기</button></div><p class="msg" id="em"></p></aside>' +
   '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' + STAGE_JS + '<script>var BOOT = /*BOOT*/null;</script>' +
   '<script>(' + boardClient_.toString() + ')();</script>';

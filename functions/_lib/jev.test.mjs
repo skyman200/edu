@@ -101,17 +101,17 @@ test('handler: success sends only the whitelist and returns flat answers', async
   assert.ok(r.calls[0].url.endsWith('/v1/gateway/decisions/'));
   assert.equal(r.calls[0].auth, 'Bearer sk-test-secret');
   assert.deepEqual(Object.keys(r.calls[0].body).sort(), ['model', 'questions', 'state']);
-  assert.equal(r.calls[0].body.model, 'jev-latest', 'the model is chosen by the server, not the caller');
+  assert.equal(r.calls[0].body.model, 'jev-1.14.0', 'the model is chosen by the server (pinned 1.14.0), not the caller');
   assert.deepEqual(r.calls[0].body.questions.agree, { type: 'noul', instructions: '동의하는가?' });
   assert.equal(r.json.ok, true);
   assert.equal(r.json.answers.kind.choice, 'c0');
   assert.deepEqual(r.json.usage, { input_tokens: 434, output_tokens: 72 });
   assert.ok(!r.text.includes('sk-test-secret'));
   assert.equal(r.res.headers.get('Cache-Control'), 'no-store');
-  const envModel = await call({ code: CODE, state: '글', questions: Q_OK }, { env: { JEV_MODEL: 'jev-1.14.0' } });
-  assert.equal(envModel.calls[0].body.model, 'jev-1.14.0');
+  const envModel = await call({ code: CODE, state: '글', questions: Q_OK }, { env: { JEV_MODEL: 'jev-latest' } });
+  assert.equal(envModel.calls[0].body.model, 'jev-latest', 'JEV_MODEL still overrides the pinned default');
   const badModel = await call({ code: CODE, state: '글', questions: Q_OK }, { env: { JEV_MODEL: 'gpt-6-luna-decisions' } });
-  assert.equal(badModel.calls[0].body.model, 'jev-latest', 'only jev-* names are accepted from the environment');
+  assert.equal(badModel.calls[0].body.model, 'jev-1.14.0', 'only jev-* names are accepted from the environment');
 });
 
 test('handler: code, origin, method, disabled -> no upstream call', async () => {

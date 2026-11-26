@@ -1,6 +1,10 @@
 // Runs every recipe under node against an in-memory Apps Script (mock-gas.mjs): `node gas/gas.test.mjs`
 // The fake server uses the real /api/jev and /api/ai validators, so a request the classroom server would reject fails here.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { createEnv, readGs as readGs0, choice, noul, score, defaultAnswers, runPage } from './mock-gas.mjs';
 import { soloCommon, soloRecipe } from './build.mjs';
 
@@ -102,6 +106,7 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   const d = down.call('submitAnswer', '판정이 안 될 때도 저장', 's9');
   assert.deepEqual([d.ok, d.cat], [true, '']);
   assert.equal(down.rows('응답').length, 1);
+  assert.match(String(down.rows('응답')[0][3]), /^오류: .*503/, 'the failure leaves a trace with the reason, so [분류] can retry it');
   assert.ok(down.log.sleeps >= 2, 'retried before giving up');
 });
 
@@ -581,6 +586,344 @@ test('r1 safety: student text never runs as a formula, archives never collide, a
   assert.throws(() => env.call('showUrls'), /시트 메뉴에서만/);
   env.cache.clear();
   assert.equal(env.call('getBoard').total, 2, 'nothing was archived');
+});
+
+test('r1 keyword stage: one clear group name decides without Jev; generic, shared, negated or two-group words go to Jev', () => {
+  let calls = [];
+  const env = boot('r1-board.gs', { jev: (st, q) => { calls.push(Object.keys(q)); return { ...defaultAnswers(q), bad: noul(String(st).includes('광고') ? 0.95 : 0.05) }; } });
+  env.setup();
+  const send = (t) => { calls = []; return env.call('submitAnswer', t, 'k' + Math.random()); };
+  assert.equal(send('업무 부담이 커질까 걱정').cat, '업무 부담');
+  assert.deepEqual(calls, [['bad']], 'decided by words: only the spam check calls Jev');
+  assert.deepEqual(env.rows('응답')[0].slice(2, 7), ['업무 부담', '낱말', '표시', env.rows('응답')[0][5], '업무 부담'], 'the method and the auto group are recorded');
+  assert.equal(send('평가 방법이 맞을까?').cat, '평가 방법', 'the whole name inside the answer');
+  assert.equal(send('학습 효과 저하가 걱정').cat, '학습 효과 저하', 'a three-word name decides only when it is there whole');
+  for (const t of ['사용 방법을 잘 몰라서', '부정행위는 별로 걱정 안 돼요', '과제 평가 때문에 업무가 늘어요', '시험 때 몰래 쓸까 봐 걱정입니다']) {
+    send(t);
+    assert.deepEqual(calls, [['cat', 'bad']], t + ' goes to Jev');
+    assert.notEqual(env.rows('응답').at(-1)[3], '낱말');
+  }
+  // review 4: negations (also written together), a lone shared word, a word inside a longer word, and an easy-looking answer go to Jev
+  for (const t of ['부정행위 걱정은 안함', '학생 개인정보가 AI 학습에 쓰이는 것', '학습 효과는 오히려 좋아질 듯', '업무가 줄 것 같다', '평가 방법은 괜찮아요', '내 업무가 늘어나는 게 아닐까', '부정행위 걱정 없음', '부정행위는 못 막아요',
+    // re-review 1: negation written inside a word, opposite claims without a negation word, comparisons, and a three-word name met only in part
+    '부정행위는 걱정없음', '부정행위 걱정은 안됨', '부정행위는 큰 문제 아닐 듯', '학습 효과가 좋아질 것 같아요', '업무 부담이 감소할 듯',
+    '부정행위보다는 평가가 더 걱정돼요', '학습 효과는 그대로일 것', '내 업무 부담이 늘어나는 게 아닐까']) {
+    send(t);
+    assert.deepEqual(calls, [['cat', 'bad']], t + ' goes to Jev');
+  }
+  send('업무 부담이 크다는 광고 클릭');
+  assert.deepEqual(env.rows('응답').at(-1).slice(3, 5), ['낱말', '숨김'], 'spam is still hidden on the word path');
+  // pure helpers
+  const cats = ['용어', '개념 이해', '과제', '수업 속도'], q = '오늘 수업에서 가장 어려웠던 점은?';
+  assert.equal(env.ctx.matchCat_('전문 용어가 생소했다', cats, q), 0);
+  assert.equal(env.ctx.matchCat_('수업 자료를 미리 못 받아서', cats, q), -1, 'a word of the question (수업) never decides');
+  assert.equal(env.ctx.matchCat_('과제 설명이 이해가 안 됐어요', cats, q), -1, 'two groups: Jev decides');
+  assert.equal(env.ctx.matchCat_('과제는 쉬웠어요', cats, q), -1, 'q2: an easy-looking answer (쉬웠어요) is not 과제 trouble');
+  assert.equal(env.ctx.matchCat_('용어보다 개념이 어려웠어요', cats, q), -1, 'a comparison (~보다) names the other thing');
+  assert.equal(env.ctx.matchCat_('개인정보 유출이 걱정', ['정보', '보안 사고'], 'q'), -1, 'a one-word name is a word head, never a piece of a longer word (정보 in 개인정보)');
+  assert.equal(env.ctx.matchCat_('정보 유출이 걱정', ['정보', '보안 사고'], 'q'), 0);
+  assert.equal(env.ctx.matchCat_('시간이 부족해요', ['시간', '비용'], 'q'), -1, 'a common word (시간) never decides');
+  assert.equal(env.ctx.matchCat_('시간 관리가 어려워요', ['시간 관리', '비용'], 'q'), -1, 'a name made only of common words never decides, even whole');
+  assert.equal(env.ctx.matchCat_('개인정보 보호가 걱정', ['개인정보 보호', '비용'], 'q'), 0, 'a two-word name inside the answer');
+  assert.equal(env.ctx.matchCat_('학습 방법', ['학습 효과', '학습 방법'], 'q'), 1, 'the shared word 학습 does not count, the whole name does');
+});
+
+test('r1 [분류]: PIN only, re-sorts 기타/unsorted/error rows by words then Jev, keeps chosen and hand-edited rows, caps Jev, blocks double presses', () => {
+  const jevFor = (st) => (String(st).includes('몰래') ? choice('c0', 1) : String(st).includes('늘어나는') ? choice('c3', 0.9) : choice('other', 1));
+  const env = boot('r1-board.gs', { jev: (st, q) => ({ ...defaultAnswers(q), ...(q.cat ? { cat: jevFor(st) } : {}) }) });
+  env.setup();
+  const pin = env.call('pin_', 'board'), sh = env.sheet('응답'), now = new Date();
+  // the user's screen: three answers the old code could not sort (Jev failed: empty group, no auto column)
+  sh.appendRow([now, '아직 안써봐서 몰라', '', '', '표시', 1000001]);
+  sh.appendRow([now, '업무 부담이 늘어나는 게 아닐까', '', '', '표시', 1000002]);
+  sh.appendRow([now, '평가 방법이 맞을까?', '', '오류: AI ONE 401: 수업 코드가 맞지 않습니다.', '표시', 1000003]);
+  sh.appendRow([now, '시험 때 몰래 쓸까 봐', '기타', 0.4, '표시', 1000004, '기타']);
+  sh.appendRow([now, '업무가 많아서 기타로 골랐어요', '기타', '직접', '표시', 1000005, '기타']);
+  sh.appendRow([now, '업무 부담은 아니고 다른 걱정', '기타', 0.9, '표시', 1000006, '업무 부담']);
+  sh.appendRow([now, '업무 광고입니다', '', '', '숨김', 1000007]);
+  env.cache.clear();
+  assert.equal(env.call('getBoard').counts['기타'], 6);
+  const wrong = pin === '0000' ? '1111' : '0000';
+  const no = env.call('classifyBoard', wrong);
+  assert.equal(no.ok, false);
+  assert.equal(env.rows('응답')[0][2], '', 'a wrong PIN changes nothing');
+  const before = env.log.jevCalls.length;
+  const r = env.call('classifyBoard', pin);
+  assert.equal(r.ok, true);
+  assert.match(r.token, /^t[0-9a-f]{24,}$/);
+  const rows = env.rows('응답');
+  assert.deepEqual(rows.map((x) => x[2]), ['기타', '업무 부담', '평가 방법', '부정행위', '기타', '기타', ''], 'sorted; chosen, hand-edited and hidden rows untouched');
+  assert.deepEqual(rows.map((x) => x[3]), [1, 0.9, '낱말', 1, '직접', 0.9, ''], 'a hedged answer (~아닐까) goes to Jev, the whole name is placed by words');
+  assert.deepEqual(rows.slice(0, 4).map((x) => x[6]), ['기타', '업무 부담', '평가 방법', '부정행위'], 'the auto column follows what was written');
+  assert.equal(env.log.jevCalls.length - before, 3, 'Jev only for the three the words could not place');
+  assert.deepEqual(Object.keys(env.log.jevCalls.at(-1).questions), ['cat'], 'a row that already had a spam check is not checked again');
+  assert.deepEqual([r.moved, r.words, r.jev, r.left, r.more], [3, 1, 3, 3, 0]);
+  assert.deepEqual(r.board.counts, { 부정행위: 1, '평가 방법': 1, '학습 효과 저하': 0, '업무 부담': 1, 기타: 3 });
+  assert.ok(r.board.mix > 0 && r.board.rev > 0, 'every open board redraws its columns');
+  // again: what Jev already called 기타 under this list is not asked again
+  const again = env.call('classifyBoard', r.token);
+  assert.deepEqual([again.ok, again.jev, again.moved], [true, 0, 0]);
+  // double press while running, and the per-minute limit
+  env.cache.set('classifying', '1');
+  assert.equal(env.call('classifyBoard', pin).busy, true);
+  env.cache.delete('classifying');
+  env.cache.delete('t:classify');
+  const tries = Array.from({ length: 5 }, () => env.call('classifyBoard', pin).ok);
+  assert.deepEqual(tries, [true, true, true, true, false], 'four presses a minute');
+  // the Jev cap: the rest waits for the next press
+  env.cache.delete('t:classify');
+  for (let k = 0; k < 5; k++) env.call('submitAnswer', '아직 잘 모르겠어요 ' + k, 'cap' + k);
+  env.ctx.CLASSIFY_MAX = 3;
+  env.log.jevFail = 0;
+  const rowsOf = () => env.rows('응답').slice(-5).map((x) => x[3]);
+  // make them unsorted error rows as if Jev had been down
+  env.rows('응답').forEach((x, k) => { if (String(x[1]).startsWith('아직 잘')) { env.sheet('응답').getRange(k + 2, 3, 1, 2).setValues([['', '오류: AI ONE 503: Jev down']]); env.sheet('응답').getRange(k + 2, 7).setValue(''); } });
+  const capped = env.call('classifyBoard', pin);
+  assert.deepEqual([capped.jev, capped.more], [3, 2]);
+  assert.equal(rowsOf().filter((x) => /^오류/.test(String(x))).length, 2, 'two left for the next press');
+  assert.deepEqual([env.call('classifyBoard', pin).jev, rowsOf().filter((x) => /^오류/.test(String(x))).length], [2, 0]);
+  // Jev down while sorting: nothing is overwritten, the reason comes back
+  env.call('submitAnswer', '그냥 궁금해서 써 봐요', 'z9');
+  env.log.jevFail = 503;
+  env.call('submitAnswer', '또 다른 답입니다', 'z8');
+  env.cache.delete('t:classify');
+  const down = env.call('classifyBoard', pin);
+  assert.ok(down.ok && down.jev === 0 && down.more >= 1 && /503/.test(down.stopped));
+  assert.match(String(env.rows('응답').at(-1)[3]), /^오류/);
+  // a new question (archive) while Jev is thinking: nothing is written into the archived answers
+  let arch = null;
+  const race = boot('r1-board.gs', { jev: (st, q) => { if (q.cat && arch) { arch.ctx.archive_(); arch = null; } return { ...defaultAnswers(q), ...(q.cat ? { cat: choice('c0', 1) } : {}) }; } });
+  race.setup();
+  race.sheet('응답').appendRow([new Date(), '시험 때 몰래 쓸까 봐', '', '오류: x', '표시', 1000001]);
+  arch = race;
+  const rr = race.call('classifyBoard', race.call('pin_', 'board'));
+  assert.deepEqual([rr.ok, rr.moved], [true, 0]);
+  const old = [...race.active.sheets.keys()].find((n) => n.startsWith('응답_'));
+  assert.deepEqual(race.active.getSheetByName(old).rows[1].slice(2, 4), ['', '오류: x'], 'the archived row is untouched');
+});
+
+test('r1 [분류] without groups: one press groups similar answers by itself with no API, saves the names, and can be undone', () => {
+  const env = boot('r1-board.gs', { jev: (st, q) => ({ ...defaultAnswers(q), ...(q.cat ? { cat: choice('other', 1) } : {}) }) });
+  env.setup();
+  const pin = env.call('pin_', 'board'), q = '다음 학기에 수업에서 바꿔 보고 싶은 한 가지는?';
+  env.call('setBoard', pin, q, '', true, false);
+  const answers = ['과제를 AI 활용형으로 바꾸기', '과제 수를 줄이고 깊게', '과제 대신 프로젝트로', '과제 제출을 온라인으로', '피드백을 빨리 돌려주기', '매주 피드백 시간 만들기',
+    '개별 피드백 늘리기', '시험 방식을 오픈북으로', '서술형 시험 늘리기', '시험을 구술로', '토론 시간 늘리기', '실습 시간 늘리기', '아직 모르겠어요', '강의실 바꾸기'];
+  answers.forEach((t, k) => env.call('submitAnswer', t, 'g' + k));
+  assert.equal(env.log.jevCalls.length, 0, 'an ungrouped question never calls Jev');
+  const reqs = env.log.requests.length;
+  const r = env.call('classifyBoard', pin);
+  assert.equal(r.ok, true);
+  assert.equal(r.grouped, false);
+  assert.deepEqual([r.auto.kind, r.auto.groups, r.auto.moved, r.autoErr, r.stopped], ['words', 3, 10, '', ''], 'about 70% grouped by words: used as is');
+  assert.equal(env.log.requests.length, reqs, 'no API request at all (no Jev, no AI)');
+  assert.deepEqual(r.board.cats, ['과제', '피드백', '시험', '기타'], 'the names are saved at once, no suggestion box');
+  assert.deepEqual([r.board.counts['과제'], r.board.counts['피드백'], r.board.counts['시험'], r.board.counts['기타']], [4, 3, 3, 4]);
+  assert.equal(r.left, 4);
+  assert.equal('groups' in r, false, 'no suggestion payload any more');
+  const rows = env.rows('응답');
+  assert.deepEqual(rows[0].slice(2, 4), ['과제', '낱말']);
+  assert.equal(rows[0][6], '과제', 'the auto column follows the group');
+  assert.equal(env.sheet('설정').getRange('B2').getValue(), '과제, 피드백, 시험');
+  // the saved list also reaches the student phone chips
+  assert.deepEqual(env.call('getQuestion').cats, ['과제', '피드백', '시험']);
+  // undo: empty the group box and press 바꾸기 -> the board is ungrouped again, nothing archived
+  const back = env.call('setBoard', r.token, q, '', true, false);
+  assert.deepEqual([back.ok, back.archived, back.board.cats, back.board.total], [true, false, [], 14]);
+  assert.deepEqual(env.call('getQuestion').cats, []);
+  // groups exist but many answers stay in 기타: the next press groups those too, next to the old names
+  env.call('setBoard', r.token, q, '과제\n발표', true, false);
+  const many = env.call('classifyBoard', r.token);
+  assert.ok(many.auto && many.auto.groups >= 1 && many.board.cats.includes('과제') && many.board.cats.length <= 11, 'new names are added after the old ones');
+  assert.equal(many.board.cats.filter((k) => k === '과제').length, 1, 'an existing name is not made twice');
+  assert.equal(env.ctx.clusterAnswers_(['하나', '둘'], 'q', 6, []).length, 0, 'nothing in common: no group');
+  // hand-edited, chosen and hidden rows stay out of the grouping
+  const keep = boot('r1-board.gs');
+  keep.setup();
+  keep.call('setBoard', keep.call('pin_', 'board'), q, '', true, false);
+  const kpin = keep.call('pin_', 'board'), ksh = keep.sheet('응답'), now = new Date();
+  answers.forEach((t, k) => ksh.appendRow([now, t, '', '', k === 0 ? '숨김' : '표시', 2000001 + k, '']));
+  ksh.appendRow([now, '과제는 손으로 고친 답', '내가 고침', 0.9, '표시', 2000100, '과제']);
+  const kr = keep.call('classifyBoard', kpin);
+  assert.ok(kr.auto && kr.auto.kind === 'words');
+  const krows = keep.rows('응답');
+  assert.equal(krows[0][2], '', 'hidden row untouched');
+  assert.equal(krows[14][2], '내가 고침', 'hand-edited row untouched');
+  assert.deepEqual(krows[1].slice(2, 4), ['과제', '낱말'], 'the rest is placed');
+});
+
+test('r1 [분류] without a word grouping: AI groups the real answers once, only what AI missed goes to Jev; a failed AI saves nothing', () => {
+  const answers = ['수업 시간에 졸려요', '친구들과 이야기할 시간이 없어요', '교실이 너무 추워요', '집에 가는 길이 멀어요', '점심이 늦어요', '화장실이 멀어요',
+    '프로젝터 소리가 작아요', '강의실 의자가 불편해요', '와이파이가 느려요', '콘센트가 부족해요', '주차장이 좁아요', '자판기가 고장났어요'];
+  const aiCalls = [];
+  const jevSeen = [];
+  const env = boot('r1-board.gs', {
+    ai: ({ messages }) => { aiCalls.push(messages.at(-1).content); return '## 시설 | 3, 4, 5, 6\n환경 | 7,8,9\n기타 | 1, 2\n'; },
+    jev: (st, q) => { if (q.cat) jevSeen.push(JSON.parse(st).응답); return { ...defaultAnswers(q), ...(q.cat ? { cat: choice('c0', 0.9) } : {}) }; },
+  });
+  env.setup();
+  const pin = env.call('pin_', 'board'), q = '수업이 불편한 점은?';
+  env.call('setBoard', pin, q, '', true, false);
+  answers.forEach((t, k) => env.call('submitAnswer', t, 'a' + k));
+  const r = env.call('classifyBoard', pin);
+  assert.equal(r.ok, true);
+  assert.equal(aiCalls.length, 1, 'one AI call');
+  assert.ok(aiCalls[0].includes('하나도 빠뜨리지 말고') && aiCalls[0].includes('12글자') && aiCalls[0].includes('1. 수업 시간에 졸려요'), 'the real answer list, numbered');
+  assert.equal(r.auto.kind, 'ai');
+  assert.equal(r.auto.groups, 2);
+  assert.deepEqual(r.board.cats, ['시설', '환경', '기타'], '기타 stays separate and is never created as a group');
+  const rows = env.rows('응답');
+  assert.deepEqual(rows.slice(2, 6).map((x) => [x[2], x[3], x[6]]), Array(4).fill(['시설', 'AI', '시설']));
+  assert.deepEqual(jevSeen.sort(), [...answers.slice(0, 2), ...answers.slice(9)].sort(), 'only the answers AI left out go to Jev (new list), about CLASSIFY_MAX at most');
+  assert.deepEqual(Object.keys(env.log.jevCalls.at(-1).questions.cat.criteria), ['c0', 'c1', 'other'], 'Jev sees the saved list');
+  // AI fails: nothing is saved, the reason comes back
+  const bad = boot('r1-board.gs');
+  bad.setup();
+  bad.call('setBoard', bad.call('pin_', 'board'), q, '', true, false);
+  answers.forEach((t, k) => bad.call('submitAnswer', t, 'b' + k));
+  bad.ctx.UrlFetchApp.fetch = () => ({ getResponseCode: () => 500, getContentText: () => '{"error":"AI 서버 점검 중"}' });
+  const br = bad.call('classifyBoard', bad.call('pin_', 'board'));
+  assert.equal(br.ok, true);
+  assert.match(br.autoErr, /AI가 묶음을 만들지 못했습니다.*점검/);
+  assert.equal(br.auto, null);
+  assert.deepEqual([bad.call('getBoard').cats, bad.sheet('설정').getRange('B2').getValue()], [[], ''], 'nothing saved');
+  assert.ok(bad.rows('응답').every((x) => x[2] === ''), 'no row moved');
+  // AI answers in a shape that has no groups: also nothing saved
+  const odd = boot('r1-board.gs', { ai: () => '죄송합니다. 묶을 수 없습니다.' });
+  odd.setup();
+  odd.call('setBoard', odd.call('pin_', 'board'), q, '', true, false);
+  answers.forEach((t, k) => odd.call('submitAnswer', t, 'c' + k));
+  const orr = odd.call('classifyBoard', odd.call('pin_', 'board'));
+  assert.match(orr.autoErr, /묶음을 찾지 못/);
+  assert.equal(odd.sheet('설정').getRange('B2').getValue(), '');
+  // AI answers with a Markdown table and repeats a number on one line: names carry no '|', a repeated number counts once
+  const tbl = boot('r1-board.gs', { ai: () => '| 묶음 이름 | 답 번호 |\n|---|---|\n| 시설 | 3, 3, 4, 5, 6 |\n| 환경 | 7, 8, 9 |\n| 잡담 | 1, 1 |' });
+  tbl.setup();
+  tbl.call('setBoard', tbl.call('pin_', 'board'), q, '', true, false);
+  answers.forEach((t, k) => tbl.call('submitAnswer', t, 'd' + k));
+  const tr = tbl.call('classifyBoard', tbl.call('pin_', 'board'));
+  assert.equal(tr.auto.kind, 'ai');
+  assert.deepEqual(tr.board.cats, ['시설', '환경', '기타'], 'table cells read as names; a group of one repeated number is dropped');
+  assert.ok(tbl.rows('응답').every((x) => !String(x[2]).includes('|')), 'no pipe in a saved name');
+});
+
+test('r1 [분류]: a list changed while sorting, or an archive, writes nothing; Jev seen as 기타 at submit time is not asked again', () => {
+  const env = boot('r1-board.gs', { jev: (st, q) => ({ ...defaultAnswers(q), ...(q.cat ? { cat: choice('other', 1) } : {}) }) });
+  env.setup();
+  const pin = env.call('pin_', 'board'), sh = env.sheet('응답');
+  const r = env.call('submitAnswer', '아직 잘 모르겠어요 정말', 's1');
+  assert.equal(r.cat, '기타');
+  const seen = JSON.parse(env.props.get('CLASSIFY_SEEN'));
+  assert.deepEqual([seen.key, seen.ids.length], ['부정행위|평가 방법|학습 효과 저하|업무 부담', 1], 'recorded inside the submit lock with the list Jev judged against');
+  const calls = env.log.jevCalls.length;
+  const c1 = env.call('classifyBoard', pin);
+  assert.deepEqual([c1.jev, env.log.jevCalls.length - calls], [0, 0], 'not asked again for the same list');
+  // a row that Jev failed on (empty group and empty trace) is retried, with the spam check
+  sh.appendRow([new Date(), '옛 실패 행입니다', '', '', '표시', 1000009, '']);
+  env.cache.delete('t:classify');
+  const c2 = env.call('classifyBoard', pin);
+  assert.equal(c2.jev, 1);
+  assert.deepEqual(Object.keys(env.log.jevCalls.at(-1).questions), ['cat', 'bad'], 'an old failed row also gets the spam check');
+  // the list changes while Jev is thinking: nothing is written
+  let edit = null;
+  const race = boot('r1-board.gs', { jev: (st, q) => { if (q.cat && edit) { edit.sheet('설정').getRange('B2').setValue('가, 나'); edit = null; } return { ...defaultAnswers(q), ...(q.cat ? { cat: choice('c0', 1) } : {}) }; } });
+  race.setup();
+  race.sheet('응답').appendRow([new Date(), '시험 때 몰래 쓸까 봐', '', '오류: x', '표시', 1000001, '']);
+  edit = race;
+  const rr = race.call('classifyBoard', race.call('pin_', 'board'));
+  assert.deepEqual([rr.moved, rr.board.counts['기타']], [0, 1]);
+  assert.match(rr.stopped, /바뀌어/);
+  assert.deepEqual(race.rows('응답')[0].slice(2, 4), ['', '오류: x']);
+});
+
+test('r1 strict Jev answers: only "other" is 기타; an unknown choice, a missing confidence or a vanished group leaves an error trace', () => {
+  const run = (answer) => {
+    const env = boot('r1-board.gs', { jev: (st, q) => ({ ...defaultAnswers(q), cat: answer }) });
+    env.setup();
+    env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다 정말로', 'z');
+    return env.rows('응답')[0];
+  };
+  assert.deepEqual(run(choice('other', 0.9)).slice(2, 4), ['기타', 0.9]);
+  assert.deepEqual(run(choice('c1', 0.9)).slice(2, 4), ['평가 방법', 0.9]);
+  if (SOLO) return; // the Gemini stand-in rebuilds every verdict from the listed choices, so an unknown choice cannot reach jevCat_ there
+  const odd = run({ type: 'choice', choice: 'weird', confidence: 0.9, probs: {} });
+  assert.deepEqual([odd[2], /^오류: Jev 답 형식이 다릅니다/.test(String(odd[3]))], ['', true], 'an unknown choice is an error, not a silent 기타');
+  const none = run({ type: 'choice', choice: 'c0', probs: {} });
+  assert.deepEqual([none[2], /^오류: Jev 답 형식이 다릅니다.*confidence/.test(String(none[3]))], ['', true], 'a missing confidence is an error');
+  const gone = run(choice('c9', 0.9));
+  assert.equal(gone[2], '', 'a group number that does not exist is an error');
+});
+
+test('r1 errors are shown: setup checks the connection, getBoard reports the failed rows (never to students), [분류] says why it stopped', () => {
+  if (!SOLO) {
+    const bad = boot('r1-board.gs');
+    bad.ctx.PropertiesService.getScriptProperties().setProperty('CLASS_CODE', 'WRONG');
+    bad.call('onOpen');
+    bad.call('setup');
+    assert.ok(bad.sheet('응답'), 'setup goes on');
+    assert.match(bad.log.alerts.at(-1), /준비 끝!.*판정 서버에 연결하지 못했습니다.*수업 코드/s);
+  }
+  const ok = boot('r1-board.gs');
+  ok.setup();
+  assert.ok(!/연결하지 못했습니다/.test(ok.log.alerts.at(-1)));
+  ok.log.jevFail = 503;
+  ok.call('submitAnswer', '판정이 안 될 때의 첫 답입니다', 'e1');
+  ok.cache.clear();
+  const b = ok.call('getBoard');
+  assert.deepEqual([b.err.n, /503/.test(b.err.why), b.err.why.length <= 60], [1, true, true]);
+  const fine = boot('r1-board.gs');
+  fine.setup();
+  assert.equal('err' in fine.call('getBoard'), false, 'no failed row, no err');
+  assert.ok(!ok.call('doGet', { parameter: {} }).html.includes('getBoard'), 'the student page never reads getBoard');
+  // [분류] stops after a partial run: the reason is in the result whatever r.jev is
+  ok.log.jevFail = 0;
+  const pin = ok.call('pin_', 'board');
+  for (let k = 0; k < 3; k++) ok.sheet('응답').appendRow([new Date(), '시험 때 몰래 ' + k, '', '오류: x', '표시', 1000100 + k, '']);
+  let n = 0;
+  const orig = ok.ctx.jev_;
+  ok.ctx.jev_ = (s, qs) => { if (++n === 2) throw new Error('Jev 점검 중'); return orig(s, qs); };
+  const r = ok.call('classifyBoard', pin);
+  assert.ok(r.jev >= 1 && /점검/.test(r.stopped), 'a partial failure still reports the reason');
+});
+
+// The big-screen browser script (editor, [분류] button, PIN path) needs a real DOM: it is checked in headless Chrome when Chrome is installed, skipped otherwise.
+const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+test('r1 big screen in a real browser: first [분류] without a PIN opens the box, and typing the PIN (or Enter) runs it; the box has its own [분류]; no student-facing error text', () => {
+  if (SOLO || !fs.existsSync(CHROME)) return;
+  const env = boot('r1-board.gs');
+  env.setup();
+  // Use a fake join address and the local QR library so startup doesn't show an unrelated QR warning.
+  const html = env.call('doGet', { parameter: { v: 'board', join: 'https://script.google.com/macros/s/TEST/exec' } }).html;
+  const qr = fs.readFileSync(new URL('../vendor/qrcode/qrcode.js', import.meta.url), 'utf8');
+  const pin = '2468';
+  const board = { q: 'Q', cats: ['가', '나', '기타'], counts: { 가: 0, 나: 0, 기타: 1 }, open: true, refresh: 4, total: 1, round: 1, rev: 1, mix: 0, items: [{ i: 1, no: 1, h: '', t: '오류 시험 답', c: '기타' }], err: { n: 1, why: 'AI ONE 401: 수업 코드가 맞지 않습니다.' } };
+  const stub = `<script>(function(){var BOARD=${JSON.stringify(board)},log=[],T='t'+'0'.repeat(32);
+    function run(ok,bad){return new Proxy({},{get:function(_,n){if(n==='withSuccessHandler')return function(f){return run(f,bad)};if(n==='withFailureHandler')return function(f){return run(ok,f)};
+      return function(){var a=[].slice.call(arguments);log.push([n,a[0]]);var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:true,board:BOARD}:{ok:false,msg:'x'};
+        setTimeout(function(){ok&&ok(JSON.parse(JSON.stringify(r)))},20)}}})}
+    window.google={script:{run:run()}};
+    function key(k,t){document.dispatchEvent(new KeyboardEvent('keydown',{key:k,code:t||''}))}
+    function out(tag){var d=document.createElement('pre');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.getElementById('toast').textContent,ep:document.getElementById('ep').value});document.body.appendChild(d)}
+    setTimeout(function(){out('e')},150);
+    setTimeout(function(){key('ㅊ','KeyC')},300);
+    setTimeout(function(){out('a');var ep=document.getElementById('ep');ep.value=${JSON.stringify(pin)};ep.dispatchEvent(new Event('input'))},700);
+    setTimeout(function(){out('b');sessionStorage.removeItem('board-tok');document.getElementById('ed').className='edit';key('c','KeyC')},1100);
+    setTimeout(function(){var ep=document.getElementById('ep');ep.value='5678';ep.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));out('c')},1500);
+    setTimeout(function(){document.getElementById('ek').onclick();out('d')},1900);
+  })();</script>`;
+  const file = path.join(os.tmpdir(), 'board-pin-' + process.pid + '.html');
+  fs.writeFileSync(file, html.replace('<body>', '<body>' + stub)
+    .replace('<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>', () => '<script>' + qr + '</script>'));
+  const dom = execFileSync(CHROME, ['--headless=new', '--disable-gpu', '--window-size=1600,900', '--virtual-time-budget=4000', '--dump-dom', 'file://' + file], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 26 });
+  fs.unlinkSync(file);
+  const res = (t) => JSON.parse(new RegExp('<pre id="res-' + t + '">([^<]*)</pre>').exec(dom)[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+  const e = res('e'), a = res('a'), b = res('b'), d = res('d');
+  const sent = (r) => r.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[1]);
+  assert.match(e.toast, /판정 연결 오류 1개: AI ONE 401: 수업 코드가 맞지 않습니다\. · \[분류\]로 다시 나눌 수 있어요/, 'the big screen says why rows failed');
+  assert.match(a.edOn, /\bon\b/, 'C (even typed as the Korean ㅊ) without a PIN opens the edit box');
+  assert.deepEqual(sent(a), [], 'nothing is sent before a PIN');
+  assert.deepEqual(sent(b), [pin], 'the fourth digit runs [분류] at once');
+  assert.deepEqual(sent(d), [pin, '5678', 't' + '0'.repeat(32)], 'Enter in the PIN box runs it too; the box [분류] button then reuses the saved ticket, no PIN');
 });
 
 test('web app address: never getUrl(); the board QR uses the saved /exec or the wizard join, nothing anonymous is saved', () => {

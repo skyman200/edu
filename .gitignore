@@ -5,3 +5,19 @@
 !.dev.vars.example
 .wrangler/
 node_modules/
+.notes/
+
+# Keep raw classroom-derived evaluation inputs and local capture artifacts private.
+/gas/eval-board/RESULT.md
+/gas/eval-board/data.json
+/gas/eval-board/jev-*.json
+/gas/eval-board/eval-out.md
+/gas/eval-board/ai-group*.json
+/gas/eval-board/ai-prompt-q1.txt
+/gas/eval-board/ai-group.mjs
+/gas/eval-board/eval.mjs
+/gas/eval-board/run_*.py
+/gas/eval-board/capture.mjs
+/gas/eval-board/shots/*
+!/gas/eval-board/shots/4-groups-proposal.png
+!/gas/eval-board/shots/6-pin-box.png

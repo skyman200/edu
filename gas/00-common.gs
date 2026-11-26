@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.09-a';
+var CODE_VERSION = 'v2026.11.26-a';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    ai_    : 글을 쓰는 AI에게 부탁합니다.
@@ -76,6 +76,11 @@ function ai_(prompt, opts) {
     if (ev.delta) out += ev.delta;
   }
   return out.trim();
+}
+
+// 수업 서버에 연결되는지 확인합니다. 돌려주는 값: ''(연결됨) 또는 실패 이유.
+function checkServer_() {
+  try { post_('/api/jev', { check: true }); return ''; } catch (e) { return String(e && e.message || e).slice(0, 160); }
 }
 
 // state: 판정할 글(또는 객체). questions: {이름: {type: 'noul' | 'choice' | 'score', instructions: '…', criteria: …}}
@@ -226,7 +231,11 @@ function toastKit_() {
     box.className = 'toast'; void box.offsetWidth;
     if (box.setAttribute) box.setAttribute('role', bad ? 'alert' : 'status');
     box.appendChild(mk('b', bad ? '실패' : '완료')); box.appendChild(mk('span', String(msg)));
-    if (bad) { var x = mk('button', '닫기'); x.type = 'button'; x.onclick = function () { box.className = 'toast bad'; }; box.appendChild(x); }
+    if (bad) {
+      var x = mk('button', '닫기'); x.type = 'button'; x.onclick = function () { box.className = 'toast bad'; }; box.appendChild(x);
+      // 강의장 큰 화면(body.wall)에서는 실패 알림도 8초 뒤 저절로 접습니다(막대를 계속 가리지 않게).
+      if (document.body && document.body.classList && document.body.classList.contains('wall')) tt = setTimeout(function () { box.className = 'toast bad'; }, 8000);
+    }
     else { box.appendChild(mk('i')); tt = setTimeout(function () { box.className = 'toast'; }, 3000); }
     box.className = 'toast on ' + (bad ? 'bad' : 'run');
   };
@@ -323,7 +332,8 @@ function stageKit_() {
   document.addEventListener('keydown', function (e) {
     var t = e.target && e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
-    var f = keys[String(e.key || '').toLowerCase()];
+    // 한글 입력 상태에서는 e.key가 'ㅊ'나 'Process'로 오므로 물리 키(e.code KeyC)로도 받습니다.
+    var m = /^Key([A-Z])$/.exec(e.code || ''), f = keys[String(e.key || '').toLowerCase()] || (m && keys[m[1].toLowerCase()]);
     if (f) { e.preventDefault(); f(); }
   });
   window.stage = { add: add, toast: toast, fail: oops };
