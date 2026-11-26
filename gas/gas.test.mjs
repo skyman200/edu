@@ -68,8 +68,14 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.ok(env.sheet('설정') && env.sheet('응답'));
   const studentHtml = env.call('doGet', { parameter: {} }).html;
   assert.ok(studentHtml.includes('submitAnswer'));
-  assert.ok(studentHtml.includes('답은 이름 없이 ' + (SOLO ? 'Gemini' : '수업 AI(DIT AI ONE)') + '로 보내 비슷한 답끼리 묶는 데 씁니다. 이름·연락처는 적지 마세요.'));
-  assert.ok(env.call('doGet', { parameter: { v: 'board' } }).html.includes('getBoard'));
+  assert.ok(studentHtml.includes('답을 이름 없이 ' + (SOLO ? 'Gemini' : '수업 AI(DIT AI ONE)') + '에 한 건씩 보내 묶음을 고르거나 광고·욕설 등을 확인합니다.'));
+  assert.ok(studentHtml.includes('교수가 동의하면 같은 AI에 응답을 한꺼번에 보내 새 묶음을 만들 수 있습니다. 이름·연락처는 적지 마십시오.'));
+  assert.match(studentHtml, /id="ai-notice"[^>]*>[^<]*<\/p><textarea[^>]*aria-describedby="ai-notice"/);
+  const boardHtml = env.call('doGet', { parameter: { v: 'board' } }).html;
+  assert.ok(boardHtml.includes('getBoard'));
+  assert.ok(boardHtml.includes('응답을 한꺼번에 보내 새 묶음을 만드는 기능을 켜시겠습니까?'));
+  assert.ok(boardHtml.includes('안내해 주십시오.'));
+  assert.equal(boardHtml.includes('이 동의와 별도로 답을 Gemini에 한 건씩 보내 기존 묶음에 분류'), SOLO);
   const gq = env.call('getQuestion');
   assert.deepEqual([gq.q, gq.open, gq.round], ['AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', true, env.sheet('응답').getSheetId()]);
   const r = env.call('submitAnswer', '시험 때 몰래 쓸까 봐 걱정입니다', 'sid1');
@@ -778,13 +784,15 @@ test('r1 [분류] without a word grouping: opt in for AI; only what AI missed go
   env.call('setBoard', pin, q, '', true, false);
   answers.forEach((t, k) => env.call('submitAnswer', t, 'a' + k));
   const wrong = String((Number(pin) + 1) % 10000).padStart(4, '0');
-  assert.equal(env.call('classifyBoard', wrong, true).ok, false, 'an unauthenticated caller cannot opt in');
-  const pending = env.call('classifyBoard', pin, true);
+  assert.equal(env.call('classifyBoard', pin, true).ok, false, 'a bare flag cannot opt in');
+  const pending = env.call('classifyBoard', pin);
   assert.deepEqual([pending.askAi, pending.aiOff, pending.auto, aiCalls.length], [true, true, null, 0], 'without a prior prompt, no text is sent or grouped');
   assert.equal(env.sheet('설정').getRange('B2').getValue(), '');
   assert.equal(env.props.has('BOARD_AI_GROUPING'), false);
-  const r = env.call('classifyBoard', pending.token, true);
+  assert.equal(env.call('classifyBoard', wrong, pending.confirmKey).ok, false, 'an unauthenticated caller cannot opt in');
+  const r = env.call('classifyBoard', pending.token, pending.confirmKey);
   assert.equal(r.ok, true);
+  assert.equal(env.call('classifyBoard', pending.token, pending.confirmKey).ok, false, 'a used key cannot be replayed');
   assert.equal(aiCalls.length, 1, 'one AI call');
   assert.equal(r.aiOff, false);
   assert.equal(env.props.get('BOARD_AI_GROUPING'), '1');
@@ -820,7 +828,8 @@ test('r1 [분류] without a word grouping: opt in for AI; only what AI missed go
   bad.call('setBoard', bad.call('pin_', 'board'), q, '', true, false);
   answers.forEach((t, k) => bad.call('submitAnswer', t, 'b' + k));
   bad.ctx.UrlFetchApp.fetch = () => ({ getResponseCode: () => 500, getContentText: () => '{"error":"AI 서버 점검 중"}' });
-  const br = bad.call('classifyBoard', bad.call('classifyBoard', bad.call('pin_', 'board')).token, true);
+  const bp = bad.call('classifyBoard', bad.call('pin_', 'board'));
+  const br = bad.call('classifyBoard', bp.token, bp.confirmKey);
   assert.equal(br.ok, true);
   assert.match(br.autoErr, /AI가 묶음을 만들지 못했습니다.*점검/);
   assert.equal(br.auto, null);
@@ -831,7 +840,8 @@ test('r1 [분류] without a word grouping: opt in for AI; only what AI missed go
   odd.setup();
   odd.call('setBoard', odd.call('pin_', 'board'), q, '', true, false);
   answers.forEach((t, k) => odd.call('submitAnswer', t, 'c' + k));
-  const orr = odd.call('classifyBoard', odd.call('classifyBoard', odd.call('pin_', 'board')).token, true);
+  const op = odd.call('classifyBoard', odd.call('pin_', 'board'));
+  const orr = odd.call('classifyBoard', op.token, op.confirmKey);
   assert.match(orr.autoErr, /묶음을 찾지 못/);
   assert.equal(odd.sheet('설정').getRange('B2').getValue(), '');
   // AI answers with a Markdown table and repeats a number on one line: names carry no '|', a repeated number counts once
@@ -839,10 +849,78 @@ test('r1 [분류] without a word grouping: opt in for AI; only what AI missed go
   tbl.setup();
   tbl.call('setBoard', tbl.call('pin_', 'board'), q, '', true, false);
   answers.forEach((t, k) => tbl.call('submitAnswer', t, 'd' + k));
-  const tr = tbl.call('classifyBoard', tbl.call('classifyBoard', tbl.call('pin_', 'board')).token, true);
+  const tp = tbl.call('classifyBoard', tbl.call('pin_', 'board'));
+  const tr = tbl.call('classifyBoard', tp.token, tp.confirmKey);
   assert.equal(tr.auto.kind, 'ai');
   assert.deepEqual(tr.board.cats, ['시설', '환경', '기타'], 'table cells read as names; a group of one repeated number is dropped');
   assert.ok(tbl.rows('응답').every((x) => !String(x[2]).includes('|')), 'no pipe in a saved name');
+});
+
+test('r1 [분류]: turning off invalidates pending consent and prevents a batch still preparing its prompt', () => {
+  const env = boot('r1-board.gs');
+  env.setup();
+  env.ctx.clusterAnswers_ = () => [];
+  const pin = env.call('pin_', 'board'), sh = env.sheet('응답');
+  env.call('setBoard', pin, '합성 질문', '', true, false);
+  for (let i = 1; i <= 4; i++) sh.appendRow([new Date(), '합성 답 ' + i, '', '', '표시', i, '']);
+  const pending = env.call('classifyBoard', pin);
+  assert.ok(pending.confirmKey);
+  env.call('disableBoardAiGrouping');
+  assert.match(env.log.alerts.at(-1), /이미 전송을 시작한 요청은 취소할 수 없습니다/);
+  const before = env.log.requests.length;
+  const stale = env.call('classifyBoard', pending.token, pending.confirmKey);
+  assert.equal(stale.ok, false);
+  assert.match(stale.msg, /동의 확인이 만료/);
+  assert.deepEqual([env.props.get('BOARD_AI_GROUPING'), env.log.requests.length], ['0', before]);
+  const fresh = env.call('classifyBoard', pending.token);
+  assert.ok(fresh.confirmKey && fresh.confirmKey !== pending.confirmKey);
+  assert.equal(env.call('classifyBoard', pending.token, pending.confirmKey).ok, false);
+
+  const mask = env.ctx.maskContact_;
+  env.ctx.maskContact_ = (t) => {
+    assert.equal(env.props.get('BOARD_AI_GROUPING'), '1', 'activation precedes prompt assembly');
+    env.call('disableBoardAiGrouping');
+    env.ctx.maskContact_ = mask;
+    return mask(t);
+  };
+  const revoked = env.call('classifyBoard', fresh.token, fresh.confirmKey);
+  assert.deepEqual([revoked.auto, revoked.aiOff, revoked.confirmKey, env.props.get('BOARD_AI_GROUPING'), env.log.requests.length], [null, true, undefined, '0', before]);
+});
+
+test('r1 [분류]: after the second range write fails, reload the partly saved sheet and never write a manual row', () => {
+  for (const batch of [false, true]) {
+    const env = boot('r1-board.gs');
+    env.setup();
+    const pin = env.call('pin_', 'board'), sh = env.sheet('응답');
+    if (batch) {
+      env.call('setBoard', pin, '합성 질문', '', true, false);
+      env.ctx.clusterAnswers_ = () => [{ name: '부정행위', idx: [0, 1] }, { name: '업무 부담', idx: [2, 3] }];
+    }
+    ['부정행위', '합성 수동 답', '업무 부담', '부정행위', '업무 부담'].forEach((text, i) => {
+      sh.appendRow([new Date(), text, i === 1 ? '평가 방법' : '', '', '표시', i + 1, '']);
+    });
+    env.cache.delete('board'); // direct fixture writes do not invalidate the board cached by setBoard
+    const before = env.call('getBoard');
+    assert.equal(before.items[0].c, batch ? '' : '기타');
+    assert.ok(env.cache.has('board'));
+    const getRange = sh.getRange.bind(sh), writes = [];
+    sh.getRange = (...args) => {
+      const range = getRange(...args), setValues = range.setValues.bind(range);
+      range.setValues = (v) => {
+        writes.push(args);
+        if (writes.length === 2) throw new Error('두 번째 범위 저장 실패');
+        return setValues(v);
+      };
+      return range;
+    };
+    const r = env.call('classifyBoard', pin);
+    assert.deepEqual([r.ok, r.partial, r.auto, r.moved], [true, true, null, 0]);
+    assert.deepEqual(writes, [[2, 3, 1, 5], [4, 3, 3, 5]]);
+    assert.deepEqual(env.rows('응답').map((row) => row[2]), ['부정행위', '평가 방법', '', '', '']);
+    assert.deepEqual(r.board, env.call('getBoard'));
+    assert.deepEqual([r.board.rev, r.board.mix], [before.rev + 1, before.mix + 1]);
+    if (!batch) assert.deepEqual(r.board.items.map((item) => item.c), ['부정행위', '평가 방법', '기타', '기타', '기타']);
+  }
 });
 
 test('r1 [분류]: generation sends only the latest 80 eligible answers and masks contacts that straddle the 80-character cutoff', () => {
@@ -969,7 +1047,7 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
   const stub = `<script>(function(){var BOARD=${JSON.stringify(board)},log=[],T='t'+'0'.repeat(32);
     function run(ok,bad){return new Proxy({},{get:function(_,n){if(n==='withSuccessHandler')return function(f){return run(f,bad)};if(n==='withFailureHandler')return function(f){return run(ok,f)};
       return function(){var a=[].slice.call(arguments);log.push([n,a[0],a[1]]);var askAi=!a[1]&&log.filter(function(x){return x[0]==='classifyBoard'}).length>=3;
-        var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:!askAi,askAi:askAi,aiOff:!a[1],board:BOARD}:{ok:false,msg:'x'};
+        var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:!askAi,confirmKey:askAi?'fixture-confirm':'',aiOff:!a[1],partial:!!a[1],board:BOARD}:{ok:false,msg:'x'};
         setTimeout(function(){ok&&ok(JSON.parse(JSON.stringify(r)))},20)}}})}
     window.google={script:{run:run()}};
     function key(k,t){document.dispatchEvent(new KeyboardEvent('keydown',{key:k,code:t||''}))}
@@ -1001,10 +1079,11 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
   const prompt = res('prompt'), declined = res('declined'), accepted = res('accepted');
   assert.equal(prompt.dialog, true, 'the projector shows an in-page confirmation');
   assert.equal(declined.dialog, false);
-  assert.match(declined.toast, /생성형 AI 묶기가 꺼져 있습니다/);
+  assert.match(declined.toast, /응답을 한꺼번에 보내 새 묶음을 만드는 기능이 꺼져 있습니다/);
   assert.deepEqual(sent(declined), sent(d), 'declining sends no follow-up request');
   assert.equal(accepted.dialog, false);
-  assert.deepEqual(accepted.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[2]), [false, false, false, false, true]);
+  assert.match(accepted.toast, /일부만 저장되었을 수 있습니다\. 화면을 다시 불러옵니다\./);
+  assert.deepEqual(accepted.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[2]), ['', '', '', '', 'fixture-confirm']);
 });
 
 test('web app address: never getUrl(); the board QR uses the saved /exec or the wizard join, nothing anonymous is saved', () => {
