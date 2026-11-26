@@ -2,12 +2,21 @@
    사용법: 웹 도구(https://kimcook-edu.pages.dev/#gas)에서 이 레시피를 고르고 안내를 따르세요. 코드를 붙여 넣고 start 를 실행하면 준비가 끝납니다.
    질문과 묶음은 강의장 큰 화면에서 바로 바꿀 수 있습니다(교수 PIN 필요). [설정] 시트에서 바꿔도 됩니다.
    답은 [응답] 시트에 쌓입니다. 학생이 폰에서 묶음 칩을 고르면 그 묶음으로, 안 고르면 먼저 낱말 맞추기(API 없음)로, 그래도 못 정하면 Jev가 묶음을 고릅니다.
-   큰 화면의 [분류](교수 PIN)는 한 번 누르면 기타·미분류·오류인 답을 다시 나누고, 묶음이 없거나 기타가 많으면 비슷한 답끼리 알아서 묶어(API 없이, 모자라면 AI로) 묶음 이름을 저장하고 답을 옮깁니다. */
+   큰 화면의 [분류](교수 PIN)는 기타·미분류·오류인 답을 다시 나누고, 묶음이 없거나 기타가 많으면 비슷한 답끼리 묶어 바로 저장합니다. 생성형 AI로 답을 묶을 때는 교수의 동의가 필요합니다. */
 var BOARD_HEAD = ['시간', '응답', '묶음', '확신도', '상태', '번호', '자동 묶음'];
+var BOARD_AI_PROP = 'BOARD_AI_GROUPING', BOARD_AI_NAME = typeof CLASS_AI_NAME === 'string' ? CLASS_AI_NAME : 'Gemini';
+var AUTO_EMPTY = '미분류 (자동, 묶음 없음)'; // 쉼표를 쓸 수 없는 실제 묶음 이름과 구분합니다.
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('반응판')
-    .addItem('처음 준비', 'setup').addItem('새 질문 시작(지금 응답은 보관)', 'newRound').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 PIN 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl').addToUi();
+    .addItem('처음 준비', 'setup').addItem('새 질문 시작(지금 응답은 보관)', 'newRound').addItem('수업 코드 입력', 'setClassCode').addItem('주소와 교수 PIN 보기', 'showUrls').addItem('웹 앱 주소 넣기', 'setWebUrl')
+    .addItem('AI 묶기 끄기', 'disableBoardAiGrouping').addToUi();
+}
+
+function disableBoardAiGrouping() {
+  menuOnly_();
+  PropertiesService.getScriptProperties().setProperty(BOARD_AI_PROP, '0');
+  say_('AI 묶기를 껐습니다. 다시 켜려면 큰 화면의 [분류]에서 확인할 때 동의해 주세요.');
 }
 
 function setup() {
@@ -219,7 +228,7 @@ function errMark_(err) { return '오류: ' + String(err && err.message || err).r
 // pick: 학생이 칩으로 고른 묶음(없으면 빈 값). 지금 묶음 목록에 있는 이름이나 '기타'일 때만 받고, 그러면 묶음은 Jev로 고르지 않습니다(스팸 판정만 합니다).
 // 칩이 없으면 먼저 낱말 맞추기(API 없음, 확신도 칸 '낱말'), 못 정하면 Jev가 고릅니다. 스팸 판정은 어느 길이든 Jev 한 번으로 합니다.
 // Jev가 실패하면 답은 그대로 받고 묶음을 비운 채 확신도 칸에 '오류: 이유'를 남깁니다. 큰 화면의 [분류]가 이 답을 다시 나눕니다.
-// 자동 묶음 칸(G): 이 코드가 쓴 묶음. 교수가 시트에서 묶음 칸을 고치면 두 칸이 달라지고, [분류]는 그 답을 건드리지 않습니다.
+// 자동 묶음 칸(G): 이 코드가 쓴 묶음 또는 미분류 표시. 교수의 수동 분류는 [분류]가 건드리지 않습니다.
 function submitAnswer(text, sid, round, pick) {
   var c = cfg_();
   if (!c.open) return { ok: false, msg: '지금은 답을 받지 않습니다.' };
@@ -253,7 +262,7 @@ function submitAnswer(text, sid, round, pick) {
     var old = ss_().getSheetByName('응답');
     if (round && old && old.getSheetId() !== Number(round)) return { ok: false, stale: true, msg: '그사이 새 질문으로 넘어갔습니다. 질문을 확인하고 다시 보내 주세요.' };
     var sh = sheet_('응답', BOARD_HEAD);
-    row_(sh, [new Date(), text, cat, conf, status, id, cat]);
+    row_(sh, [new Date(), text, cat, conf, status, id, cat || AUTO_EMPTY]);
     // Jev가 이 묶음 목록에서 기타로 본 답은 [분류]가 같은 목록으로 다시 묻지 않게 기억합니다(이미 잡은 잠금 안).
     if (jevOther) seenAdd_(p, c.cats.join('|'), [id]);
     no = sh.getLastRow() - 1;
@@ -268,25 +277,35 @@ function submitAnswer(text, sid, round, pick) {
 //     같은 묶음 목록에서 Jev가 이미 '기타'라고 본 답(제출 때 포함)은 다음에 또 묻지 않습니다.
 // (나) 묶음이 없거나 (가) 뒤에도 기타가 많으면(4개 이상, 25% 이상) 기타인 답끼리 스스로 묶어 바로 저장하고 답을 옮깁니다.
 //     먼저 API 없이 비슷한 낱말로 묶어 보고, 답의 60% 이상이 묶이면 그것을 씁니다(API 0번).
-//     그보다 적게 묶이면 AI 글쓰기(ai_) 한 번으로 3~6묶음을 만들게 하고, AI가 빠뜨린 답만 Jev로 나눕니다.
+//     그보다 적게 묶이고 교수가 동의한 경우에만 AI 글쓰기(ai_)로 묶고, AI가 빠뜨린 답만 Jev로 나눕니다.
 //     실패하면 이유를 알리고 아무것도 저장하지 않습니다. 되돌리려면 질문 바꾸기에서 이번에 새로 생긴 묶음 이름만 지우고 바꾸기를 누릅니다(그 답은 기타로 돌아갑니다).
 var CLASSIFY_MAX = typeof ensureKey_ === 'function' ? 10 : 20, CLASSIFY_SEC = typeof ensureKey_ === 'function' ? 120 : 150;
 var CLASSIFY_RATE = typeof ensureKey_ === 'function' ? 30 : 90;
 var AUTO_SHARE = 0.6, AUTO_LIST = 80;
-function classifyBoard(cred) {
+function classifyBoard(cred, allowAi) {
   var chk = auth_(cred, 'board');
   if (!chk.ok) return chk;
-  var cache = CacheService.getScriptCache();
+  var cache = CacheService.getScriptCache(), consent = 'board-ai:' + chk.token;
   if (cache.get('classifying')) return { ok: false, busy: true, msg: '이미 분류하고 있습니다. 끝나면 결과가 뜹니다.', token: chk.token };
-  if (!throttle_('classify', 4, 60)) return { ok: false, msg: '잠시 뒤에 다시 눌러 주세요.', token: chk.token };
+  var confirmed = allowAi === true && cache.get(consent);
+  if (!confirmed && !throttle_('classify', 4, 60)) return { ok: false, msg: '잠시 뒤에 다시 눌러 주세요.', token: chk.token };
   cache.put('classifying', '1', 400);
-  try { return classify_(chk.token); } finally { cache.remove('classifying'); }
+  try {
+    cache.remove(consent);
+    if (confirmed) PropertiesService.getScriptProperties().setProperty(BOARD_AI_PROP, '1');
+    var out = classify_(chk.token);
+    if (out.askAi) cache.put(consent, '1', 300);
+    return out;
+  } finally { cache.remove('classifying'); }
 }
 
 var LIMIT_MSG = typeof ensureKey_ === 'function' ? 'AI 사용 한도(1분 30번)에 닿았습니다. 1분쯤 뒤에 다시 눌러 주세요.' : '수업 API 한도(1분 90번)에 닿았습니다.';
 function isOther_(c, r) { return c.cats.length >= 2 && c.cats.indexOf(String(r[2])) < 0; }
-// 건드려도 되는 답: 학생이 칩으로 고른 것('직접')과 교수가 시트에서 손으로 고친 것(자동 묶음 칸과 다름)은 빼고 봅니다.
-function isFree_(r) { return String(r[3]) !== '직접' && !(String(r[6]) !== '' && String(r[2]) !== String(r[6])); }
+// 직접 고른 답과 수동 분류는 보호합니다. G가 빈 옛 행도 C가 채워져 있으면 수동으로 봅니다.
+function isFree_(r) {
+  var auto = String(r[6] == null ? '' : r[6]);
+  return String(r[3]) !== '직접' && String(r[2]) === (auto === AUTO_EMPTY ? '' : auto);
+}
 function isErr_(r) { return /^오류/.test(String(r[3])) || (String(r[2]) === '' && String(r[3]) === ''); }
 
 // Jev가 '기타'라고 본 답 번호를 이 묶음 목록(key)에 붙여 기억합니다(최근 800개). 부르는 쪽이 스크립트 잠금을 잡고 있어야 합니다.
@@ -314,14 +333,17 @@ function commit_(sh, changes, o) {
     now.forEach(function (r, k) { if (String(r[5]) !== '') at[r[5]] = k; });
     changes.forEach(function (ch) {
       var k = at[ch.r[5]], r = k == null ? null : now[k];
-      if (!r || String(r[2]) !== String(ch.r[2]) || String(r[3]) !== String(ch.r[3])) return;
-      r[2] = ch.cat; r[3] = ch.conf; r[6] = ch.cat;
+      if (!r || !isFree_(r) || String(r[2]) !== String(ch.r[2]) || String(r[3]) !== String(ch.r[3]) || String(r[6]) !== String(ch.r[6]) || String(r[4]) !== String(ch.r[4])) return;
+      r[2] = ch.cat; r[3] = ch.conf; r[6] = ch.cat || AUTO_EMPTY;
       if (ch.hide) r[4] = '숨김';
       hit.push(k);
       if (ch.cat !== '기타' && !ch.hide) res.moved++;
     });
-    if (hit.length) {
-      var lo = Math.min.apply(null, hit), hi = Math.max.apply(null, hit);
+    // 바뀐 줄만 씁니다. 사이에 끼어 있는 수동 행의 수식이나 값도 그대로 둡니다.
+    hit.sort(function (a, b) { return a - b; });
+    for (var i = 0; i < hit.length;) {
+      var lo = hit[i], hi = hit[i++];
+      while (hit[i] === hi + 1) hi = hit[i++];
       sh.getRange(lo + 2, 3, hi - lo + 1, 5).setValues(now.slice(lo, hi + 1).map(function (r) { return r.slice(2, 7).map(cell_); }));
     }
     if (o.cats) ss_().getSheetByName('설정').getRange('B2').setValue(cell_(o.cats.join(', ')));
@@ -334,7 +356,7 @@ function commit_(sh, changes, o) {
 
 function classify_(token) {
   var c = cfg_(), sh = ss_().getSheetByName('응답'), t0 = Date.now(), grouped = c.cats.length >= 2, props = PropertiesService.getScriptProperties(), key = c.cats.join('|');
-  var out = { ok: true, token: token, grouped: grouped, moved: 0, words: 0, jev: 0, left: 0, more: 0, stopped: '', auto: null, autoErr: '', autoNone: false };
+  var out = { ok: true, token: token, grouped: grouped, moved: 0, words: 0, jev: 0, left: 0, more: 0, stopped: '', auto: null, autoErr: '', autoNone: false, askAi: false, aiOff: props.getProperty(BOARD_AI_PROP) !== '1' };
   if (!sh) { out.board = getBoard(); out.left = grouped ? out.board.counts['기타'] || 0 : out.board.total; return out; }
   var head = sh.getRange(1, 7);
   if (String(head.getValue()) === '') head.setValue('자동 묶음').setFontWeight('bold');
@@ -368,7 +390,8 @@ function classify_(token) {
   if (!res.aborted && !out.stopped && !out.more && (!grouped || (left >= 4 && left >= board.total * 0.25))) {
     try {
       var a = autoGroup_(c, sh, key, t0);
-      if (a.none) { out.autoNone = true; out.autoFull = !!a.full; }
+      if (a.askAi) { out.askAi = true; out.aiOff = true; }
+      else if (a.none) { out.autoNone = true; out.autoFull = !!a.full; }
       else if (a.err) out.autoErr = a.err;
       else { out.auto = { kind: a.kind, groups: a.groups, moved: a.moved }; out.jev += a.jev; out.more += a.more; if (a.stopped) out.stopped = a.stopped; }
     } catch (e) { out.autoErr = String(e && e.message || e).slice(0, 160); }
@@ -387,7 +410,15 @@ function shortName_(nm) {
   return (sp >= 3 ? cut.slice(0, sp) : cut).replace(/\s*(및|와|과|의|,)$/, '').trim();
 }
 
-// 스스로 묶기. 돌려주는 값: {none:true}(묶을 답이 적음) | {err} | {kind:'words'|'ai', groups, moved, jev, more, stopped}
+// 연락처 전체를 같은 길이로 가린 뒤 자릅니다. 80자 경계에 걸친 연락처 일부도 보내지 않습니다.
+function maskContact_(text) {
+  var mask = function (s) { return '*'.repeat(s.length); };
+  return text.replace(/[\p{L}\p{N}._%+'-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu, mask)
+    .replace(/(^|[^\d+])(?:(?:\+?82[\s.-]*)?(?:\(?0\d{1,2}\)?|10)[\s.-]*\d{3,4}[\s.-]*\d{4}|\+\d{1,3}(?:[\s.-]+\(?\d{1,4}\)?){1,4}[\s.-]+\d{3,4}|\d{4}[\s.-]+\d{4})(?!\d)/g,
+      function (s, prefix) { return prefix + mask(s.slice(prefix.length)); });
+}
+
+// 스스로 묶기. {none:true}(묶을 답이 적음) | {askAi:true}(동의 없음) | {err} | {kind, groups, moved, jev, more, stopped}
 // 묶을 답: 숨김이 아니고 건드려도 되며, 묶음이 있으면 그 밖의 답. 쓰기는 commit_ 한 번(묶음 목록 저장 + 답 옮기기)입니다.
 function autoGroup_(c, sh, key, t0) {
   var room = Math.min(6, 10 - c.cats.length), grouped = c.cats.length >= 2;
@@ -402,16 +433,18 @@ function autoGroup_(c, sh, key, t0) {
   if (cl.length >= 2 && covered >= pool.length * AUTO_SHARE) {
     cl.forEach(function (g) { names.push(g.name); g.idx.forEach(function (i) { assign[i] = g.name; }); });
   } else {
+    if (PropertiesService.getScriptProperties().getProperty(BOARD_AI_PROP) !== '1') return { askAi: true };
     kind = 'ai';
     // AI는 기다림이 길어(재시도 포함 수 분) 6분 한도를 넘지 않게 시작 1분 안에만 부릅니다.
     if (Date.now() - t0 > Math.min(60, CLASSIFY_SEC) * 1000) return { err: '시간이 모자라 AI로 묶지 못했어요. [분류]를 한 번 더 누르세요.' };
     if (!throttle_('all', CLASSIFY_RATE, 60) || !throttle_('autogroup', 3, 60)) return { err: '잠시 뒤에 다시 눌러 주세요. (' + LIMIT_MSG + ')' };
-    var first = Math.max(0, pool.length - AUTO_LIST), list = texts.slice(first);
-    var prompt = '아래는 수업에서 학생 ' + list.length + '명이 이름 없이 쓴 "' + c.q + '"에 대한 답이야. 하나도 빠뜨리지 말고 비슷한 것끼리 3~' + Math.max(3, room) + '개 묶음으로 정리해 줘.\n' +
+    var recent = pool.map(function (r, i) { return i; }).sort(function (a, b) { return Number(pool[a][5]) - Number(pool[b][5]); }).slice(-AUTO_LIST);
+    var list = recent.map(function (i) { return texts[i]; });
+    var prompt = '아래는 수업에서 학생 ' + list.length + '명이 이름 없이 쓴 "' + maskContact_(c.q) + '"에 대한 답이야. 하나도 빠뜨리지 말고 비슷한 것끼리 3~' + Math.max(3, room) + '개 묶음으로 정리해 줘.\n' +
       '형식을 정확히 지켜. 한 줄에 묶음 하나, 다른 말은 쓰지 마.\n묶음 이름 | 답 번호들(쉼표로 구분)\n' +
       '규칙:\n- 묶음 이름은 공백 포함 12글자 안쪽입니다.\n- 번호는 아래 목록의 번호입니다. 모든 번호를 어느 한 묶음에 넣으세요.\n- "기타"라는 묶음은 만들지 않습니다.' +
-      (c.cats.length ? '\n- 이미 있는 묶음 이름(' + c.cats.join(', ') + ')은 다시 쓰지 않습니다.' : '') + '\n\n[답 목록]\n' +
-      list.map(function (t, i) { return (i + 1) + '. ' + t.replace(/\s+/g, ' ').slice(0, 80); }).join('\n');
+      (c.cats.length ? '\n- 이미 있는 묶음 이름(' + maskContact_(c.cats.join(', ')) + ')은 다시 쓰지 않습니다.' : '') + '\n\n[답 목록]\n' +
+      list.map(function (t, i) { return (i + 1) + '. ' + maskContact_(t.replace(/\s+/g, ' ')).slice(0, 80); }).join('\n');
     var raw;
     try { raw = ai_(prompt); } catch (e) { return { err: 'AI가 묶음을 만들지 못했습니다. ' + String(e && e.message || e).slice(0, 160) }; }
     var used = {};
@@ -421,7 +454,7 @@ function autoGroup_(c, sh, key, t0) {
       if (!m || names.length >= room) return;
       var nm = shortName_(cats_(m[1].replace(/\*\*/g, ''))[0] || ''), nums = (m[2].match(/\d+/g) || []).map(Number).filter(function (n, k, a) { return n >= 1 && n <= list.length && !used[n] && a.indexOf(n) === k; });
       if (!nm || c.cats.indexOf(nm) >= 0 || names.indexOf(nm) >= 0 || nums.length < 2) return;
-      names.push(nm); nums.forEach(function (n) { used[n] = 1; assign[first + n - 1] = nm; });
+      names.push(nm); nums.forEach(function (n) { used[n] = 1; assign[recent[n - 1]] = nm; });
     });
     if (names.length < 2) return { err: 'AI 답에서 묶음을 찾지 못했습니다. 다시 눌러 주세요.' };
   }
@@ -536,6 +569,7 @@ var ASK_CSS = [
   '.cnt{font:600 12px/1 Montserrat,sans-serif;letter-spacing:.04em;color:var(--mut);font-variant-numeric:tabular-nums}',
   '#b{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:12px;padding:18px 20px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:#fff;font:700 17px/1 Pretendard,sans-serif;cursor:pointer;transition:transform .15s,opacity .3s}',
   '#b:active{transform:translateY(1px)}#b:disabled{opacity:.35;cursor:default}#b i{font-style:normal;font-family:Montserrat,sans-serif;transition:transform .3s var(--e)}#b:not(:disabled):hover i{transform:translateX(4px)}',
+  '.ai-notice{margin:10px 0 0;color:var(--mut);font-size:14px;line-height:1.5}',
   '#m{min-height:1.5em;margin:14px 0 0}.msg{margin:0;font-size:15px;font-weight:600;line-height:1.45}.msg b{color:var(--red)}.msg.err{color:var(--red)}',
   '.msg.rise,.sent.rise{animation:rise .55s var(--e) both}@keyframes rise{from{opacity:0;transform:translateY(12px)}}',
   '.mine{margin-top:34px}.mine[hidden]{display:none}',
@@ -660,8 +694,9 @@ function askClient_() {
 var ASK_HTML = '<main class="ask"><div class="bar"><span>LIVE BOARD</span><span id="st">받는 중</span></div>' +
   '<p class="qk">Q.</p><h1 id="q">…</h1>' +
   '<div class="card" id="card"><div class="ch"><span>MY THOUGHT</span><span>이름 없이 보냅니다</span></div>' +
-  '<textarea id="t" maxlength="140" placeholder="한두 문장으로 적어 주세요"></textarea><div class="chips" id="chips" hidden></div>' +
+  '<textarea id="t" maxlength="140" aria-describedby="ai-notice" placeholder="한두 문장으로 적어 주세요"></textarea><div class="chips" id="chips" hidden></div>' +
   '<div class="cf"><div class="meter" id="meter"><i id="mt"></i></div><span class="cnt" id="n">0 / 140</span></div></div>' +
+  '<p class="ai-notice" id="ai-notice">답은 이름 없이 ' + (BOARD_AI_NAME === 'Gemini' ? BOARD_AI_NAME : '수업 AI(' + BOARD_AI_NAME + ')') + '로 보내 비슷한 답끼리 묶는 데 씁니다. 이름·연락처는 적지 마세요.</p>' +
   '<button id="b">보내기<i>→</i></button><div id="m"></div>' +
   '<section class="mine" id="mine" hidden><h2><span>내가 보낸 생각</span><span id="mc">0개</span></h2><div id="ml"></div></section></main>' +
   '<script>(' + askClient_.toString() + ')();</script>';
@@ -724,8 +759,9 @@ var BOARD_CSS = [
   '.edit label[hidden]{display:none}.edit label{display:block;margin:0 0 16px;font-size:14px;font-weight:700}.edit label small{display:block;margin:2px 0 6px;font-weight:500;color:var(--mut)}',
   '.edit textarea,.edit input[type=text],.edit input[type=password]{display:block;width:100%;margin-top:6px;padding:10px 12px;border:1px solid var(--ink);border-radius:2px;background:transparent;color:var(--ink);font:500 16px/1.45 Pretendard,sans-serif;resize:vertical}',
   '.edit .ck{display:flex;align-items:center;gap:10px;font-weight:600}.edit .ck input{width:18px;height:18px;margin:0;accent-color:#141414}',
-  '.edit .row{display:flex;gap:8px;margin-top:22px}.edit button{padding:11px 18px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:var(--bg);font:700 15px Pretendard,sans-serif;cursor:pointer}',
-  '.edit button.g{background:transparent;color:var(--ink)}.edit .msg{min-height:1.4em;margin:14px 0 0;font-size:14px;color:var(--mut)}.edit .msg.err{color:var(--red)}'
+  '.edit .row,.ai-confirm .row{display:flex;gap:8px;margin-top:22px}.edit button,.ai-confirm button{padding:11px 18px;border:1px solid var(--ink);border-radius:2px;background:var(--ink);color:var(--bg);font:700 15px Pretendard,sans-serif;cursor:pointer}',
+  '.edit button.g,.ai-confirm button.g{background:transparent;color:var(--ink)}.edit .msg{min-height:1.4em;margin:14px 0 0;font-size:14px;color:var(--mut)}.edit .msg.err{color:var(--red)}',
+  '.ai-confirm{width:min(520px,94vw);padding:26px;border:1px solid var(--ink);background:var(--bg);color:var(--ink)}.ai-confirm h2{margin:0;font-size:24px}'
 ].join('');
 
 function boardClient_() {
@@ -983,9 +1019,13 @@ function boardClient_() {
         .suggestCats(cred, $('#eq').value);
     };
     // [분류](C): 한 번 누르면 알아서 묶입니다. 기타·미분류·오류인 답은 낱말 맞추기 → Jev로 다시 나누고, 묶음이 없거나 기타가 많으면
-    // 서버가 비슷한 답끼리 스스로 묶어(API 없이, 모자라면 AI로) 묶음을 저장하고 답을 옮깁니다. 결과는 막대에 바로 보입니다.
+    // 서버가 비슷한 답끼리 스스로 묶어 바로 저장합니다. 생성형 AI가 필요하면 동의한 뒤에만 이어서 합니다.
     // 교수 PIN이 필요해 편집 칸이 열린 경우(pending)에는 PIN이 다 들어오면(4자리, 또는 Enter) 바로 이어서 합니다.
+    var aiConfirm = $('#ai-confirm'), aiToken = '';
+    $('#ai-no').onclick = function () { aiConfirm.close(); };
+    $('#ai-yes').onclick = function () { var t = aiToken; aiConfirm.close(); if (t) runClassify(t, true); };
     function classify() {
+      if (aiConfirm.open) return;
       if (sorting) { toast('분류하는 중이에요. 잠시만 기다려 주세요.'); return; }
       var pin = ed.classList.contains('on') ? $('#ep').value.trim() : '', cred = pin || tok();
       if (!cred) {
@@ -995,6 +1035,9 @@ function boardClient_() {
       }
       if (pin && !/^\d{4}$/.test(pin)) { fail('분류를 못했어요. PIN은 숫자 4자리입니다.'); return; }
       pending = '';
+      runClassify(cred, false);
+    }
+    function runClassify(cred, allowAi) {
       sorting = true; if (sortBtn) sortBtn.label('분류 중…');
       toast('분류하는 중이에요. 기타에 있는 답을 다시 나누고, 묶음이 없으면 알아서 묶습니다.');
       var end = function () { sorting = false; if (sortBtn) sortBtn.label('분류'); };
@@ -1012,12 +1055,14 @@ function boardClient_() {
         if (r.auto || r.grouped) msg += '기타에 ' + r.left + '개가 남았어요.';
         if (r.autoNone) msg += (msg ? ' ' : '') + (r.autoFull ? '묶음이 거의 꽉 차서 새 묶음은 만들지 않았어요.' : '새로 묶을 답이 아직 적어요(4개 이상 필요). 답이 더 모이면 다시 눌러 주세요.');
         if (r.more) msg += ' ' + r.more + '개는 이번에 다 못 나눴어요. [분류]를 한 번 더 누르세요.';
+        var off = r.aiOff ? ' 생성형 AI 묶기가 꺼져 있습니다. 낱말 맞추기와 기존 판정만 사용합니다.' : '';
         // 멈춘 이유(r.stopped)와 묶기 실패(r.autoErr)는 몇 개를 처리했든 알립니다. 실패한 묶기는 아무것도 저장하지 않았습니다.
-        if (r.autoErr) fail('묶음을 만들지 못했어요. ' + r.autoErr + (tot ? ' (' + tot + '개는 옮겼어요.)' : ' 아무것도 바꾸지 않았어요.'));
-        else if (r.stopped) fail('분류를 다 못 했어요. ' + r.stopped + (r.more ? ' ' + r.more + '개를 그대로 두었어요.' : '') + (tot || r.words ? ' (' + (tot || r.words) + '개는 옮겼어요.)' : ''));
-        else toast(msg);
+        if (r.autoErr) fail('묶음을 만들지 못했어요. ' + r.autoErr + (tot ? ' (' + tot + '개는 옮겼어요.)' : ' 아무것도 바꾸지 않았어요.') + off);
+        else if (r.stopped) fail('분류를 다 못 했어요. ' + r.stopped + (r.more ? ' ' + r.more + '개를 그대로 두었어요.' : '') + (tot || r.words ? ' (' + (tot || r.words) + '개는 옮겼어요.)' : '') + off);
+        else toast((msg + off).trim());
+        if (r.askAi) { aiToken = r.token; aiConfirm.showModal(); }
       }).withFailureHandler(function (e) { end(); fail('분류를 못했어요. ' + e.message); })
-        .classifyBoard(cred);
+        .classifyBoard(cred, allowAi);
     }
     // PIN이 모자라 열린 편집 칸: 4자리가 다 들어오거나 Enter를 치면 바로 분류합니다.
     $('#ep').oninput = function () { if (pending === 'classify' && /^\d{4}$/.test(this.value.trim())) classify(); };
@@ -1063,5 +1108,9 @@ var BOARD_HTML = '<div class="stage"><header class="top" id="top"><div class="he
   '<label class="ck"><input type="checkbox" id="ef">지금까지 응답은 시트에 보관하고 화면을 비웁니다</label>' +
   '<label id="epl">교수 PIN<small>시트 메뉴 반응판 → 주소와 교수 PIN 보기. 한 번 맞으면 이 창을 닫을 때까지 다시 묻지 않습니다.</small><input type="password" id="ep" inputmode="numeric" maxlength="4" autocomplete="off"></label>' +
   '<div class="row"><button id="es">바꾸기</button><button id="ek" class="g">분류</button><button id="ex" class="g">닫기</button></div><p class="msg" id="em"></p></aside>' +
+  '<dialog class="ai-confirm" id="ai-confirm" aria-labelledby="ai-title" aria-describedby="ai-desc"><h2 id="ai-title">생성형 AI 묶기를 켜시겠습니까?</h2>' +
+  '<p id="ai-desc">비슷한 답을 묶기 위해 질문·기존 묶음 이름과 최근 분류 대상 응답 최대 80건의 앞 80자씩을 ' + BOARD_AI_NAME + '에 보냅니다. 학생 이름은 따로 수집하거나 보내지 않으며, 답에 적힌 이메일·전화번호 패턴은 가립니다. 답에 이름을 적지 않도록 안내해 주세요.</p>' +
+  '<p>동의는 저장되며 시트 메뉴 반응판 → AI 묶기 끄기에서 취소할 수 있습니다.</p>' +
+  '<div class="row"><button type="button" class="g" id="ai-no" autofocus>지금은 사용하지 않기</button><button type="button" id="ai-yes">동의하고 AI 묶기 켜기</button></div></dialog>' +
   '<script src="https://kimcook-edu.pages.dev/vendor/qrcode/qrcode.js"></script>' + STAGE_JS + '<script>var BOOT = /*BOOT*/null;</script>' +
   '<script>(' + boardClient_.toString() + ')();</script>';

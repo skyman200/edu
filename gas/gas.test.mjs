@@ -66,7 +66,9 @@ test('r1: setup, pages, submit grouped by Jev, moderation, throttle, Jev outage'
   assert.equal(env.log.menus[0].name, '반응판');
   for (const [, fn] of env.log.menus[0].items) assert.equal(typeof env.ctx[fn], 'function', fn);
   assert.ok(env.sheet('설정') && env.sheet('응답'));
-  assert.ok(env.call('doGet', { parameter: {} }).html.includes('submitAnswer'));
+  const studentHtml = env.call('doGet', { parameter: {} }).html;
+  assert.ok(studentHtml.includes('submitAnswer'));
+  assert.ok(studentHtml.includes('답은 이름 없이 ' + (SOLO ? 'Gemini' : '수업 AI(DIT AI ONE)') + '로 보내 비슷한 답끼리 묶는 데 씁니다. 이름·연락처는 적지 마세요.'));
   assert.ok(env.call('doGet', { parameter: { v: 'board' } }).html.includes('getBoard'));
   const gq = env.call('getQuestion');
   assert.deepEqual([gq.q, gq.open, gq.round], ['AI를 수업에 쓰는 것에서 가장 걱정되는 점은?', true, env.sheet('응답').getSheetId()]);
@@ -596,7 +598,7 @@ test('r1 keyword stage: one clear group name decides without Jev; generic, share
   assert.equal(send('업무 부담이 커질까 걱정').cat, '업무 부담');
   assert.deepEqual(calls, [['bad']], 'decided by words: only the spam check calls Jev');
   assert.deepEqual(env.rows('응답')[0].slice(2, 7), ['업무 부담', '낱말', '표시', env.rows('응답')[0][5], '업무 부담'], 'the method and the auto group are recorded');
-  assert.equal(send('평가 방법이 맞을까?').cat, '평가 방법', 'the whole name inside the answer');
+  assert.equal(send('보고서 평가 방법이 궁금합니다').cat, '평가 방법', 'one whole two-word name decides');
   assert.equal(send('학습 효과 저하가 걱정').cat, '학습 효과 저하', 'a three-word name decides only when it is there whole');
   for (const t of ['사용 방법을 잘 몰라서', '부정행위는 별로 걱정 안 돼요', '과제 평가 때문에 업무가 늘어요', '시험 때 몰래 쓸까 봐 걱정입니다']) {
     send(t);
@@ -604,10 +606,10 @@ test('r1 keyword stage: one clear group name decides without Jev; generic, share
     assert.notEqual(env.rows('응답').at(-1)[3], '낱말');
   }
   // review 4: negations (also written together), a lone shared word, a word inside a longer word, and an easy-looking answer go to Jev
-  for (const t of ['부정행위 걱정은 안함', '학생 개인정보가 AI 학습에 쓰이는 것', '학습 효과는 오히려 좋아질 듯', '업무가 줄 것 같다', '평가 방법은 괜찮아요', '내 업무가 늘어나는 게 아닐까', '부정행위 걱정 없음', '부정행위는 못 막아요',
+  for (const t of ['부정행위는 안생길 듯합니다', '새 도구의 사용 순서가 헷갈립니다', '실습 때 학습 효과가 달라질 듯합니다', '사전리허설로 연습했어요', '발표 평가 방법은 쉬웠어요', '조교 일이 늘어나는 듯합니다', '부정행위는우려없음', '모의부정행위로 연습했습니다',
     // re-review 1: negation written inside a word, opposite claims without a negation word, comparisons, and a three-word name met only in part
     '부정행위는 걱정없음', '부정행위 걱정은 안됨', '부정행위는 큰 문제 아닐 듯', '학습 효과가 좋아질 것 같아요', '업무 부담이 감소할 듯',
-    '부정행위보다는 평가가 더 걱정돼요', '학습 효과는 그대로일 것', '내 업무 부담이 늘어나는 게 아닐까']) {
+    '부정행위보다는 평가가 더 걱정돼요', '학습 효과는 그대로일 것', '혹시 업무 부담이 커지는 건 아닐까요']) {
     send(t);
     assert.deepEqual(calls, [['cat', 'bad']], t + ' goes to Jev');
   }
@@ -633,10 +635,9 @@ test('r1 [분류]: PIN only, re-sorts 기타/unsorted/error rows by words then J
   const env = boot('r1-board.gs', { jev: (st, q) => ({ ...defaultAnswers(q), ...(q.cat ? { cat: jevFor(st) } : {}) }) });
   env.setup();
   const pin = env.call('pin_', 'board'), sh = env.sheet('응답'), now = new Date();
-  // the user's screen: three answers the old code could not sort (Jev failed: empty group, no auto column)
-  sh.appendRow([now, '아직 안써봐서 몰라', '', '', '표시', 1000001]);
-  sh.appendRow([now, '업무 부담이 늘어나는 게 아닐까', '', '', '표시', 1000002]);
-  sh.appendRow([now, '평가 방법이 맞을까?', '', '오류: AI ONE 401: 수업 코드가 맞지 않습니다.', '표시', 1000003]);
+  sh.appendRow([now, '아직 생각이 잘 안납니다', '', '', '표시', 1000001]);
+  sh.appendRow([now, '팀 실습 뒤 업무 부담이 늘어나는 건 아닐까요', '', '', '표시', 1000002]);
+  sh.appendRow([now, '발표 평가 방법이 궁금합니다', '', '오류: AI ONE 401: 수업 코드가 맞지 않습니다.', '표시', 1000003]);
   sh.appendRow([now, '시험 때 몰래 쓸까 봐', '기타', 0.4, '표시', 1000004, '기타']);
   sh.appendRow([now, '업무가 많아서 기타로 골랐어요', '기타', '직접', '표시', 1000005, '기타']);
   sh.appendRow([now, '업무 부담은 아니고 다른 걱정', '기타', 0.9, '표시', 1000006, '업무 부담']);
@@ -711,10 +712,12 @@ test('r1 [분류] without groups: one press groups similar answers by itself wit
     '개별 피드백 늘리기', '시험 방식을 오픈북으로', '서술형 시험 늘리기', '시험을 구술로', '토론 시간 늘리기', '실습 시간 늘리기', '아직 모르겠어요', '강의실 바꾸기'];
   answers.forEach((t, k) => env.call('submitAnswer', t, 'g' + k));
   assert.equal(env.log.jevCalls.length, 0, 'an ungrouped question never calls Jev');
+  assert.deepEqual([env.rows('응답')[0][2], env.rows('응답')[0][6]], ['', '미분류 (자동, 묶음 없음)'], 'a new unsorted row records a blank automatic result');
   const reqs = env.log.requests.length;
   const r = env.call('classifyBoard', pin);
   assert.equal(r.ok, true);
   assert.equal(r.grouped, false);
+  assert.deepEqual([r.askAi, r.aiOff], [false, true], 'no consent prompt when words are sufficient');
   assert.deepEqual([r.auto.kind, r.auto.groups, r.auto.moved, r.autoErr, r.stopped], ['words', 3, 10, '', ''], 'about 70% grouped by words: used as is');
   assert.equal(env.log.requests.length, reqs, 'no API request at all (no Jev, no AI)');
   assert.deepEqual(r.board.cats, ['과제', '피드백', '시험', '기타'], 'the names are saved at once, no suggestion box');
@@ -744,16 +747,25 @@ test('r1 [분류] without groups: one press groups similar answers by itself wit
   const kpin = keep.call('pin_', 'board'), ksh = keep.sheet('응답'), now = new Date();
   answers.forEach((t, k) => ksh.appendRow([now, t, '', '', k === 0 ? '숨김' : '표시', 2000001 + k, '']));
   ksh.appendRow([now, '과제는 손으로 고친 답', '내가 고침', 0.9, '표시', 2000100, '과제']);
+  ksh.getRange(4, 3).setValue('교수의 묶음'); // legacy G is blank; this row is between auto writes
+  const writes = [], put = ksh.put.bind(ksh);
+  ksh.put = (row, col, val) => { writes.push(row); put(row, col, val); };
   const kr = keep.call('classifyBoard', kpin);
   assert.ok(kr.auto && kr.auto.kind === 'words');
   const krows = keep.rows('응답');
   assert.equal(krows[0][2], '', 'hidden row untouched');
   assert.equal(krows[14][2], '내가 고침', 'hand-edited row untouched');
+  assert.deepEqual([krows[2][2], krows[2][6], writes.includes(4)], ['교수의 묶음', '', false], 'manual row without G is not even written back');
   assert.deepEqual(krows[1].slice(2, 4), ['과제', '낱말'], 'the rest is placed');
+  keep.cache.clear();
+  const grouped = keep.call('classifyBoard', kpin);
+  assert.equal(grouped.ok, true);
+  assert.deepEqual([krows[2][2], krows[2][6], writes.includes(4)], ['교수의 묶음', '', false], 'manual row is protected from the existing-group pass too');
 });
 
-test('r1 [분류] without a word grouping: AI groups the real answers once, only what AI missed goes to Jev; a failed AI saves nothing', () => {
-  const answers = ['수업 시간에 졸려요', '친구들과 이야기할 시간이 없어요', '교실이 너무 추워요', '집에 가는 길이 멀어요', '점심이 늦어요', '화장실이 멀어요',
+test('r1 [분류] without a word grouping: opt in for AI; only what AI missed goes to Jev; a failed AI saves nothing', () => {
+  const email = 'student.fixture' + '@' + 'example.invalid', phone = ['010', '0'.repeat(4), '0'.repeat(4)].join('-');
+  const answers = ['수업 시간에 졸려요', '친구들과 이야기할 시간이 없어요', '교실이 너무 추워요', '집에 가는 길이 멀어요', '점심이 늦어요 ' + email, '화장실이 멀어요 ' + phone,
     '프로젝터 소리가 작아요', '강의실 의자가 불편해요', '와이파이가 느려요', '콘센트가 부족해요', '주차장이 좁아요', '자판기가 고장났어요'];
   const aiCalls = [];
   const jevSeen = [];
@@ -765,10 +777,20 @@ test('r1 [분류] without a word grouping: AI groups the real answers once, only
   const pin = env.call('pin_', 'board'), q = '수업이 불편한 점은?';
   env.call('setBoard', pin, q, '', true, false);
   answers.forEach((t, k) => env.call('submitAnswer', t, 'a' + k));
-  const r = env.call('classifyBoard', pin);
+  const wrong = String((Number(pin) + 1) % 10000).padStart(4, '0');
+  assert.equal(env.call('classifyBoard', wrong, true).ok, false, 'an unauthenticated caller cannot opt in');
+  const pending = env.call('classifyBoard', pin, true);
+  assert.deepEqual([pending.askAi, pending.aiOff, pending.auto, aiCalls.length], [true, true, null, 0], 'without a prior prompt, no text is sent or grouped');
+  assert.equal(env.sheet('설정').getRange('B2').getValue(), '');
+  assert.equal(env.props.has('BOARD_AI_GROUPING'), false);
+  const r = env.call('classifyBoard', pending.token, true);
   assert.equal(r.ok, true);
   assert.equal(aiCalls.length, 1, 'one AI call');
-  assert.ok(aiCalls[0].includes('하나도 빠뜨리지 말고') && aiCalls[0].includes('12글자') && aiCalls[0].includes('1. 수업 시간에 졸려요'), 'the real answer list, numbered');
+  assert.equal(r.aiOff, false);
+  assert.equal(env.props.get('BOARD_AI_GROUPING'), '1');
+  assert.ok(aiCalls[0].includes('하나도 빠뜨리지 말고') && aiCalls[0].includes('12글자') && aiCalls[0].includes('1. 수업 시간에 졸려요'), 'the answer list is numbered');
+  assert.ok(!aiCalls[0].includes(email) && !aiCalls[0].includes(phone));
+  assert.ok(aiCalls[0].includes('점심이 늦어요 ' + '*'.repeat(email.length)) && aiCalls[0].includes('화장실이 멀어요 ' + '*'.repeat(phone.length)));
   assert.equal(r.auto.kind, 'ai');
   assert.equal(r.auto.groups, 2);
   assert.deepEqual(r.board.cats, ['시설', '환경', '기타'], '기타 stays separate and is never created as a group');
@@ -776,13 +798,29 @@ test('r1 [분류] without a word grouping: AI groups the real answers once, only
   assert.deepEqual(rows.slice(2, 6).map((x) => [x[2], x[3], x[6]]), Array(4).fill(['시설', 'AI', '시설']));
   assert.deepEqual(jevSeen.sort(), [...answers.slice(0, 2), ...answers.slice(9)].sort(), 'only the answers AI left out go to Jev (new list), about CLASSIFY_MAX at most');
   assert.deepEqual(Object.keys(env.log.jevCalls.at(-1).questions.cat.criteria), ['c0', 'c1', 'other'], 'Jev sees the saved list');
+  env.cache.delete('t:all'); // advance the shared request window between rounds
+  env.call('setBoard', r.token, q + ' (다음 질문)', '', true, true);
+  answers.forEach((t, k) => env.call('submitAnswer', t, 'repeat' + k));
+  assert.equal(env.call('classifyBoard', r.token).askAi, false, 'consent persists for the next round');
+  assert.equal(aiCalls.length, 2);
+  const getUi = env.ctx.SpreadsheetApp.getUi;
+  env.ctx.SpreadsheetApp.getUi = () => { throw new Error('spreadsheet unavailable from a web app'); };
+  assert.throws(() => env.call('disableBoardAiGrouping'), /시트 메뉴에서만/);
+  env.ctx.SpreadsheetApp.getUi = getUi;
+  env.call('disableBoardAiGrouping');
+  assert.equal(env.props.get('BOARD_AI_GROUPING'), '0');
+  env.cache.delete('t:all');
+  env.call('setBoard', r.token, q + ' (마지막 질문)', '', true, true);
+  answers.forEach((t, k) => env.call('submitAnswer', t, 'revoke' + k));
+  assert.equal(env.call('classifyBoard', r.token).askAi, true, 'revocation requires new consent');
+  assert.equal(aiCalls.length, 2);
   // AI fails: nothing is saved, the reason comes back
   const bad = boot('r1-board.gs');
   bad.setup();
   bad.call('setBoard', bad.call('pin_', 'board'), q, '', true, false);
   answers.forEach((t, k) => bad.call('submitAnswer', t, 'b' + k));
   bad.ctx.UrlFetchApp.fetch = () => ({ getResponseCode: () => 500, getContentText: () => '{"error":"AI 서버 점검 중"}' });
-  const br = bad.call('classifyBoard', bad.call('pin_', 'board'));
+  const br = bad.call('classifyBoard', bad.call('classifyBoard', bad.call('pin_', 'board')).token, true);
   assert.equal(br.ok, true);
   assert.match(br.autoErr, /AI가 묶음을 만들지 못했습니다.*점검/);
   assert.equal(br.auto, null);
@@ -793,7 +831,7 @@ test('r1 [분류] without a word grouping: AI groups the real answers once, only
   odd.setup();
   odd.call('setBoard', odd.call('pin_', 'board'), q, '', true, false);
   answers.forEach((t, k) => odd.call('submitAnswer', t, 'c' + k));
-  const orr = odd.call('classifyBoard', odd.call('pin_', 'board'));
+  const orr = odd.call('classifyBoard', odd.call('classifyBoard', odd.call('pin_', 'board')).token, true);
   assert.match(orr.autoErr, /묶음을 찾지 못/);
   assert.equal(odd.sheet('설정').getRange('B2').getValue(), '');
   // AI answers with a Markdown table and repeats a number on one line: names carry no '|', a repeated number counts once
@@ -801,10 +839,29 @@ test('r1 [분류] without a word grouping: AI groups the real answers once, only
   tbl.setup();
   tbl.call('setBoard', tbl.call('pin_', 'board'), q, '', true, false);
   answers.forEach((t, k) => tbl.call('submitAnswer', t, 'd' + k));
-  const tr = tbl.call('classifyBoard', tbl.call('pin_', 'board'));
+  const tr = tbl.call('classifyBoard', tbl.call('classifyBoard', tbl.call('pin_', 'board')).token, true);
   assert.equal(tr.auto.kind, 'ai');
   assert.deepEqual(tr.board.cats, ['시설', '환경', '기타'], 'table cells read as names; a group of one repeated number is dropped');
   assert.ok(tbl.rows('응답').every((x) => !String(x[2]).includes('|')), 'no pipe in a saved name');
+});
+
+test('r1 [분류]: generation sends only the latest 80 eligible answers and masks contacts that straddle the 80-character cutoff', () => {
+  let prompt = '';
+  const env = boot('r1-board.gs', { ai: ({ messages }) => { prompt = messages.at(-1).content; return '첫째 | 1, 2\n둘째 | 79, 80'; } });
+  env.setup();
+  env.ctx.clusterAnswers_ = () => [];
+  env.props.set('BOARD_AI_GROUPING', '1');
+  const pin = env.call('pin_', 'board'), sh = env.sheet('응답');
+  env.call('setBoard', pin, '어떤 점을 바꾸고 싶습니까?', '', true, false);
+  const phone = ['+82', '10', '0'.repeat(4), '0'.repeat(4)].join(' ');
+  for (let i = 82; i > 0; i--) sh.appendRow([new Date(), i === 82 ? '가'.repeat(74) + ' ' + phone + ' 제외된 뒤쪽' : '합성 답 ' + i, '', '', '표시', 1000000 + i, '']);
+  sh.appendRow([new Date(), '보내지 않는 수동 분류', '교수의 묶음', '', '표시', 1000083, '']);
+  const r = env.call('classifyBoard', pin);
+  assert.equal(r.auto.kind, 'ai');
+  const snippets = prompt.split('[답 목록]\n')[1].split('\n');
+  assert.deepEqual([snippets.length, snippets[0], snippets[78], snippets[79]], [80, '1. 합성 답 3', '79. 합성 답 81', '80. ' + '가'.repeat(74) + ' *****']);
+  assert.equal(sh.getRange(2, 3).getValue(), '둘째', 'AI numbers map back to the right rows after reordering');
+  assert.equal(sh.getRange(84, 3).getValue(), '교수의 묶음');
 });
 
 test('r1 [분류]: a list changed while sorting, or an archive, writes nothing; Jev seen as 기타 at submit time is not asked again', () => {
@@ -834,6 +891,18 @@ test('r1 [분류]: a list changed while sorting, or an archive, writes nothing; 
   assert.deepEqual([rr.moved, rr.board.counts['기타']], [0, 1]);
   assert.match(rr.stopped, /바뀌어/);
   assert.deepEqual(race.rows('응답')[0].slice(2, 4), ['', '오류: x']);
+  // Clearing G alone makes a filled C a manual entry, even during Jev's request.
+  let manual;
+  const pending = boot('r1-board.gs', { jev: (st, q) => {
+    if (q.cat) manual.getRange(2, 7).setValue('');
+    return { ...defaultAnswers(q), ...(q.cat ? { cat: choice('c0', 1) } : {}) };
+  } });
+  pending.setup();
+  manual = pending.sheet('응답');
+  manual.appendRow([new Date(), '어디에 넣을지 궁금합니다', '기타', 0.8, '표시', 1000001, '기타']);
+  const edited = pending.call('classifyBoard', pending.call('pin_', 'board'));
+  assert.deepEqual([edited.jev, edited.moved], [1, 0]);
+  assert.deepEqual(pending.rows('응답')[0].slice(2, 7), ['기타', 0.8, '표시', 1000001, '']);
 });
 
 test('r1 strict Jev answers: only "other" is 기타; an unknown choice, a missing confidence or a vanished group leaves an error trace', () => {
@@ -888,7 +957,7 @@ test('r1 errors are shown: setup checks the connection, getBoard reports the fai
 
 // The big-screen browser script (editor, [분류] button, PIN path) needs a real DOM: it is checked in headless Chrome when Chrome is installed, skipped otherwise.
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-test('r1 big screen in a real browser: first [분류] without a PIN opens the box, and typing the PIN (or Enter) runs it; the box has its own [분류]; no student-facing error text', () => {
+test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for AI consent without sending it until approved', () => {
   if (SOLO || !fs.existsSync(CHROME)) return;
   const env = boot('r1-board.gs');
   env.setup();
@@ -899,17 +968,22 @@ test('r1 big screen in a real browser: first [분류] without a PIN opens the bo
   const board = { q: 'Q', cats: ['가', '나', '기타'], counts: { 가: 0, 나: 0, 기타: 1 }, open: true, refresh: 4, total: 1, round: 1, rev: 1, mix: 0, items: [{ i: 1, no: 1, h: '', t: '오류 시험 답', c: '기타' }], err: { n: 1, why: 'AI ONE 401: 수업 코드가 맞지 않습니다.' } };
   const stub = `<script>(function(){var BOARD=${JSON.stringify(board)},log=[],T='t'+'0'.repeat(32);
     function run(ok,bad){return new Proxy({},{get:function(_,n){if(n==='withSuccessHandler')return function(f){return run(f,bad)};if(n==='withFailureHandler')return function(f){return run(ok,f)};
-      return function(){var a=[].slice.call(arguments);log.push([n,a[0]]);var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:true,board:BOARD}:{ok:false,msg:'x'};
+      return function(){var a=[].slice.call(arguments);log.push([n,a[0],a[1]]);var askAi=!a[1]&&log.filter(function(x){return x[0]==='classifyBoard'}).length>=3;
+        var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:!askAi,askAi:askAi,aiOff:!a[1],board:BOARD}:{ok:false,msg:'x'};
         setTimeout(function(){ok&&ok(JSON.parse(JSON.stringify(r)))},20)}}})}
     window.google={script:{run:run()}};
     function key(k,t){document.dispatchEvent(new KeyboardEvent('keydown',{key:k,code:t||''}))}
-    function out(tag){var d=document.createElement('pre');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.getElementById('toast').textContent,ep:document.getElementById('ep').value});document.body.appendChild(d)}
+    function out(tag){var d=document.createElement('pre');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.getElementById('toast').textContent,dialog:document.getElementById('ai-confirm').open});document.body.appendChild(d)}
     setTimeout(function(){out('e')},150);
     setTimeout(function(){key('ㅊ','KeyC')},300);
     setTimeout(function(){out('a');var ep=document.getElementById('ep');ep.value=${JSON.stringify(pin)};ep.dispatchEvent(new Event('input'))},700);
     setTimeout(function(){out('b');sessionStorage.removeItem('board-tok');document.getElementById('ed').className='edit';key('c','KeyC')},1100);
     setTimeout(function(){var ep=document.getElementById('ep');ep.value='5678';ep.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));out('c')},1500);
     setTimeout(function(){document.getElementById('ek').onclick();out('d')},1900);
+    setTimeout(function(){out('prompt');document.getElementById('ai-no').click()},2100);
+    setTimeout(function(){out('declined');key('c','KeyC')},2400);
+    setTimeout(function(){document.getElementById('ai-yes').click()},2700);
+    setTimeout(function(){out('accepted')},3000);
   })();</script>`;
   const file = path.join(os.tmpdir(), 'board-pin-' + process.pid + '.html');
   fs.writeFileSync(file, html.replace('<body>', '<body>' + stub)
@@ -924,6 +998,13 @@ test('r1 big screen in a real browser: first [분류] without a PIN opens the bo
   assert.deepEqual(sent(a), [], 'nothing is sent before a PIN');
   assert.deepEqual(sent(b), [pin], 'the fourth digit runs [분류] at once');
   assert.deepEqual(sent(d), [pin, '5678', 't' + '0'.repeat(32)], 'Enter in the PIN box runs it too; the box [분류] button then reuses the saved ticket, no PIN');
+  const prompt = res('prompt'), declined = res('declined'), accepted = res('accepted');
+  assert.equal(prompt.dialog, true, 'the projector shows an in-page confirmation');
+  assert.equal(declined.dialog, false);
+  assert.match(declined.toast, /생성형 AI 묶기가 꺼져 있습니다/);
+  assert.deepEqual(sent(declined), sent(d), 'declining sends no follow-up request');
+  assert.equal(accepted.dialog, false);
+  assert.deepEqual(accepted.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[2]), [false, false, false, false, true]);
 });
 
 test('web app address: never getUrl(); the board QR uses the saved /exec or the wizard join, nothing anonymous is saved', () => {

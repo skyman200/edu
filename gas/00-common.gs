@@ -1,5 +1,5 @@
 // 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.26-a';
+var CODE_VERSION = 'v2026.11.26-b';
 
 /* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
    ai_    : 글을 쓰는 AI에게 부탁합니다.
@@ -21,6 +21,7 @@ function say_(msg) {
 
 // <<SERVER 수업 서버판: 연수 현장의 수업 코드로 AI와 Jev를 부릅니다. 혼자 쓰는 판(내 API 키)은 이 부분만 다르게 바뀝니다.
 var SERVER = 'https://kimcook-edu.pages.dev';
+var CLASS_AI_NAME = 'DIT AI ONE';
 
 function setClassCode() {
   var ui = SpreadsheetApp.getUi();
