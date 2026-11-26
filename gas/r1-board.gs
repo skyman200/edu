@@ -331,7 +331,7 @@ function seenAdd_(props, key, ids) {
 // o: {key, q} 읽을 때의 묶음 목록·질문(그사이 바뀌었으면 쓰지 않음), cats 새 묶음 목록(주면 함께 저장), judged Jev가 기타로 본 번호, seenKey 기억에 쓸 목록.
 // 바뀐 줄은 연속한 범위마다 C:G를 씁니다. partial은 쓰기 오류, needsReload는 화면 동기화 오류입니다.
 function commit_(sh, changes, o) {
-  var props = PropertiesService.getScriptProperties(), res = { moved: 0, aborted: '' };
+  var props = PropertiesService.getScriptProperties(), res = { moved: 0, aborted: '', saved: false };
   if (!changes.length && !o.cats && !(o.judged || []).length) return res;
   var lock = LockService.getScriptLock(), writing = false;
   lock.waitLock(20000);
@@ -365,6 +365,7 @@ function commit_(sh, changes, o) {
     }
     if ((o.judged || []).length) seenAdd_(props, o.seenKey != null ? o.seenKey : o.key, o.judged);
     SpreadsheetApp.flush();
+    res.saved = writing;
   } catch (e) {
     if (!writing) throw e;
     res.partial = true; res.moved = 0;
@@ -411,12 +412,13 @@ function classify_(token, generation) {
   }
   var res = commit_(sh, changes, { key: key, q: c.q, judged: judged });
   out.moved = res.moved;
+  out.saved = res.saved;
   if (res.partial) out.partial = true;
   if (res.needsReload) out.needsReload = true;
   if (res.aborted) { out.stopped = out.stopped || res.aborted; changes = []; }
   function readBoard() {
     try { return getBoard(); } catch (e) {
-      if (!out.partial && !out.needsReload) throw e;
+      if (!out.saved && !out.partial && !out.needsReload) throw e;
       out.needsReload = true;
       return null;
     }
@@ -426,6 +428,7 @@ function classify_(token, generation) {
   if (!out.partial && !out.needsReload && !res.aborted && !out.stopped && !out.more && (!grouped || (left >= 4 && left >= board.total * 0.25))) {
     try {
       var a = autoGroup_(c, sh, key, t0, generation);
+      if (a.saved) out.saved = true;
       if (a.needsReload) out.needsReload = true;
       if (a.askAi) { out.askAi = true; out.aiOff = true; }
       else if (a.partial) out.partial = true;
@@ -524,7 +527,7 @@ function autoGroup_(c, sh, key, t0, generation) {
   var res = commit_(sh, changes, { key: key, q: c.q, cats: cats, judged: judged, seenKey: cats.join('|') });
   if (res.partial) return { partial: true, needsReload: res.needsReload };
   if (res.aborted) return { err: res.aborted };
-  return { kind: kind, groups: names.length, moved: res.moved, jev: jev, more: more, stopped: stopped, needsReload: res.needsReload };
+  return { kind: kind, groups: names.length, moved: res.moved, jev: jev, more: more, stopped: stopped, saved: res.saved, needsReload: res.needsReload };
 }
 
 // 질문으로 묶음 후보만 만들고 저장하지 않습니다.
@@ -1104,7 +1107,7 @@ function boardClient_() {
         if (!r.ok) { if (r.expired || !r.token) { open(); pending = 'classify'; $('#em').textContent = r.msg; $('#em').className = 'msg err'; } fail('분류를 못했어요. ' + r.msg); return; }
         if (ed.classList.contains('on')) close();
         if (r.board) update(r.board);
-        if (r.needsReload) { fail((r.partial ? '일부만 저장되었을 수 있습니다. 화면 동기화에 실패했습니다.' : '시트에는 저장했지만 화면 동기화에 실패했습니다.') + ' 화면을 새로고침하십시오.'); return; }
+        if (r.needsReload) { fail(r.partial ? '일부만 저장되었을 수 있습니다. 화면 동기화에 실패했습니다. 화면을 새로고침하십시오.' : '분류 결과는 저장했습니다. 화면을 다시 불러오지 못했으니 잠시 후 새로 고침하십시오.'); return; }
         if (r.partial) { fail('일부만 저장되었을 수 있습니다. 화면을 다시 불러옵니다.'); return; }
         var tot = (r.moved || 0) + (r.auto ? r.auto.moved : 0), msg = '';
         if (r.grouped && r.moved) msg = r.moved + '개를 묶음으로 옮겼어요. ';

@@ -1032,6 +1032,68 @@ test('r1 [분류]: property failures after a sheet write still invalidate both c
   }
 });
 
+test('r1 [분류]: reread failures after a flushed save return the saved result and request reload', () => {
+  for (const batch of [false, true]) {
+    const env = boot('r1-board.gs');
+    env.setup();
+    const pin = env.call('pin_', 'board'), sh = env.sheet('응답');
+    if (batch) {
+      env.call('setBoard', pin, '합성 질문', '', true, false);
+      env.ctx.clusterAnswers_ = () => [{ name: '합성 묶음 가', idx: [0, 1] }, { name: '합성 묶음 나', idx: [2, 3] }];
+    } else env.ctx.jevCat_ = () => ({ cat: '기타', conf: '합성 판정' });
+    for (let i = 1; i <= (batch ? 4 : 1); i++) sh.appendRow([new Date(), '합성 답 ' + i, '', '', '표시', i, '']);
+    env.cache.delete('board');
+    const before = env.call('getBoard');
+    env.call('getQuestion');
+    let flushed = false, rereadState;
+    env.ctx.SpreadsheetApp.flush = () => { flushed = true; };
+    const failReread = () => {
+      if (env.props.get('BOARD_REV') === String(before.rev + 1)) {
+        rereadState = [flushed, env.props.get('BOARD_MIX'), env.cache.has('board'), env.cache.has('q')];
+        throw new Error('합성 재조회 실패');
+      }
+    };
+    const getRange = sh.getRange.bind(sh), getCache = env.ctx.CacheService.getScriptCache;
+    if (batch) env.ctx.CacheService.getScriptCache = () => {
+      const cache = getCache(), put = cache.put;
+      cache.put = (k, v) => { if (k === 'board') failReread(); put(k, v); };
+      return cache;
+    };
+    else sh.getRange = (...args) => {
+      if (args[0] === 2 && args[1] === 1 && args[3] === 6) failReread();
+      return getRange(...args);
+    };
+    const r = env.call('classifyBoard', pin);
+    assert.deepEqual(rereadState, [true, String(before.mix + 1), false, false]);
+    assert.deepEqual([r.ok, r.saved, r.needsReload, r.partial, r.board, r.moved], [true, true, true, undefined, null, 0]);
+    assert.deepEqual(env.rows('응답').map((row) => row[2]), batch ? ['합성 묶음 가', '합성 묶음 가', '합성 묶음 나', '합성 묶음 나'] : ['기타']);
+    assert.equal(r.auto?.moved, batch ? 4 : undefined);
+    sh.getRange = getRange;
+    env.ctx.CacheService.getScriptCache = getCache;
+    assert.deepEqual(env.call('getBoard').cats, batch ? ['합성 묶음 가', '합성 묶음 나', '기타'] : before.cats);
+  }
+});
+
+test('r1 [분류]: a board reread failure when nothing was written remains an RPC failure', () => {
+  for (const batch of [false, true]) {
+    const env = boot('r1-board.gs');
+    env.setup();
+    const pin = env.call('pin_', 'board');
+    if (batch) env.call('setBoard', pin, '합성 질문', '', true, false);
+    const before = env.call('getBoard'), getBoard = env.ctx.getBoard;
+    let reads = 0;
+    env.ctx.SpreadsheetApp.flush = () => assert.fail('no write to flush');
+    env.ctx.getBoard = () => {
+      if (++reads === (batch ? 2 : 1)) throw new Error('합성 재조회 실패');
+      return getBoard();
+    };
+    assert.throws(() => env.call('classifyBoard', pin), /합성 재조회 실패/);
+    assert.deepEqual(env.rows('응답'), []);
+    assert.deepEqual(env.call('getBoard'), before);
+    assert.equal(env.cache.has('classifying'), false);
+  }
+});
+
 test('r1 [분류]: generation sends only the latest 80 eligible answers and masks contacts that straddle the 80-character cutoff', () => {
   let prompt = '';
   const env = boot('r1-board.gs', { ai: ({ messages }) => { prompt = messages.at(-1).content; return '첫째 | 1, 2\n둘째 | 79, 80'; } });
@@ -1158,10 +1220,11 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
       return function(){var a=[].slice.call(arguments);log.push([n,a[0],a[1]]);var askAi=!a[1]&&log.filter(function(x){return x[0]==='classifyBoard'}).length>=3;
         var r=n==='getBoard'?BOARD:n==='classifyBoard'?{ok:true,token:T,grouped:true,moved:0,words:0,jev:0,left:1,more:0,stopped:'',auto:null,autoErr:'',autoNone:!askAi,confirmKey:askAi?'fixture-confirm':'',aiOff:!a[1],partial:!!a[1],board:BOARD}:{ok:false,msg:'x'};
         if(n==='classifyBoard'&&a[1]&&++confirmed===1)r={ok:false,token:T,consentBusy:true,msg:'다른 작업이 진행 중이라 동의 상태를 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.'};
+        if(n==='classifyBoard'&&!a[1]&&confirmed===2)r={ok:true,token:T,saved:true,needsReload:true,board:null};
         setTimeout(function(){ok&&ok(JSON.parse(JSON.stringify(r)))},20)}}})}
     window.google={script:{run:run()}};
     function key(k,t){document.dispatchEvent(new KeyboardEvent('keydown',{key:k,code:t||''}))}
-    function out(tag){var d=document.createElement('pre'),err=document.getElementById('ai-error');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.getElementById('toast').textContent,dialog:document.getElementById('ai-confirm').open,consentError:err.hidden?'':err.textContent});document.body.appendChild(d)}
+    function out(tag){var d=document.createElement('pre'),err=document.getElementById('ai-error');d.id='res-'+tag;d.textContent=JSON.stringify({log:log,edOn:document.getElementById('ed').className,toast:document.querySelector('#toast span').textContent,dialog:document.getElementById('ai-confirm').open,consentError:err.hidden?'':err.textContent});document.body.appendChild(d)}
     setTimeout(function(){out('e')},150);
     setTimeout(function(){key('ㅊ','KeyC')},300);
     setTimeout(function(){out('a');var ep=document.getElementById('ep');ep.value=${JSON.stringify(pin)};ep.dispatchEvent(new Event('input'))},700);
@@ -1173,6 +1236,8 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
     setTimeout(function(){document.getElementById('ai-yes').click()},2700);
     setTimeout(function(){out('busy');document.getElementById('ai-yes').click()},3000);
     setTimeout(function(){out('accepted')},3300);
+    setTimeout(function(){key('c','KeyC')},3500);
+    setTimeout(function(){out('saved')},3800);
   })();</script>`;
   const file = path.join(os.tmpdir(), 'board-pin-' + process.pid + '.html');
   fs.writeFileSync(file, html.replace('<body>', '<body>' + stub)
@@ -1197,6 +1262,7 @@ test('r1 big screen in a real browser: [분류] authorizes with PIN and asks for
   assert.equal(accepted.dialog, false);
   assert.match(accepted.toast, /일부만 저장되었을 수 있습니다\. 화면을 다시 불러옵니다\./);
   assert.deepEqual(accepted.log.filter((x) => x[0] === 'classifyBoard').map((x) => x[2]), ['', '', '', '', 'fixture-confirm', 'fixture-confirm']);
+  assert.equal(res('saved').toast, '분류 결과는 저장했습니다. 화면을 다시 불러오지 못했으니 잠시 후 새로 고침하십시오.');
 });
 
 test('web app address: never getUrl(); the board QR uses the saved /exec or the wizard join, nothing anonymous is saved', () => {
