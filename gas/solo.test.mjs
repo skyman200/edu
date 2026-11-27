@@ -139,7 +139,8 @@ test('jev_: a missing or broken verdict is an error with a plain message, never 
   say('이건 JSON이 아닙니다'); assert.throws(() => env.call('jev_', 'x', q), /판정 답을 읽지 못했습니다/);
   say('{}'); assert.throws(() => env.call('jev_', 'x', q), /"a" 판정을 빠뜨렸습니다/);
   say('{"a":{"p":"많이"}}'); assert.throws(() => env.call('jev_', 'x', q), /숫자가 아닙니다/);
-  say('```json\n{"a":{"p":1.7}}\n```'); assert.equal(env.call('jev_', 'x', q).a.p, 1, 'fenced JSON is read and p is clamped');
+  say('{"a":{"p":1.7}}'); assert.throws(() => env.call('jev_', 'x', q), /0~1 사이 숫자가 아닙니다/);
+  say('```json\n{"a":{"p":0.7}}\n```'); assert.equal(env.call('jev_', 'x', q).a.p, 0.7, 'fenced JSON with a valid p is read');
   say('{"k":{"probs":{"zzz":1}}}'); assert.throws(() => env.call('jev_', 'x', { k: { type: 'choice', instructions: 'q', criteria: { a: 'x', b: 'y' } } }), /확률이 없습니다/);
   env.ctx.UrlFetchApp.fetch = real;
 });

@@ -33,6 +33,7 @@ class Range {
 
 class Sheet {
   constructor(name) { this.name = name; this.rows = []; this.formats = new Map(); }
+  getName() { return this.name; }
   cell(r, c) { const v = (this.rows[r - 1] || [])[c - 1]; return v === undefined ? '' : v; }
   put(r, c, x) {
     while (this.rows.length < r) this.rows.push([]);
@@ -55,6 +56,10 @@ class Sheet {
   appendRow(arr) { const r = this.getLastRow() + 1; arr.forEach((x, j) => this.put(r, j + 1, x)); }
   setColumnWidth() {}
   setFrozenRows() {}
+  getMaxRows() { return this.maxRows || 1000; }
+  insertRowsAfter(after, n) { if (after !== this.getMaxRows()) throw new Error('mock only supports adding rows at end'); this.maxRows = after + n; }
+  hideSheet() { this.hidden = true; return this; }
+  isSheetHidden() { return this.hidden === true; }
 }
 
 class Spreadsheet {
@@ -100,21 +105,23 @@ const unzipStored = (bytes) => {
 
 const VALID_KEY = 'AIzaTESTKEY0123456789abcd';
 
-export function createEnv({ jev, ai, fetchExtra } = {}) {
+export function createEnv({ jev, ai, fetchExtra, classCode = 'TESTCODE' } = {}) {
   const log = { jevCalls: [], prompts: [], logged: [], alerts: [], mails: [], triggers: [], requests: [], menus: [], sleeps: 0 };
   const active = new Spreadsheet('SS1');
   // SOLO=1: the solo build (no class server): a Gemini key instead of a class code, AI calls go to the Gemini REST API
   const solo = !!process.env.SOLO;
-  const props = new Map(solo ? [['GEMINI_KEY', VALID_KEY]] : [['CLASS_CODE', 'TESTCODE']]);
+  const props = new Map(solo ? [['GEMINI_KEY', VALID_KEY]] : [['CLASS_CODE', classCode]]);
   const cache = new Map();
   const folders = new Map();
   const docs = new Map();
+  const forms = new Map();
   let seq = 0;
+  let lockOwner = null;
   const ui = {
     ButtonSet: { OK_CANCEL: 1 }, Button: { OK: 'OK' },
     alert: (m) => log.alerts.push(String(m)),
     // tests queue answers in log.prompts; otherwise the class-code prompt gets the test code
-    prompt: () => { const a = log.prompts.length ? log.prompts.shift() : ' TESTCODE '; return { getSelectedButton: () => (a === null ? 'CANCEL' : 'OK'), getResponseText: () => a || '' }; },
+    prompt: () => { const a = log.prompts.length ? log.prompts.shift() : ' ' + classCode + ' '; return { getSelectedButton: () => (a === null ? 'CANCEL' : 'OK'), getResponseText: () => a || '' }; },
     createMenu: (name) => { const m = { name, items: [], addItem(l, fn) { m.items.push([l, fn]); return m; }, addToUi() { log.menus.push(m); return m; } }; return m; },
   };
   const response = (status, text) => ({ getResponseCode: () => status, getContentText: () => text, getBlob: () => ({ getContentType: () => 'image/jpeg', getBytes: () => Buffer.alloc(1000, 1) }) });
@@ -122,7 +129,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
   const server = (url, body) => {
     log.requests.push({ url, body });
     const code = body.code;
-    if (code !== 'TESTCODE') return [401, { error: '수업 코드가 맞지 않습니다.', code: 'bad_code' }];
+    if (code !== classCode) return [401, { error: '수업 코드가 맞지 않습니다.', code: 'bad_code' }];
     if (url.endsWith('/api/jev')) {
       if (body.check === true) return [200, { ok: true }];
       if (log.jevFail) return [log.jevFail, { error: 'Jev down', code: 'upstream', retryAfter: 1 }];
@@ -138,8 +145,10 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
       const att = validateAttachments(body.files, body.images, body.messages);
       if (!att.ok) return [att.status, { error: att.message, code: att.code }];
       if (body.ex !== 'gas-run') return [400, { error: 'ex must be gas-run for scripts', code: 'bad_request' }];
+      if (log.aiFail) return [log.aiFail, { error: 'AI unavailable', retryAfter: 1 }];
       const text = ai ? ai({ messages: m.messages, files: att.files, images: att.images }) : 'OK';
-      const events = [{ meta: { model: 'x' } }, ...text.match(/[\s\S]{1,40}/g).map((d) => ({ delta: d })), { done: true }];
+      const events = [{ meta: { model: 'x' } }, ...(text.match(/[\s\S]{1,40}/g) || []).map((d) => ({ delta: d })),
+        ...(log.aiStreamTail ?? [{ done: true }])];
       return [200, events.map((e) => 'data: ' + JSON.stringify(e)).join('\n\n') + '\n\n'];
     }
     return [404, { error: 'no route' }];
@@ -154,7 +163,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     if (!url.startsWith('https://generativelanguage.googleapis.com/v1beta/models/') || !url.endsWith(':generateContent')) return reply(404, { error: { message: 'no route' } });
     if ((opts.headers || {})['x-goog-api-key'] !== VALID_KEY) return reply(400, { error: { message: 'API key not valid. Please pass a valid API key.' } });
     if (log.jevFail && body.generationConfig && body.generationConfig.responseMimeType) return reply(log.jevFail, { error: { message: 'busy' } });
-    const out = (text) => reply(200, { candidates: [{ content: { parts: [{ text }] } }] });
+    const out = (text) => reply(200, { candidates: [{ content: { parts: [{ text }] }, finishReason: log.aiFinishReason || 'STOP' }] });
     const first = body.contents[0].parts.map((p) => p.text || '').join('\n');
     if (body.generationConfig && body.generationConfig.responseMimeType === 'application/json') {
       const q = first.split('[질문]\n')[1].split('\n\n[글]\n');
@@ -189,6 +198,7 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
       }
       messages.push({ role: c.role === 'model' ? 'assistant' : 'user', content: text });
     });
+    if (log.aiFail) return reply(log.aiFail, { error: { message: 'AI unavailable' } });
     return out(ai ? ai({ messages, files, images }) : 'OK');
   };
 
@@ -211,9 +221,19 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     Logger: { log: (m) => { log.logged.push(String(m)); } },
     console, Date, Math, JSON, Object, Array, String, Number, Buffer, URLSearchParams,
     SpreadsheetApp: { getActive: () => active, getActiveSpreadsheet: () => active, openById: (id) => { if (id !== active.id) throw new Error('no such spreadsheet'); return active; }, getUi: () => ui, flush: () => {} },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => { props.set(k, String(v)); } }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => {
+      if (Buffer.byteLength(String(v)) > 9 * 1024) throw new Error('Script property exceeds 9 KB');
+      props.set(k, String(v));
+    } }) },
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => { cache.set(k, v); }, remove: (k) => { cache.delete(k); } }) },
-    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
+    LockService: { getScriptLock: () => {
+      const lock = {
+        waitLock() { if (!lock.tryLock()) throw new Error('Script lock is busy'); },
+        tryLock() { if (lockOwner && lockOwner !== lock) return false; lockOwner = lock; return true; },
+        releaseLock() { if (lockOwner === lock) lockOwner = null; },
+      };
+      return lock;
+    } },
     Utilities: {
       sleep: () => { log.sleeps++; },
       getUuid: () => crypto.randomUUID(),
@@ -236,13 +256,15 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     HtmlService: { XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' }, createHtmlOutput: (html) => { const o = { html, title: '', xframe: '', setTitle(t) { o.title = t; return o; }, addMetaTag() { return o; }, setXFrameOptionsMode(m) { o.xframe = m; return o; }, getContent: () => html }; return o; } },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
+      EventType: { ON_FORM_SUBMIT: 'ON_FORM_SUBMIT', ON_OPEN: 'ON_OPEN' },
       // the real getUrl() can return /dev or a deployment id that does not exist; recipes must not use it
       getService: () => ({ getUrl: () => { throw new Error('getUrl() is unreliable; use webUrl_()'); } }),
       getOAuthToken: () => 'tok',
-      getProjectTriggers: () => log.triggers,
+      getProjectTriggers: () => log.triggers.slice(),
       deleteTrigger: (t) => { log.triggers.splice(log.triggers.indexOf(t), 1); },
       newTrigger: (fn) => {
-        const t = { fn, getHandlerFunction: () => fn, spec: [] };
+        const t = { fn, getHandlerFunction: () => fn, getTriggerSourceId: () => t.spec.find(([k]) => k === 'forForm')?.[1].getId() ?? null,
+          getEventType: () => t.spec.some(([k]) => k === 'onFormSubmit') ? 'ON_FORM_SUBMIT' : t.spec.some(([k]) => k === 'onOpen') ? 'ON_OPEN' : null, spec: [] };
         const chain = new Proxy(t, { get: (o, k) => (k in o ? o[k] : k === 'create' ? () => { log.triggers.push(t); return t; } : (...a) => { t.spec.push([k, ...a]); return chain; }) });
         return chain;
       },
@@ -252,7 +274,9 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     DriveApp: {
       createFolder: (n) => fakeFolder(n),
       getFolderById: (id) => folders.get(id),
-      getFileById: (id) => ({ moveTo: (folder) => { folder.files.push({ docId: id }); } }),
+      getFileById: (id) => ({ getOwner: () => forms.get(id)?.owner || null, moveTo: (folder) => {
+          if (!folder.files.some((f) => f.docId === id)) folder.files.push({ docId: id });
+        } }),
     },
     DocumentApp: {
       ParagraphHeading: { HEADING1: 'H1', HEADING2: 'H2', NORMAL: 'P' },
@@ -269,27 +293,29 @@ export function createEnv({ jev, ai, fetchExtra } = {}) {
     FormApp: {
       DestinationType: { SPREADSHEET: 'SPREADSHEET' },
       create: (title) => {
-        const form = { id: 'FORM' + ++seq, title, questions: [] };
+        const ownerEmail = ctx.Session.getEffectiveUser().getEmail();
+        const form = { id: 'FORM' + ++seq, title, questions: [], owner: { getEmail: () => ownerEmail } };
         const add = (type) => () => { const it = items(); const t = it.setTitle; it.setTitle = (x) => { form.questions.push([type, x]); return it; }; return it; };
-        Object.assign(form, { setDescription: () => form, addScaleItem: add('scale'), addParagraphTextItem: add('paragraph'), setDestination: () => form, getId: () => form.id, getPublishedUrl: () => 'https://forms.gle/' + form.id });
+        Object.assign(form, { setDescription: () => form, addScaleItem: add('scale'), addParagraphTextItem: add('paragraph'), setDestination: (type, id) => { form.destination = [type, id]; return form; }, getId: () => form.id, getPublishedUrl: () => 'https://forms.gle/' + form.id });
+        forms.set(form.id, form);
         return form;
       },
-      openById: () => ({ getPublishedUrl: () => 'https://forms.gle/x' }),
+      openById: (id) => { if (!forms.has(id)) throw new Error('no such form'); return forms.get(id); },
     },
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  return { ctx, log, active, props, cache, folders, docs, addFile, run: (src, file = 'recipe.gs') => vm.runInContext(src, ctx, { filename: file }) };
+  return { ctx, log, active, props, cache, folders, docs, forms, addFile, run: (src, file = 'recipe.gs') => vm.runInContext(src, ctx, { filename: file }) };
 }
 
 // Runs the browser script of a served page against a stub DOM. google.script.run calls are executed synchronously on the
 // server functions of `env`, so the page logic is exercised end to end (a call to a function that does not exist throws).
-export function runPage(env, html, { values = {} } = {}) {
-  html = (env.ctx.TOAST_JS || '') + html; // page_ puts the shared toast in front of every page
+export function runPage(env, html, { values = {}, animationFrames = false } = {}) {
+  if (!html.startsWith('<!doctype html>')) html = (env.ctx.TOAST_JS || '') + html; // fragment fixtures need the toast from page_
   // every inline <script> block, in order (src-only scripts are skipped, as they load third-party code)
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join(';\n');
-  const els = new Map(), calls = [], timers = [], store = new Map();
-  let tid = 0;
+  const els = new Map(), calls = [], timers = [], frames = [], store = new Map();
+  let tid = 0, now = Date.now();
   const el = (sel) => {
     if (!els.has(sel)) {
       const e = { sel, innerHTML: '', value: values[sel] ?? '', hidden: false, disabled: false, className: '', style: {}, children: [], onclick: null, oninput: null };
@@ -333,9 +359,13 @@ export function runPage(env, html, { values = {} } = {}) {
     setTimeout: (f, ms) => { const t = [f, ms]; t.id = ++tid; timers.push(t); return t.id; },
     clearTimeout: (id) => { const k = timers.findIndex((t) => t.id === id); if (k >= 0) timers.splice(k, 1); },
   };
+  if (animationFrames) {
+    sandbox.Date = class extends Date { static now() { return now; } };
+    sandbox.requestAnimationFrame = (f) => frames.push(f);
+  }
   vm.runInNewContext(script, sandbox, { filename: 'page.js' });
   return {
-    el, calls, timers,
+    el, calls, timers, frames, advance: (ms) => { now += ms; },
     set: (sel, v) => { el(sel).value = v; },
     click: (sel) => { const e = el(sel); if (typeof e.onclick !== 'function') throw new Error('no click handler on ' + sel); e.onclick(); },
     texts: (sel) => [el(sel).textContent, ...el(sel).children.map((c) => c.textContent)].filter(Boolean),

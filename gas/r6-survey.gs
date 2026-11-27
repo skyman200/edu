@@ -7,9 +7,34 @@ function onOpen() {
 }
 
 var Q_SAT = '오늘 수업 만족도', Q_GOOD = '좋았던 점', Q_WANT = '아쉬웠던 점이나 바라는 점';
+var REPORT_CACHE = 'report:v2';
+var SURVEY_HEAD = ['시간', '만족도(1~5)', '감정(0~4)', '주제', '건의', '긴급', '좋았던 점', '아쉬웠던 점/바라는 점'];
 
 function setup() {
+  menuOnly_();
+  var lock = LockService.getScriptLock(), result;
+  lock.waitLock(20000);
+  try {
+    result = setupSurvey_();
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().remove(REPORT_CACHE);
+    if (result.owner) PropertiesService.getScriptProperties().setProperty('SETUP_OWNER', result.owner);
+  } finally { lock.releaseLock(); }
+  say_('준비 끝! 학생용 설문 주소: ' + result.url);
+}
+
+function setupSurvey_() {
   var ss = SpreadsheetApp.getActive(), p = PropertiesService.getScriptProperties();
+  var email = Session.getEffectiveUser().getEmail(), owner = p.getProperty('SETUP_OWNER');
+  if (!email || owner && owner !== email) throw new Error('처음 준비를 한 계정으로 다시 실행하세요.');
+  var id = p.getProperty('FORM_ID'), form;
+  if (id) {
+    form = FormApp.openById(id);
+    // 업그레이드할 때 공동 편집자가 기존 소유자의 트리거를 중복 설치하지 못하게 합니다.
+    var formOwner = !owner && DriveApp.getFileById(id).getOwner();
+    if (!owner && (!formOwner || formOwner.getEmail() !== email)) throw new Error('기존 폼 소유 계정으로 처음 준비를 다시 실행하세요.');
+  }
+  sheet_('분석', SURVEY_HEAD, ss, function () { p.setProperty('SENT', '0'); });
   p.setProperty('SS_ID', ss.getId());
   var s = ss.getSheetByName('설정');
   if (!s) {
@@ -17,18 +42,24 @@ function setup() {
     s.getRange('A1:B2').setValues([['요약 메일을 보낼 응답 수', 10], ['요약을 받을 메일 주소', Session.getEffectiveUser().getEmail()]]);
     s.setColumnWidth(1, 240); s.setColumnWidth(2, 320);
   }
-  sheet_('분석', ['시간', '만족도(1~5)', '감정(0~4)', '주제', '건의', '긴급', '좋았던 점', '아쉬웠던 점/바라는 점']);
-  if (!p.getProperty('FORM_ID')) {
-    var form = FormApp.create('수업 후 한 줄 설문');
+  if (!form) {
+    form = FormApp.create('수업 후 한 줄 설문');
     form.setDescription('익명으로 받습니다. 이름이나 학번은 쓰지 마세요.');
     form.addScaleItem().setTitle(Q_SAT).setBounds(1, 5).setLabels('아쉬웠다', '매우 좋았다').setRequired(true);
     form.addParagraphTextItem().setTitle(Q_GOOD);
     form.addParagraphTextItem().setTitle(Q_WANT);
     form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
-    p.setProperty('FORM_ID', form.getId());
-    ScriptApp.newTrigger('onSurveySubmit').forForm(form).onFormSubmit().create();
+    id = form.getId();
+    p.setProperty('FORM_ID', id);
   }
-  say_('준비 끝! 학생용 설문 주소: ' + FormApp.openById(p.getProperty('FORM_ID')).getPublishedUrl());
+  var installed = false;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() !== 'onSurveySubmit') return;
+    if (installed || t.getTriggerSourceId() !== id || t.getEventType() !== ScriptApp.EventType.ON_FORM_SUBMIT) ScriptApp.deleteTrigger(t);
+    else installed = true;
+  });
+  if (!installed) ScriptApp.newTrigger('onSurveySubmit').forForm(form).onFormSubmit().create();
+  return { url: form.getPublishedUrl(), owner: owner ? '' : email };
 }
 
 function showUrls() {
@@ -38,48 +69,47 @@ function showUrls() {
   say_(id ? '학생용 설문 주소: ' + FormApp.openById(id).getPublishedUrl() + (web ? '\n강의장 결과 화면: ' + web : '\n강의장 결과 화면: 웹 도구에서 받은 주소를 쓰세요(시트 메뉴 설문 분석 → 웹 앱 주소 넣기에 넣으면 여기에도 보입니다).') : '먼저 처음 준비를 실행하세요.');
 }
 
-function first_(arr) {
-  return arr && arr.length ? String(arr[0]).trim() : '';
-}
-
-// 폼에 건 제출 트리거의 이벤트에는 e.response 만 있고, 시트에 건 트리거에만 e.namedValues 가 있습니다. 둘 다 받습니다.
-function answers_(e) {
-  if (e && e.namedValues) return e.namedValues;
-  var out = {};
-  if (e && e.response) e.response.getItemResponses().forEach(function (r) { out[r.getItem().getTitle()] = [String(r.getResponse())]; });
-  return out;
-}
-
 function onSurveySubmit(e) {
-  var v = answers_(e), sat = Number(first_(v[Q_SAT])) || '', good = first_(v[Q_GOOD]), want = first_(v[Q_WANT]);
-  var mood = '', topic = '', suggest = '', urgent = '';
+  // google.script.run으로는 Apps Script의 Forms 객체나 메서드를 전달할 수 없습니다.
+  if (!e || !e.source || typeof e.source.getId !== 'function' || !e.response || typeof e.response.getItemResponses !== 'function') return;
+  var p = PropertiesService.getScriptProperties(), id = p.getProperty('FORM_ID');
+  if (!id || e.source.getId() !== id) return;
+  requiredSheet_('분석', SURVEY_HEAD);
+  var sh, settings = requiredSheet_('설정');
+  var v = Object.create(null);
+  e.response.getItemResponses().forEach(function (r) { v[r.getItem().getTitle()] = String(r.getResponse()).trim(); });
+  var sat = Number(v[Q_SAT]) || '', good = v[Q_GOOD] || '', want = v[Q_WANT] || '';
+  var mood = '', topic = '', suggest = '', urgent = '미확인';
   if (good || want) {
     try {
-    var a = jev_('좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want, {
-      mood: { type: 'score', instructions: '수업 전체에 대한 학생의 감정은 어떤가?', criteria: ['매우 부정', '부정', '중립', '긍정', '매우 긍정'] },
-      topic: { type: 'choice', instructions: '학생이 가장 비중 있게 말한 주제', criteria: { level: '수업 내용의 난이도', pace: '진행 속도', material: '자료와 교재', practice: '실습과 활동', manner: '교수의 태도와 소통', env: '강의실, 시설, 온라인 환경', other: '기타' } },
-      suggest: { type: 'noul', instructions: '다음 수업에 반영할 수 있는 구체적인 건의나 요청이 들어 있는가?' },
-      urgent: { type: 'noul', instructions: '교수가 지금 바로 알아야 할 심각한 불만, 안전 문제, 차별, 괴롭힘 이야기인가?' }
-    });
-    mood = a.mood.level;
-    topic = { level: '난이도', pace: '속도', material: '자료', practice: '실습', manner: '태도', env: '환경', other: '기타' }[a.topic.choice] || '기타';
-    suggest = a.suggest.p > 0.5 ? 'O' : '';
-    urgent = a.urgent.p > 0.7 ? '긴급' : '';
+      var a = jev_('좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want, {
+        mood: { type: 'score', instructions: '수업 전체에 대한 학생의 감정은 어떤가?', criteria: ['매우 부정', '부정', '중립', '긍정', '매우 긍정'] },
+        topic: { type: 'choice', instructions: '학생이 가장 비중 있게 말한 주제', criteria: { level: '수업 내용의 난이도', pace: '진행 속도', material: '자료와 교재', practice: '실습과 활동', manner: '교수의 태도와 소통', env: '강의실, 시설, 온라인 환경', other: '기타' } },
+        suggest: { type: 'noul', instructions: '다음 수업에 반영할 수 있는 구체적인 건의나 요청이 들어 있는가?' },
+        urgent: { type: 'noul', instructions: '교수가 지금 바로 알아야 할 심각한 불만, 안전 문제, 차별, 괴롭힘 이야기인가?' }
+      });
+      mood = a.mood.level;
+      topic = { level: '난이도', pace: '속도', material: '자료', practice: '실습', manner: '태도', env: '환경', other: '기타' }[a.topic.choice] || '기타';
+      suggest = a.suggest.p > 0.5 ? 'O' : '';
+      var u = a.urgent && a.urgent.p;
+      if (typeof u === 'number' && u >= 0 && u <= 1) urgent = u < 0.7 ? '비긴급' : '긴급';
     } catch (err) { topic = '판정 실패'; } // 판정이 실패해도 응답은 잃지 않고 적습니다
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    row_(sheet_('분석'), [new Date(), sat, mood, topic, suggest, urgent, good, want]);
+    sh = requiredSheet_('분석', SURVEY_HEAD);
+    row_(sh, [new Date(), sat, mood, topic, suggest, urgent, good, want]);
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().remove(REPORT_CACHE);
   } finally { lock.releaseLock(); }
-  if (urgent) mail_(mailTo_(), '[수업 설문] 긴급으로 보이는 응답', '좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want + '\n\n※ Jev가 긴급으로 판정했습니다. 직접 읽고 판단하세요.');
-  var every = Math.max(3, Number(ss_().getSheetByName('설정').getRange('B1').getValue()) || 10);
-  var p = PropertiesService.getScriptProperties();
-  if (sheet_('분석').getLastRow() - 1 - Number(p.getProperty('SENT') || 0) >= every) sendDigest_(true);
+  if (urgent === '긴급') mail_(mailTo_(), '[수업 설문] 긴급으로 보이는 응답', '좋았던 점: ' + good + '\n아쉬웠던 점이나 바라는 점: ' + want + '\n\n※ Jev가 긴급으로 판정했습니다. 직접 읽고 판단하세요.');
+  var every = Math.max(3, Number(settings.getRange('B1').getValue()) || 10);
+  if (sh.getLastRow() - 1 - Number(p.getProperty('SENT') || 0) >= every) sendDigest_(every);
 }
 
 function mailTo_() {
-  var m = String(ss_().getSheetByName('설정').getRange('B2').getValue()).trim();
+  var m = String(requiredSheet_('설정').getRange('B2').getValue()).trim();
   return m || Session.getEffectiveUser().getEmail();
 }
 
@@ -91,15 +121,15 @@ function tally_(rows, col) {
 
 function digestNow() {
   menuOnly_();
-  sendDigest_(false);
+  if (sendDigest_(1) === false) say_('새로 쌓인 응답이 없습니다.');
 }
 
-function sendDigest_(quiet) {
+function sendDigest_(min) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return;
   try {
-    var p = PropertiesService.getScriptProperties(), sh = sheet_('분석'), done = Number(p.getProperty('SENT') || 0), total = sh.getLastRow() - 1;
-    if (total <= done) { if (quiet !== true) say_('새로 쌓인 응답이 없습니다.'); return; }
+    var p = PropertiesService.getScriptProperties(), sh = requiredSheet_('분석', SURVEY_HEAD), done = Number(p.getProperty('SENT') || 0), total = sh.getLastRow() - 1;
+    if (total - done < min) return false;
     var rows = sh.getRange(2 + done, 1, total - done, 8).getValues();
     var sats = rows.map(function (r) { return Number(r[1]); }).filter(function (x) { return x > 0; });
     var avg = sats.length ? Math.round(sats.reduce(function (a, b) { return a + b; }, 0) / sats.length * 10) / 10 : '-';
@@ -120,13 +150,19 @@ function sendDigest_(quiet) {
 // 강의장 결과 화면: 설문 응답이 들어올 때마다 만족도 게이지, 감정 분포, 주제 순위가 움직입니다.
 // 긴급 표시와 아쉬웠던 점은 화면에 내보내지 않습니다(메일과 시트에서만 봅니다).
 function doGet() {
+  if (!isReady_('분석') || !isReady_('설정')) return notReady_('수업 반응');
   return page_('수업 반응', REPORT_HTML, { raw: true, css: REPORT_CSS + STAGE_CSS });
 }
 
 function getReport() {
-  var cache = CacheService.getScriptCache(), hit = cache.get('report');
+  var ss = ss_(), sh = ss.getSheetByName('분석');
+  if (!sh || !ss.getSheetByName('설정')) return { n: 0 };
+  var n = sh.getLastRow() - 1;
+  if (n <= 0) return { n: 0 };
+  try { checkHeader_(sh, SURVEY_HEAD); } catch (e) { return { n: 0 }; }
+  var cache = CacheService.getScriptCache(), hit = cache.get(REPORT_CACHE);
   if (hit) return JSON.parse(hit);
-  var sh = sheet_('분석'), n = sh.getLastRow() - 1, rows = n > 0 ? sh.getRange(2, 1, n, 8).getValues() : [];
+  var rows = sh.getRange(2, 1, n, 8).getValues();
   var sat = [0, 0, 0, 0, 0], mood = [0, 0, 0, 0, 0], topic = {}, sum = 0, k = 0, sug = 0, quotes = [];
   rows.forEach(function (r) {
     var x = Number(r[1]);
@@ -134,11 +170,11 @@ function getReport() {
     if (r[2] !== '' && r[2] != null && Number(r[2]) >= 0 && Number(r[2]) <= 4) mood[Number(r[2])]++;
     if (r[3] && r[3] !== '판정 실패') topic[r[3]] = (topic[r[3]] || 0) + 1;
     if (r[4] === 'O') sug++;
-    if (r[5] !== '긴급' && r[6]) quotes.push(String(r[6]).replace(/\s+/g, ' ').slice(0, 90));
+    if (r[5] === '비긴급' && r[6]) quotes.push(String(r[6]).replace(/\s+/g, ' ').slice(0, 90));
   });
   var topics = Object.keys(topic).sort(function (a, b) { return topic[b] - topic[a]; }).slice(0, 6).map(function (t) { return { k: t, n: topic[t] }; });
   var out = { n: rows.length, avg: k ? Math.round(sum / k * 10) / 10 : 0, sat: sat, mood: mood, topics: topics, sug: sug, quotes: quotes.slice(-8) };
-  cache.put('report', JSON.stringify(out), 5);
+  cache.put(REPORT_CACHE, JSON.stringify(out), 5);
   return out;
 }
 
@@ -178,37 +214,53 @@ var REPORT_CSS = [
 
 function reportClient_() {
   var $ = function (s) { return document.querySelector(s); };
-  var first = true, shown = { n: 0, avg: 0 }, qi = 0, qs = [];
+  var first = true, avg = 0, view = 0, qi = 0, qs = [], current = '', quoteTimer = null, quoteRun = 0;
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function tween(e, from, to, dec) {
     var fmt = function (v) { return dec ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)); };
     if (from === to || typeof requestAnimationFrame !== 'function') { e.textContent = fmt(to); return; }
-    var t0 = Date.now();
+    var t0 = Date.now(), run = view;
     (function step() {
+      if (run !== view) return;
       var k = Math.min(1, (Date.now() - t0) / 1400), v = 1 - Math.pow(1 - k, 3);
       e.textContent = fmt(from + (to - from) * v);
       if (k < 1) requestAnimationFrame(step);
     })();
   }
   function later(f) {
-    if (first && typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { requestAnimationFrame(f); });
+    var run = view;
+    if (first && typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { requestAnimationFrame(function () { if (run === view) f(); }); });
     else f();
   }
   function type(e, text) {
+    var run = ++quoteRun;
     e.textContent = text;
     if (typeof requestAnimationFrame !== 'function') return;
     var n = text.length, t0 = Date.now(); e.textContent = '';
-    (function step() { var i = Math.ceil(n * Math.min(1, (Date.now() - t0) / Math.min(2200, 400 + n * 30))); e.textContent = text.slice(0, i); if (i < n) requestAnimationFrame(step); })();
+    (function step() { if (run !== quoteRun) return; var i = Math.ceil(n * Math.min(1, (Date.now() - t0) / Math.min(2200, 400 + n * 30))); e.textContent = text.slice(0, i); if (i < n) requestAnimationFrame(step); })();
+  }
+  function clearQuotes() {
+    clearTimeout(quoteTimer); quoteTimer = null;
+    qs = []; qi = 0; current = ''; quoteRun++;
+    $('#qt').textContent = ''; $('#voice').hidden = true;
   }
   function showQuote() {
-    if (!qs.length) { $('#qt').textContent = ''; return; }
-    type($('#qt'), '“' + qs[qi % qs.length] + '”'); qi++;
-    setTimeout(showQuote, 6000);
+    current = qs[qi++ % qs.length];
+    $('#voice').hidden = false;
+    type($('#qt'), '“' + current + '”');
+    quoteTimer = setTimeout(showQuote, 6000);
   }
   function draw(d) {
-    if (!d.n) { $('#wait').hidden = false; $('#main').hidden = true; return; }
+    if (!d.n) {
+      view++; first = true; avg = 0;
+      $('#wait').hidden = false; $('#main').hidden = true;
+      $('#avg').textContent = '0.0'; $('#cnt').textContent = '응답 0개'; $('#arc').style.strokeDashoffset = '527.8';
+      $('#hist').textContent = ''; $('#mood').textContent = ''; $('#tp').textContent = '';
+      clearQuotes();
+      return;
+    }
     $('#wait').hidden = true; $('#main').hidden = false;
-    tween($('#avg'), shown.avg, d.avg, true); shown.avg = d.avg;
+    tween($('#avg'), avg, d.avg, true); avg = d.avg;
     $('#cnt').textContent = '응답 ' + d.n + '개 · 건의 ' + d.sug + '개';
     later(function () { $('#arc').style.strokeDashoffset = String(527.8 * (1 - d.avg / 5)); });
     var h = $('#hist'); h.textContent = '';
@@ -233,8 +285,9 @@ function reportClient_() {
       tp.appendChild(row); fill.style.width = '0%';
       later(function () { fill.style.width = Math.round(t.n / tmx * 100) + '%'; });
     });
-    var had = qs.length; qs = d.quotes;
-    if (!had && qs.length) showQuote();
+    if (!d.quotes.length || current && d.quotes.indexOf(current) < 0) clearQuotes();
+    qs = d.quotes;
+    if (qs.length && quoteTimer === null) showQuote();
     first = false;
   }
   function tick() {
@@ -249,5 +302,5 @@ var REPORT_HTML = '<div class="stage"><div><div class="live">LIVE · <span class
   '<div class="main" id="main" hidden><section><h2>SATISFACTION</h2><div class="ring"><svg viewBox="0 0 200 200"><circle class="trk" cx="100" cy="100" r="84"/><circle class="arc" id="arc" cx="100" cy="100" r="84"/></svg><div class="val"><span id="avg">0.0</span><small id="cnt">응답 0개</small></div></div></section>' +
   '<section><h2>DISTRIBUTION</h2><div class="hist" id="hist"></div><div class="mood" id="mood"></div><div class="mlab"><span>매우 부정</span><span>중립</span><span>매우 긍정</span></div></section>' +
   '<section><h2>TOPICS</h2><div class="tp" id="tp"></div></section></div>' +
-  '<div class="quote"><small>VOICE</small><span id="qt"></span></div></div>' +
+  '<div class="quote" id="voice" hidden><small>VOICE</small><span id="qt"></span></div></div>' +
   '<script>(' + reportClient_.toString() + ')();</script>' + STAGE_JS;

@@ -1,11 +1,8 @@
-// 코드 버전: 웹 도구의 '코드 복사' 옆 번호와 화면 오른쪽 아래 번호가 같아야 새 코드가 배포된 것입니다.
-var CODE_VERSION = 'v2026.11.26-e';
+// 웹 도구와 배포 화면에서 이 버전을 확인합니다.
+var CODE_VERSION = 'v2026.11.27-e';
 
-/* ===== 공통 도우미: 모든 레시피 맨 위에 한 번만 둡니다 =====
-   ai_    : 글을 쓰는 AI에게 부탁합니다.
-   jev_   : 글을 읽고 예/아니오, 여럿 중 하나, 단계 점수를 확률로 판정합니다(글은 쓰지 않고 고르기만 합니다).
-   ss_ sheet_ throttle_ page_ : 시트 찾기, 시트 만들기, 연타 막기, 웹 화면 만들기 */
-// 편집기의 ▶ 실행이 맨 처음 함수를 고르므로 start 를 가장 위에 둡니다: 시트 탭, 메뉴, 자동 실행을 한 번에 준비합니다.
+/* ===== 공통 도우미: 각 레시피 위에 한 번만 둡니다 ===== */
+// 편집기가 고르는 첫 함수 start에서 시트·메뉴·트리거를 준비합니다.
 function start() {
   if (typeof ensureKey_ === 'function' && !ensureKey_()) return;
   if (typeof setup !== 'function') { say_('이 코드에는 start 단계가 없습니다. 만들어진 함수를 직접 실행하세요.'); return; }
@@ -40,44 +37,58 @@ function setClassCode() {
 
 function post_(path, body, beforeSend) {
   var code = PropertiesService.getScriptProperties().getProperty('CLASS_CODE') || (typeof EMBEDDED_CODE === 'string' ? EMBEDDED_CODE : '');
-  if (!code) throw new Error('수업 코드가 아직 없습니다. 웹 도구에서 수업 코드를 넣고 코드를 다시 복사하거나, 시트 메뉴의 "수업 코드 입력"을 실행하세요.');
+  if (!code) throw aiLinkError_('수업 코드가 아직 없습니다. 시트 메뉴에서 "수업 코드 입력"을 실행하세요.');
   body.code = code;
   var last;
   for (var i = 0; i < 3; i++) {
     var req = { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true };
     if (beforeSend) beforeSend();
-    var res = UrlFetchApp.fetch(SERVER + path, req);
+    var res = aiFetch_(SERVER + path, req);
     var status = res.getResponseCode(), text = res.getContentText();
     if (status === 200) return text;
-    var msg = text.slice(0, 200), wait = 0;
+    var msg = text.slice(0, 200), wait = 0, tag = '';
     try {
       var j = JSON.parse(text);
       msg = j.error || msg;
       wait = j.retryAfter || 0;
+      if (status === 503 && j.code === 'disabled') tag = 'link';
+      if (path === '/api/ai' && status === 503 && j.code === 'upstream') {
+        if (msg === 'AI ONE 서버가 요청을 처리하지 못했습니다. 내용을 조금 바꿔 다시 시도해 주세요.') tag = 'input';
+        if (msg === 'AI ONE 연결 설정에 문제가 있습니다. 강사에게 알려 주세요.') tag = 'link';
+      }
       if (j.detail) msg += ' (' + j.detail + ')';
     } catch (e) {}
     last = new Error('AI ONE ' + status + ': ' + msg);
-    if ((status === 429 || status === 503) && i < 2 && wait <= 20) { Utilities.sleep(Math.max(wait, 2) * 1000); continue; }
+    last.status = status;
+    last.input = tag === 'input';
+    last.link = tag === 'link';
+    if (!tag && (status === 429 || status === 503) && i < 2 && wait <= 20) { Utilities.sleep(Math.max(wait, 2) * 1000); continue; }
     throw last;
   }
   throw last;
 }
 
-// prompt: 글자 하나, 또는 [{role: 'user' | 'assistant', content: '…'}] 배열(마지막은 user).
-// opts.images: [{name: '칠판.jpg', url: 'data:image/jpeg;base64,…'}]  opts.files: [{name: '강의계획서', text: '…'}] (긴 자료는 여기에)
+// prompt는 글이나 {role,content} 배열, opts에는 images({name,url})와 files({name,text})를 넣습니다.
 function ai_(prompt, opts) {
   opts = opts || {};
   var body = { ex: 'gas-run', messages: typeof prompt === 'string' ? [{ role: 'user', content: prompt }] : prompt };
   if (opts.images) body.images = opts.images;
   if (opts.files) body.files = opts.files;
-  var lines = post_('/api/ai', body, opts.beforeSend).split('\n'), out = '';
+  var lines = post_('/api/ai', body, opts.beforeSend).split('\n'), out = '', done = false;
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf('data:') !== 0) continue;
     var ev;
-    try { ev = JSON.parse(lines[i].slice(5)); } catch (e) { continue; }
+    try { ev = JSON.parse(lines[i].slice(5)); } catch (e) { if (opts.complete) throw e; continue; }
     if (ev.error) throw new Error(ev.error);
     if (ev.delta) out += ev.delta;
+    if (ev.done) done = ev;
   }
+  if (opts.complete && done && done.truncated) {
+    var cut = new Error('AI 답변이 길이 제한으로 잘렸습니다.');
+    cut.input = true;
+    throw cut;
+  }
+  if (opts.complete && (!done || !out.trim())) throw new Error('AI 답변이 완성되지 않았습니다.');
   return out.trim();
 }
 
@@ -86,23 +97,25 @@ function checkServer_() {
   try { post_('/api/jev', { check: true }); return ''; } catch (e) { return String(e && e.message || e).slice(0, 160); }
 }
 
-// state: 판정할 글(또는 객체). questions: {이름: {type: 'noul' | 'choice' | 'score', instructions: '…', criteria: …}}
-// 돌려주는 값: {이름: {type:'noul', p} | {type:'choice', choice, confidence, probs} | {type:'score', score, level, label, confidence, probs}}
+// 판정할 state와 이름별 {type, instructions, criteria}를 보내 이름별 답을 받습니다.
 function jev_(state, questions) {
   return JSON.parse(post_('/api/jev', { state: state, questions: questions })).answers;
 }
 // SERVER>>
+
+function aiLinkError_(msg) { var e = new Error(msg); e.link = true; return e; }
+function aiFetch_(url, req) {
+  try { return UrlFetchApp.fetch(url, req); } catch (e) { throw aiLinkError_(e.message); }
+}
 
 function ss_() {
   var p = PropertiesService.getScriptProperties(), id = p.getProperty('SS_ID');
   if (id) return SpreadsheetApp.openById(id);
   var a = SpreadsheetApp.getActive();
   if (!a) throw new Error('시트 메뉴에서 "처음 준비"를 먼저 실행하세요.');
-  p.setProperty('SS_ID', a.getId());
   return a;
 }
 
-// 학생이 웹 주소를 열었는데 교수가 아직 "처음 준비"(start)를 실행하지 않은 경우입니다. 오류 대신 안내 화면을 보입니다.
 function isReady_(sheetName) {
   try { return !!ss_().getSheetByName(sheetName); } catch (e) { return false; }
 }
@@ -110,22 +123,34 @@ function notReady_(title) {
   return page_(title, '<div class="kick">READY · <span class="ko">준비 중</span></div><h1>아직 준비 중입니다</h1><p class="muted">교수님이 준비를 끝내면 이 화면이 열립니다. 교수님께 알려 주세요.</p><p class="muted">교수님은 시트 메뉴의 처음 준비(또는 편집기에서 start 실행)를 한 번 실행하세요.</p>');
 }
 
-function sheet_(name, header) {
-  var ss = ss_(), sh = ss.getSheetByName(name);
-  if (!sh) {
-    sh = ss.insertSheet(name);
-    if (header) { sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold'); sh.setFrozenRows(1); }
-  }
+// ss를 넘기는 처음 준비는 쓰기 잠금 안에서만 호출합니다.
+function sheet_(name, header, ss, reset) {
+  var sh = (ss || ss_()).getSheetByName(name), empty = !sh || ss && !sh.getLastRow();
+  if (!sh) sh = (ss || ss_()).insertSheet(name);
+  if (header && empty) {
+    if (reset) reset();
+    sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  } else if (ss) checkHeader_(sh, header);
   return sh;
 }
 
-// 학생에게 줄 웹 앱 주소. ScriptApp.getService().getUrl() 은 쓰지 않습니다: 편집기에서만 열리는 /dev 주소나
-// 있지도 않은 배포 번호의 /exec 주소를 돌려줄 때가 있어, 학생 폰에 "현재 파일을 열 수 없습니다"가 뜹니다.
-// 대신 교수가 배포 창에서 복사한 /exec 주소를 시트 메뉴 "웹 앱 주소 넣기"로 한 번 넣어 두고(WEB_URL) 그것만 씁니다.
+function checkHeader_(sh, header) {
+  if (header && sh.getRange(1, 1, 1, header.length).getValues()[0].some(function (v, i) { return v !== header[i]; })) {
+    throw new Error('[' + sh.getName() + ']의 머리글이 다릅니다. 탭 이름을 바꾸세요(필요하면 먼저 백업). 그런 뒤 처음 준비를 다시 실행하세요.');
+  }
+}
+
+function requiredSheet_(name, header) {
+  var sh = ss_().getSheetByName(name);
+  if (!sh) throw new Error('[' + name + '] 탭이 없습니다. 시트 메뉴에서 처음 준비를 실행하세요.');
+  checkHeader_(sh, header);
+  return sh;
+}
+
+// getService().getUrl()은 /dev나 잘못된 /exec를 줄 수 있어 시트 메뉴로 저장한 WEB_URL만 씁니다.
 var EXEC_RE = /^https:\/\/script\.google\.com\/(?:macros\/s\/[\w-]+|a\/(?:macros\/)?[\w.-]+\/(?:macros\/)?s\/[\w-]+)\/exec$/;
-// 주소 정리: 뒤의 ?…, #…, / 와 여러 계정 로그인 때 붙는 /u/숫자 를 떼고, /exec 웹 앱 주소가 아니면 '' 를 돌려줍니다.
-// 학교 계정 주소(/a/macros/학교/s/…, /a/학교/macros/s/…)는 /macros/s/… 로 바꿉니다. 학교 주소는 학교 로그인을 요구해
-// 로그인하지 않은 학생 폰에 "현재 파일을 열 수 없습니다"가 뜹니다. 액세스 "모든 사용자"면 /macros/s/… 주소로 누구나 열립니다.
+// /exec 주소만 받습니다. 로그인 없이 열도록 계정 경로·쿼리·해시를 제거합니다.
 function execUrl_(raw) {
   var u = String(raw || '').trim().replace(/[?#][\s\S]*$/, '').replace(/\/+$/, '').replace(/\/u\/\d+(?=\/s\/)/, '');
   if (!EXEC_RE.test(u)) return '';
@@ -257,16 +282,14 @@ function page_(title, body, opts) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// 교수용 PIN: 4자리 숫자를 스크립트 속성에 둡니다(시트에는 적지 않아 학생 답이나 화면에 섞여 나올 수 없습니다). 없으면 만듭니다.
-// 교수는 시트 메뉴의 "주소와 PIN 보기"에서 확인합니다. name: 'board'(반응판) 'class'(튜터 교수 화면)
+// 교수 PIN은 시트가 아닌 스크립트 속성에 둡니다.
 function pin_(name) {
   var p = PropertiesService.getScriptProperties(), k = 'PIN_' + name, v = String(p.getProperty(k) || '');
   if (!/^\d{4}$/.test(v)) { v = String(1000 + Math.floor(Math.random() * 9000)); p.setProperty(k, v); }
   return v;
 }
 
-// 교수 확인. cred는 PIN 4자리, 또는 PIN이 맞았을 때 내준 화면용 표(6시간 유효)입니다.
-// 표를 가진 화면은 계속 쓸 수 있고, PIN은 10분 동안 10번 틀리면 새로 넣는 PIN을 받지 않습니다(무작위 대입 방지). 세는 일은 잠금 안에서 합니다.
+// PIN 검증은 잠금 안, 발급한 화면용 토큰은 6시간 유효합니다.
 function auth_(cred, name) {
   cred = String(cred || '').trim();
   var cache = CacheService.getScriptCache();
@@ -291,8 +314,7 @@ function menuOnly_() {
   try { SpreadsheetApp.getUi(); } catch (e) { throw new Error('시트 메뉴에서만 실행할 수 있습니다.'); }
 }
 
-// 강의장 큰 화면 공통 도구: 오른쪽 아래 버튼 줄(전체화면 F), 마우스를 멈추면 버튼과 커서를 숨김, 전체화면 동안 화면 꺼짐 방지.
-// 다른 화면은 window.stage.add(이름, 단축키, 함수)로 버튼을 더합니다.
+// 큰 화면 도구: F 전체화면, window.stage.add로 단축키 추가.
 var STAGE_CSS = [
   '.kit{position:fixed;right:clamp(10px,1.4vw,26px);bottom:clamp(10px,1.4vw,26px);z-index:30;display:flex;gap:6px;transition:opacity .45s ease}',
   'body.idle .kit{opacity:0;pointer-events:none}body.idle{cursor:none}',

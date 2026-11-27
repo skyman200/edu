@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { createEnv, readGs as readGs0, choice, noul, score, defaultAnswers, runPage } from './mock-gas.mjs';
-import { soloCommon, soloRecipe } from './build.mjs';
+import { buildRecipes, soloCommon, soloRecipe } from './build.mjs';
 
 // SOLO=1 node gas/gas.test.mjs runs the same recipes as the solo build (Gemini key, no class server); tests about the class server are skipped there.
 const SOLO = !!process.env.SOLO;
@@ -326,14 +327,24 @@ test('r5: photo -> notes doc; unreadable asks for a retake; big or HEIC photos g
   fail.setup();
   fail.folders.get(fail.props.get('INBOX')).files.push(file('p9', '거대.jpg', 'image/jpeg', 5000000));
   fail.call('processPhotos');
-  assert.ok(fail.rows('기록')[0][4].startsWith('실패'));
+  assert.match(fail.rows('기록')[0][4], /^재시도 예정:/);
   fail.call('processPhotos');
-  assert.equal(fail.rows('기록').length, 1);
+  fail.call('processPhotos');
+  assert.match(fail.rows('기록').at(-1)[4], /^보류:/);
+  fail.call('processPhotos');
+  assert.equal(fail.rows('기록').length, 3);
   env.call('autoOn');
   assert.deepEqual(env.log.triggers.map((t) => [t.fn, t.spec[0][0]]), [['processPhotos', 'timeBased']]);
 });
 
 // ---------- recipe 6 ----------
+function surveyEvent(env, sat, good, want) {
+  const form = env.forms.get(env.props.get('FORM_ID'));
+  return { source: form, response: { getItemResponses: () => [sat, good, want].map((value, i) => ({
+    getItem: () => ({ getTitle: () => form.questions[i][1] }), getResponse: () => value,
+  })) } };
+}
+
 test('r6: form + trigger, every response analysed, urgent mails at once, digest every N', () => {
   const env = boot('r6-survey.gs', {
     jev: (s, q) => ({ ...defaultAnswers(q), mood: score(3), topic: choice('pace'), suggest: noul(s.includes('더 천천히') ? 0.9 : 0.1), urgent: noul(s.includes('괴롭') ? 0.95 : 0.05) }),
@@ -345,12 +356,12 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   assert.equal(env.log.triggers.length, 1, 'running setup twice does not duplicate the form or trigger');
   env.call('showUrls');
   assert.ok(env.log.alerts.at(-1).includes('forms.gle') && env.log.alerts.at(-1).includes('웹 도구에서 받은 주소'));
-  const sub = (sat, good, want) => env.call('onSurveySubmit', { namedValues: { '오늘 수업 만족도': [String(sat)], '좋았던 점': [good], '아쉬웠던 점이나 바라는 점': [want] } });
+  const sub = (sat, good, want) => env.call('onSurveySubmit', surveyEvent(env, sat, good, want));
   env.sheet('설정').getRange('B1').setValue(3);
   sub(5, '예시가 좋았어요', '더 천천히 해 주세요');
   sub(4, '실습이 좋았어요', '');
   let rows = env.rows('분석');
-  assert.deepEqual([rows[0][1], rows[0][2], rows[0][3], rows[0][4], rows[0][5]], [5, 3, '속도', 'O', '']);
+  assert.deepEqual([rows[0][1], rows[0][2], rows[0][3], rows[0][4], rows[0][5]], [5, 3, '속도', 'O', '비긴급']);
   assert.equal(env.log.mails.length, 0, 'no digest before three responses');
   sub(2, '', '이 수업에서 괴롭힘을 당했어요');
   assert.ok(env.log.mails[0].subject.includes('긴급'));
@@ -372,6 +383,923 @@ test('r6: form + trigger, every response analysed, urgent mails at once, digest 
   sub(1, '판정 실패', '판정 실패');
   rows = env.rows('분석');
   assert.deepEqual([rows.at(-2)[1], rows.at(-2)[2], rows.at(-1)[3]], [3, '', '판정 실패']);
+});
+
+// Teacher flows: click installed menu items and dispatch only registered triggers.
+const recipeUrl = 'https://script.google.com/macros/s/TEST/exec';
+const failureStatuses = [401, 429, 503];
+function recipeFlow(file, menuName, opts) {
+  const env = boot(file, { ...opts, classCode: process.env.GAS_E2E_CLASS_CODE });
+  const property = SOLO ? 'GEMINI_KEY' : 'CLASS_CODE', fixture = env.props.get(property);
+  env.props.delete(property);
+  env.call('onOpen');
+  assert.equal(env.log.menus[0].name, menuName);
+  const menu = (label) => {
+    const item = env.log.menus[0].items.find(([text]) => text === label);
+    assert.ok(item, label);
+    return env.call(item[1]);
+  };
+  if (!SOLO) {
+    env.log.prompts.push(fixture + '!');
+    menu('수업 코드 입력');
+    assert.match(env.log.alerts.at(-1), /연결 확인에 실패.*\n.*401/);
+  }
+  env.log.prompts.push(' ' + fixture + ' ');
+  menu(SOLO ? 'AI 키 넣기' : '수업 코드 입력');
+  assert.equal(env.props.get(property), fixture);
+  assert.match(env.log.alerts.at(-1), /연결도 확인했습니다/);
+  menu('처음 준비');
+  assert.match(env.log.alerts.at(-1), /준비 끝/);
+  const triggers = () => env.ctx.ScriptApp.getProjectTriggers();
+  return Object.assign(env, { menu, triggers,
+    revoke(fn) { env.ctx.ScriptApp.deleteTrigger(triggers().find((t) => t.fn === fn)); },
+    fire(fn, event) {
+      if (!triggers().some((t) => t.fn === fn)) return false;
+      env.call(fn, event);
+      return true;
+    },
+    setUrl() { env.log.prompts.push(recipeUrl); menu('웹 앱 주소 넣기'); assert.equal(env.props.get('WEB_URL'), recipeUrl); },
+    page(event) { return runPage(env, env.call('doGet', event).html); },
+  });
+}
+
+function withAiFailure(env, status, run) {
+  const from = env.log.requests.length, sleeps = env.log.sleeps;
+  env.log.aiFail = status;
+  try { run(); } finally { delete env.log.aiFail; }
+  const requests = env.log.requests.slice(from).filter(({ url, body }) => SOLO ? !body.generationConfig.responseMimeType : url.endsWith('/api/ai'));
+  const retries = status === 401 ? 0 : 2;
+  assert.equal(requests.length, retries + 1);
+  assert.equal(env.log.sleeps - sleeps, retries);
+}
+
+test('r2 teacher flow: Drive material → rendered answer and professor handoff → weekly mail, including failures', () => {
+  const answer = '모의 실습은 월요일입니다.', q = '모의 실습은 언제 하나요?';
+  const env = recipeFlow('r2-assistant.gs', '24시간 조교', {
+    jev: (s, qs) => ({ ...defaultAnswers(qs), answerable: noul(0.95) }), ai: () => answer,
+  });
+  env.setUrl();
+  env.menu('주소 보기');
+  assert.match(env.log.alerts.at(-1), /학생용 주소/);
+  env.addFile(env.props.get('MATERIAL'), { name: '실습일정.txt', data: answer });
+  env.menu('자료 폴더 보기');
+  assert.match(env.log.alerts.at(-1), /실습일정\.txt/);
+  const page = env.page();
+  assert.match(page.el('#nm').textContent, /수업 조교/);
+  page.set('#t', q);
+  page.click('#b');
+  assert.equal(page.el('#m').children[0].textContent, answer);
+  for (const status of failureStatuses) withAiFailure(env, status, () => {
+    page.set('#t', q);
+    page.click('#b');
+    assert.equal(page.el('#b').disabled, false);
+    assert.match(page.el('#m').children[0].textContent, /교수님께 전달했습니다.*질문 번호/);
+    assert.equal(env.rows('질문기록').at(-1)[5], '교수님께');
+  });
+  const pending = env.rows('질문기록').at(-1)[1];
+  env.sheet('질문기록').getRange(env.sheet('질문기록').getLastRow(), 7).setValue('교수의 모의 답변입니다.');
+  page.set('#i', pending);
+  page.click('#k');
+  assert.match(page.texts('#r').join(' '), /모의 답변/);
+  const trigger = 'weeklyReport';
+  env.revoke(trigger);
+  assert.equal(env.fire(trigger), false);
+  assert.equal(env.log.mails.length, 0);
+  env.menu('매주 월요일 리포트 켜기');
+  assert.deepEqual(env.triggers()[0].spec, [['timeBased'], ['onWeekDay', 'MONDAY'], ['atHour', 8]]);
+  assert.equal(env.fire(trigger), true);
+  assert.match(env.log.mails.at(-1).body, /지난 7일 질문 4개 \(자동 답변 1개, 교수 답변 1개, 교수 확인 필요 2개\)/);
+  env.active.sheets.delete('질문기록');
+  assert.match(env.call('doGet').html, /아직 준비 중입니다/);
+  assert.throws(() => env.fire(trigger), /질문기록.*처음 준비/);
+  assert.equal(env.sheet('질문기록'), null);
+  env.menu('처음 준비');
+  assert.equal(env.sheet('질문기록').cell(1, 2), '번호');
+});
+
+test('r4 teacher flow: form → scheduled mail → reflection link, with failures that leave the letter retryable', () => {
+  const comment = '모의 회고에서 발표가 편해졌어요.';
+  const env = recipeFlow('r4-future.gs', '미래 편지', { jev: (s, qs) => ({ ...defaultAnswers(qs), growth: score(2) }), ai: () => comment });
+  env.setUrl();
+  env.menu('주소 보기');
+  assert.match(env.log.alerts.at(-1), /학생용 주소/);
+  const form = env.page();
+  assert.match(form.el('#tt').textContent, /미래의 나에게/);
+  form.set('#em', env.ctx.Session.getEffectiveUser().getEmail());
+  form.set('#go', '모의 목표는 작은 발표를 끝내 보는 것입니다.');
+  form.set('#dt', env.call('today_'));
+  form.click('#b');
+  assert.match(form.texts('#m').join(' '), /도착합니다/);
+  const [row] = env.rows('편지');
+  assert.equal(row[7], '예약');
+  const trigger = 'deliverLetters';
+  env.revoke(trigger);
+  assert.equal(env.fire(trigger), false);
+  assert.equal(env.log.mails.length, 1, 'only the reservation receipt');
+  env.menu('매일 아침 배달 켜기');
+  assert.deepEqual(env.triggers()[0].spec, [['timeBased'], ['everyDays', 1], ['atHour', 8]]);
+  assert.equal(env.fire(trigger), true);
+  assert.equal(env.rows('편지')[0][7], '배달');
+  const link = new URL(env.log.mails.at(-1).body.trim().split('\n').at(-1));
+  assert.equal(link.origin + link.pathname, recipeUrl);
+  assert.equal(link.searchParams.get('r'), row[1]);
+  const reflect = env.page({ parameter: Object.fromEntries(link.searchParams) });
+  assert.deepEqual(reflect.calls, ['getLetter']);
+  reflect.set('#t', '모의 회고: 발표 연습을 끝낼 수 있었습니다.');
+  for (const status of failureStatuses) withAiFailure(env, status, () => {
+    reflect.click('#b');
+    assert.equal(reflect.el('#b').disabled, false);
+    assert.match(reflect.texts('#toast').join(' '), new RegExp('코멘트 받기를 못했어요.*' + status));
+    assert.equal(env.rows('편지')[0][7], '배달');
+  });
+  env.cache.delete('t:r:' + row[1]); // retry after the per-letter cooldown
+  reflect.click('#b');
+  assert.match(reflect.texts('#m').join(' '), /발표가 편해졌어요.*변화 지수/);
+  assert.equal(env.rows('편지')[0][7], '회고완료');
+  env.active.sheets.delete('편지');
+  assert.match(env.call('doGet').html, /아직 준비 중입니다/);
+  assert.throws(() => env.fire(trigger), /편지.*처음 준비/);
+  assert.equal(env.sheet('편지'), null);
+  env.menu('처음 준비');
+  assert.equal(env.sheet('편지').cell(1, 2), '번호');
+});
+
+test('r5 teacher flow: photo folder → recovery from AI failure → one document, with no public Drive address', () => {
+  const env = recipeFlow('r5-boardphoto.gs', '칠판 노트', { ai: () => '# 모의 판서\n## 복습 퀴즈\n- 모의 문항' });
+  const advance = photoClock(env);
+  env.menu('폴더 주소 보기');
+  assert.match(env.log.alerts.at(-1), /사진 올리기:.*\n결과 노트:/);
+  const photo = env.addFile(env.props.get('INBOX'), { name: '모의판서.jpg', mime: 'image/jpeg', data: Buffer.from([255, 216, 255, 217]) });
+  const trigger = 'processPhotos';
+  env.revoke(trigger);
+  assert.equal(env.fire(trigger), false);
+  assert.equal(env.docs.size, 0);
+  env.menu('자동 처리 켜기(10분마다)');
+  assert.deepEqual(env.triggers()[0].spec, [['timeBased'], ['everyMinutes', 10]]);
+  const publicHtml = env.call('doGet').html;
+  assert.match(publicHtml, /웹 주소로 열지 않습니다/);
+  assert.doesNotMatch(publicHtml, /drive\.google\.com/);
+  env.active.sheets.delete('기록');
+  const before = env.log.requests.length;
+  assert.throws(() => env.fire(trigger), /기록.*처음 준비/);
+  assert.equal(env.log.requests.length, before);
+  assert.equal(env.sheet('기록'), null);
+  env.menu('처음 준비');
+  for (const status of failureStatuses) withAiFailure(env, status, () => {
+    assert.equal(env.fire(trigger), true);
+    assert.match(env.rows('기록').at(-1)[4], new RegExp('재시도.*' + status));
+    assert.equal(env.docs.size, 0);
+    assert.ok(!JSON.parse(env.props.get('DONE') || '[]').includes(photo.getId()));
+    advance(24 * HOUR);
+  });
+  if (SOLO) {
+    const key = env.props.get('GEMINI_KEY');
+    env.props.set('GEMINI_KEY', key + '!');
+    assert.equal(env.fire(trigger), true);
+    assert.match(env.rows('기록').at(-1)[4], /재시도.*400.*AI 키가 맞지 않습니다/);
+    env.log.prompts.push(key);
+    env.menu('AI 키 넣기');
+    advance(24 * HOUR);
+  }
+  env.menu('지금 처리');
+  const doc = [...env.docs.values()][0];
+  assert.match(doc.getBody().getText(), /모의 판서[\s\S]*복습 퀴즈/);
+  assert.deepEqual(env.folders.get(env.props.get('NOTES')).files, [{ docId: doc.getId() }]);
+  assert.equal(env.rows('기록').at(-1)[4], '완료');
+  assert.ok(env.log.mails.at(-1).body.includes(doc.getUrl()));
+  env.fire(trigger);
+  assert.equal(env.docs.size, 1);
+});
+
+test('r6 teacher flow: real Forms event shape → private mail and public report → recover same form after trigger revocation', () => {
+  const env = recipeFlow('r6-survey.gs', '설문 분석', {
+    jev: (s, qs) => ({ ...defaultAnswers(qs), urgent: noul(s.includes('비공개') ? 0.95 : 0.1) }), ai: () => '모의 키워드 요약',
+  });
+  env.setUrl();
+  env.menu('주소 보기');
+  const form = env.forms.get(env.props.get('FORM_ID')), trigger = 'onSurveySubmit';
+  assert.ok(env.log.alerts.at(-1).includes(form.getPublishedUrl()));
+  assert.deepEqual(form.destination, ['SPREADSHEET', env.active.id]);
+  assert.deepEqual(form.questions.map(([kind]) => kind), ['scale', 'paragraph', 'paragraph']);
+  const event = (good, want) => surveyEvent(env, 4, good, want);
+  env.revoke(trigger);
+  assert.equal(env.fire(trigger, event('모의 칭찬', '')), false);
+  assert.equal(env.rows('분석').length, 0);
+  env.menu('처음 준비');
+  env.menu('처음 준비');
+  assert.equal(env.forms.size, 1);
+  assert.equal(env.triggers().length, 1);
+  assert.deepEqual(env.triggers()[0].spec, [['forForm', form], ['onFormSubmit']]);
+  assert.equal(env.fire(trigger, event('비공개 모의 칭찬', '비공개 모의 건의')), true);
+  assert.match(env.log.mails.at(-1).subject, /긴급/);
+  env.menu('지금 요약 메일');
+  assert.match(env.log.mails.at(-1).body, /모의 키워드 요약/);
+  for (const status of failureStatuses) {
+    env.fire(trigger, event('공개 모의 칭찬', '모의 건의'));
+    withAiFailure(env, status, () => {
+      env.menu('지금 요약 메일');
+      assert.match(env.log.mails.at(-1).body, new RegExp('평균 만족도:[\\s\\S]*AI 요약을 만들지 못했습니다.*' + status));
+    });
+  }
+  const page = env.page();
+  assert.deepEqual(page.calls, ['getReport']);
+  assert.equal(page.el('#avg').textContent, '4.0');
+  assert.match(page.el('#cnt').textContent, /응답 4개/);
+  assert.match(page.el('#qt').textContent, /공개 모의 칭찬/);
+  assert.doesNotMatch(JSON.stringify(env.call('getReport')), /비공개|모의 건의/);
+  env.log.jevFail = 503;
+  env.fire(trigger, event('분류에 실패한 모의 문구', ''));
+  delete env.log.jevFail;
+  assert.equal(env.rows('분석').at(-1)[3], '판정 실패');
+  env.cache.clear(); // next projector poll after cache expiry
+  const unclassified = env.call('getReport');
+  assert.equal(unclassified.n, 5);
+  assert.doesNotMatch(JSON.stringify(unclassified.quotes), /분류에 실패/);
+  env.active.sheets.delete('분석');
+  assert.match(env.call('doGet').html, /아직 준비 중입니다/);
+  assert.throws(() => env.fire(trigger, event('모의 응답', '')), /분석.*처음 준비/);
+  assert.equal(env.sheet('분석'), null);
+  const mailBeforeRepair = env.log.mails.length;
+  assert.equal(env.props.get('SENT'), '4');
+  env.menu('처음 준비');
+  assert.equal(env.sheet('분석').cell(1, 1), '시간');
+  env.fire(trigger, event('복구 후 모의 응답', ''));
+  env.menu('지금 요약 메일');
+  assert.equal(env.log.mails.length, mailBeforeRepair + 1);
+  assert.equal(env.props.get('SENT'), '1');
+  assert.match(env.log.mails.at(-1).subject, /새 응답 1개 요약/);
+  assert.equal(env.page().el('#cnt').textContent, '응답 1개 · 건의 0개');
+});
+
+test('every assembled class-server recipe fits the GAS editor and AI attachment limit', () => {
+  const window = {};
+  const generated = buildRecipes();
+  assert.equal(fs.readFileSync(new URL('../gas-recipes.js', import.meta.url), 'utf8'), generated);
+  new Function('window', generated)(window);
+  const { common, recipes } = window.GAS_RECIPES;
+  for (const r of recipes) {
+    const assembled = common.code + (r.code ? '\n' + r.code : '');
+    const copied = assembled.trimEnd() + '\n\n// 수업 코드(지우지 마세요)\nvar EMBEDDED_CODE = ' + JSON.stringify('x'.repeat(64)) + ';\n';
+    for (const size of [assembled.length, copied.length]) assert.ok(size <= 99_000, `${r.id}: ${size} characters (UTF-16, as in gas.html)`);
+  }
+});
+
+const HOUR = 3600000;
+function photoClock(env) {
+  let now = Date.now();
+  env.ctx.Date = class extends Date {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+    static now() { return now; }
+  };
+  return (ms) => { now += ms; };
+}
+
+function photoFixture() {
+  const env = boot('r5-boardphoto.gs', { ai: () => '# 합성 노트\n- 합성 항목' });
+  env.setup();
+  const add = (name = '합성판서.jpg', data = 'synthetic image') => env.addFile(env.props.get('INBOX'), { name, mime: 'image/jpeg', data });
+  return { env, add, advance: photoClock(env) };
+}
+
+const photoFailures = [
+  ['fetch exception', (env) => { env.ctx.UrlFetchApp.fetch = () => { throw new Error('mock transport'); }; }],
+  ['missing credential', (env) => env.props.delete(SOLO ? 'GEMINI_KEY' : 'CLASS_CODE')],
+  ['missing output folder setting', (env) => env.props.delete('NOTES')],
+  ...(SOLO ? [['Gemini token limit', (env) => { env.log.aiFinishReason = 'MAX_TOKENS'; }]] : [
+    ['SSE error', (env) => { env.log.aiStreamTail = [{ error: '답변 연결이 끊겼습니다.' }]; }],
+    ['SSE missing done', (env) => { env.log.aiStreamTail = []; }],
+    ['SSE truncated done', (env) => { env.log.aiStreamTail = [{ done: true, truncated: true }]; }],
+  ]),
+];
+for (const [name, fail] of photoFailures) test(`fix F1: pending photo recovers after ${name}`, () => {
+  const { env, add, advance } = photoFixture();
+  add();
+  const fetch = env.ctx.UrlFetchApp.fetch, props = [...env.props];
+  fail(env);
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 0);
+  assert.match(env.rows('기록').at(-1)[4], /^재시도 예정:/);
+  env.ctx.UrlFetchApp.fetch = fetch;
+  for (const [key, value] of props) if (!env.props.has(key)) env.props.set(key, value);
+  delete env.log.aiStreamTail;
+  delete env.log.aiFinishReason;
+  advance(HOUR);
+  env.call('processPhotos');
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 1);
+  assert.equal(env.rows('기록').filter((r) => r[4] === '완료').length, 1);
+  assert.equal(env.log.mails.length, 1);
+});
+
+test('fix F1: Drive thumbnail authorization failure is not final', () => {
+  let status = 403;
+  const env = boot('r5-boardphoto.gs', { ai: () => '# 합성 노트', fetchExtra: () => ({
+    getResponseCode: () => status, getBlob: () => ({ getContentType: () => 'image/jpeg', getBytes: () => [255, 216, 255, 217] }),
+  }) });
+  env.setup();
+  const advance = photoClock(env);
+  env.addFile(env.props.get('INBOX'), { name: '합성판서.heic', mime: 'image/heic', data: 'synthetic image' });
+  env.call('processPhotos');
+  assert.match(env.rows('기록').at(-1)[4], /재시도 예정:.*403/);
+  assert.equal(env.docs.size, 0);
+  status = 200;
+  advance(HOUR);
+  env.call('processPhotos');
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 1);
+  assert.equal(env.log.mails.length, 1);
+});
+
+test('fix F2: only a validated non-urgent probability permits public quotes', () => {
+  let probability;
+  const env = boot('r6-survey.gs', { jev: (s, q) => ({ ...defaultAnswers(q), urgent: noul(probability) }) });
+  env.setup();
+  env.sheet('설정').getRange('B1').setValue(99);
+  const values = [null, undefined, '0', false, -0.1, 1.1, 0.7, 0, 0.69, 1];
+  env.sheet('분석').appendRow([new Date(), 4, 2, '자료', '', '', '미확인 합성 구행', '']);
+  values.forEach((p, i) => {
+    probability = p;
+    env.call('onSurveySubmit', surveyEvent(env, 4, `합성 문구 ${i}`, ''));
+  });
+  const report = env.call('getReport');
+  assert.equal(report.n, values.length + 1);
+  assert.deepEqual(report.sat, [0, 0, 0, values.length + 1, 0]);
+  assert.deepEqual(report.quotes, ['합성 문구 7', '합성 문구 8']);
+  assert.deepEqual(env.rows('분석').slice(8, 10).map((r) => r[5]), ['비긴급', '비긴급']);
+  assert.equal(env.log.mails.length, 2);
+  assert.match(env.log.mails[0].body, /합성 문구 6/);
+  assert.match(env.log.mails[1].body, /합성 문구 9/);
+});
+
+test('fix F3: plain RPC and wrong-form events have no side effects', () => {
+  const env = boot('r6-survey.gs');
+  env.setup();
+  const genuine = surveyEvent(env, 4, '모의 응답', '');
+  const requests = env.log.requests.length, props = [...env.props];
+  env.call('onSurveySubmit', { source: { id: env.props.get('FORM_ID'), getId: env.props.get('FORM_ID') },
+    response: { getItemResponses: [] }, namedValues: { '오늘 수업 만족도': [4], '좋았던 점': ['거부할 합성 데이터'] } });
+  env.call('onSurveySubmit', { ...genuine, source: { getId: () => 'other-form' } });
+  assert.equal(env.rows('분석').length, 0);
+  assert.equal(env.log.requests.length, requests);
+  assert.equal(env.log.mails.length, 0);
+  assert.deepEqual([...env.props], props);
+});
+
+test('fix F4/F6: setup recovers an empty tab and sends one new digest', () => {
+  const env = boot('r6-survey.gs');
+  env.setup();
+  env.call('onSurveySubmit', surveyEvent(env, 4, '첫 합성 응답', ''));
+  env.call('digestNow');
+  const sent = env.props.get('SENT'), mailCount = env.log.mails.length;
+  assert.equal(sent, '1');
+  env.call('getReport');
+  env.active.sheets.delete('분석');
+  env.active.insertSheet('분석');
+  env.call('setup');
+  const sh = env.sheet('분석');
+  // An earlier projector cache may still exist even if an operator replaced the entire tab.
+  assert.equal(env.call('getReport').n, 0);
+  assert.deepEqual(sh.getRange(1, 1, 1, 8).getValues()[0], ['시간', '만족도(1~5)', '감정(0~4)', '주제', '건의', '긴급', '좋았던 점', '아쉬웠던 점/바라는 점']);
+  assert.equal(env.props.get('SENT'), '0');
+  env.call('onSurveySubmit', surveyEvent(env, 4, '복구 후 합성 응답', ''));
+  env.call('digestNow');
+  assert.equal(env.log.mails.length, mailCount + 1);
+  assert.match(env.log.mails.at(-1).subject, /새 응답 1개 요약/);
+  assert.equal(env.props.get('SENT'), '1');
+  env.call('setup');
+  assert.equal(env.props.get('SENT'), '1', 're-running setup on a correct header must not rewind the digest');
+});
+
+test('redo F4: setup and runtime leave a wrong-header tab and external state untouched', () => {
+  for (const [file, tab, run] of [
+    ['r2-assistant.gs', '질문기록', (e) => e.call('ask', '합성 질문입니다', 'sid')],
+    ['r4-future.gs', '편지', (e) => e.call('deliverLetters')],
+    ['r5-boardphoto.gs', '기록', (e) => e.call('processPhotos')],
+    ['r6-survey.gs', '분석', (e) => e.call('onSurveySubmit', surveyEvent(e, 4, '합성 응답', ''))],
+  ]) {
+    const env = boot(file);
+    env.setup();
+    env.active.sheets.delete(tab);
+    const sh = env.active.insertSheet(tab);
+    sh.appendRow(['남길 합성 행', '둘째 열']);
+    const state = () => [sh.rows, [...env.props], [...env.active.sheets.keys()], env.log.triggers.length, env.log.requests.length, env.log.mails.length, env.docs.size, env.folders.size];
+    const before = JSON.stringify(state());
+    const setup = () => env.call('setup');
+    assert.throws(setup, /백업.*처음 준비/);
+    assert.throws(() => run(env), /백업.*처음 준비/);
+    assert.equal(JSON.stringify(state()), before, tab);
+    sh.setName(tab + ' 백업');
+    setup();
+    assert.deepEqual(sh.rows, [['남길 합성 행', '둘째 열']]);
+    assert.equal(env.sheet(tab).cell(1, 1), '시간');
+  }
+});
+
+test('redo F4: an empty tab is initialized only under the writer lock', () => {
+  for (const [file, tab] of [['r2-assistant.gs', '질문기록'], ['r4-future.gs', '편지'], ['r5-boardphoto.gs', '기록']]) {
+    const env = boot(file), sh = env.active.insertSheet(tab), lock = env.ctx.LockService.getScriptLock();
+    lock.waitLock();
+    try { assert.throws(() => env.call('setup'), /lock is busy/); } finally { lock.releaseLock(); }
+    assert.equal(sh.getLastRow(), 0);
+    env.call('setup');
+    assert.equal(sh.cell(1, 1), '시간');
+  }
+});
+
+test('fix F5: setup is serialized, removes duplicate triggers and refuses a second owner', () => {
+  const env = boot('r6-survey.gs'), lock = env.ctx.LockService.getScriptLock();
+  lock.waitLock();
+  try { assert.throws(() => env.call('setup'), /lock is busy/); } finally { lock.releaseLock(); }
+  assert.equal(env.forms.size, 0);
+  const ui = env.ctx.SpreadsheetApp.getUi(), alert = ui.alert;
+  ui.alert = (msg) => {
+    assert.ok(lock.tryLock(), 'setup alert must run after releasing the script lock');
+    lock.releaseLock();
+    alert(msg);
+  };
+  env.setup();
+  const form = env.forms.get(env.props.get('FORM_ID'));
+  env.ctx.ScriptApp.newTrigger('onSurveySubmit').forForm(form).onFormSubmit().create();
+  env.call('setup');
+  assert.equal(env.forms.size, 1);
+  assert.equal(env.log.triggers.length, 1);
+  env.ctx.Session.getEffectiveUser = () => ({ getEmail: () => 'two@example.com' });
+  assert.throws(() => env.call('setup'), /처음 준비를 한 계정/);
+  assert.equal(env.forms.size, 1);
+  assert.equal(env.log.triggers.length, 1);
+});
+
+test('redo F5: an inaccessible legacy form does not bind the first caller', () => {
+  const env = boot('r6-survey.gs');
+  env.setup();
+  env.props.delete('SETUP_OWNER');
+  const open = env.ctx.FormApp.openById, user = env.ctx.Session.getEffectiveUser;
+  env.ctx.FormApp.openById = () => { throw new Error('no access to legacy form'); };
+  env.ctx.Session.getEffectiveUser = () => ({ getEmail: () => 'two@example.com' });
+  assert.throws(() => env.call('setup'), /no access to legacy form/);
+  assert.equal(env.props.has('SETUP_OWNER'), false);
+  env.ctx.FormApp.openById = open;
+  assert.throws(() => env.call('setup'), /폼 소유 계정/);
+  assert.equal(env.props.has('SETUP_OWNER'), false);
+  env.ctx.Session.getEffectiveUser = user;
+  env.call('setup');
+  assert.equal(env.props.get('SETUP_OWNER'), user().getEmail());
+});
+
+test('redo F5: a Forms open trigger cannot substitute for a submit trigger', () => {
+  const env = boot('r6-survey.gs');
+  env.setup();
+  env.log.triggers.length = 0;
+  const form = env.forms.get(env.props.get('FORM_ID'));
+  env.ctx.ScriptApp.newTrigger('onSurveySubmit').forForm(form).onOpen().create();
+  env.call('setup');
+  assert.deepEqual(env.log.triggers.map((t) => t.getEventType()), ['ON_FORM_SUBMIT']);
+});
+
+for (const kind of ['deleted tab', 'empty report']) test(`fix F7: same open projector clears the last quote on ${kind}`, () => {
+  const env = boot('r6-survey.gs');
+  env.setup();
+  env.call('onSurveySubmit', surveyEvent(env, 4, '사라질 합성 인용', ''));
+  const page = runPage(env, env.call('doGet').html);
+  assert.match(page.el('#qt').textContent, /사라질 합성 인용/);
+  if (kind === 'deleted tab') env.active.sheets.delete('분석');
+  else {
+    env.sheet('분석').rows.splice(1);
+    env.cache.clear();
+  }
+  page.timers.pop()[0](); // fire the outstanding report poll, not the quote rotation
+  assert.deepEqual(page.calls, ['getReport', 'getReport']);
+  assert.equal(page.el('#wait').hidden, false);
+  assert.equal(page.el('#main').hidden, true);
+  assert.equal(page.el('#qt').textContent, '');
+  assert.equal(page.timers.filter((t) => t[1] === 6000).length, 1, 'old rotation timer was cancelled');
+  if (kind === 'deleted tab') env.call('setup');
+  env.call('onSurveySubmit', surveyEvent(env, 3, '새 합성 인용', ''));
+  env.cache.clear();
+  page.timers.pop()[0]();
+  assert.equal(page.el('#main').hidden, false);
+  assert.match(page.el('#qt').textContent, /새 합성 인용/);
+});
+
+test('fix F7: queued animation cannot restore a cleared quote', () => {
+  const env = boot('r6-survey.gs');
+  env.setup();
+  env.call('onSurveySubmit', surveyEvent(env, 4, '지워질 합성 인용', ''));
+  const page = runPage(env, env.call('doGet').html, { animationFrames: true });
+  page.advance(400);
+  page.frames.splice(0).forEach((frame) => frame());
+  assert.notEqual(page.el('#qt').textContent, '', 'animation started on the original page');
+  env.active.sheets.delete('분석');
+  page.timers.pop()[0]();
+  page.advance(4000);
+  page.frames.splice(0).forEach((frame) => frame());
+  assert.equal(page.el('#qt').textContent, '', 'previous quote frames cannot paint after the reset');
+  assert.equal(page.el('#voice').hidden, true);
+});
+
+for (const phase of ['document-id', 'completion']) test(`redo F8: failed ${phase} ledger write is conservative`, () => {
+  const { env, add } = photoFixture();
+  const photo = add(), ledger = env.sheet('처리대장');
+  assert.ok(ledger, 'setup creates the ledger');
+  const original = ledger.appendRow.bind(ledger);
+  let injected = false;
+  ledger.appendRow = (row) => {
+    if (!injected && row[1] === (phase === 'document-id' ? 'doc' : 'done')) {
+      injected = true;
+      throw new Error('injected state write failure');
+    }
+    original(row);
+  };
+  assert.throws(() => env.call('processPhotos'), /injected state write failure/);
+  assert.ok(injected);
+  assert.equal(env.docs.size, 1);
+  const [firstDoc] = env.docs.values();
+  if (phase === 'document-id') add('다음 합성 사진.jpg');
+  env.call('processPhotos');
+  env.call('processPhotos');
+  if (phase === 'document-id') {
+    assert.equal(env.docs.size, 2, 'only the following good photo was processed');
+    assert.deepEqual(env.rows('처리대장').findLast((r) => r[0] === photo.getId()).slice(0, 4), [photo.getId(), '확인 필요', 0, '']);
+    assert.ok(!env.folders.get(env.props.get('NOTES')).files.some((f) => f.docId === firstDoc.id));
+    assert.equal(env.log.mails.length, 1);
+    assert.match(env.rows('기록').find((r) => r[1] === photo.getName())[4], /확인 필요.*새 파일로 복사/);
+    add();
+    env.call('processPhotos');
+    env.call('processPhotos');
+    assert.equal(env.docs.size, 3, 'only the explicit copy makes another document');
+    assert.equal(env.log.mails.length, 2);
+  } else {
+    assert.equal(env.docs.size, 1);
+    assert.deepEqual(env.folders.get(env.props.get('NOTES')).files, [{ docId: firstDoc.id }]);
+    assert.equal(env.rows('기록').filter((r) => r[4] === '완료').length, 1);
+    assert.equal(env.log.mails.length, 1);
+  }
+});
+
+test('redo F8: r5 never adopts or modifies an unrelated same-name Drive document', () => {
+  const { env, add } = photoFixture(), photo = add();
+  const other = env.ctx.DocumentApp.create('칠판 노트 처리 중 ' + photo.getId());
+  other.getBody().appendParagraph('보존할 합성 문서');
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 2);
+  assert.equal(other.getBody().getText(), '보존할 합성 문서');
+  assert.equal(other.name, '칠판 노트 처리 중 ' + photo.getId());
+  assert.notEqual(env.folders.get(env.props.get('NOTES')).files[0].docId, other.id);
+});
+
+test('redo F8: each run reads the hidden ledger once and only updates its shared checkpoint', () => {
+  const { env, add } = photoFixture(), photos = [add(), add(), add()];
+  const sh = env.sheet('처리대장');
+  assert.ok(sh?.isSheetHidden());
+  sh.appendRow(['existing', 'done', 0, 'test-document', new Date()]);
+  const range = sh.getRange.bind(sh);
+  let reads = 0;
+  sh.getRange = (...args) => {
+    const r = range(...args), get = r.getValues.bind(r);
+    r.getValues = () => { if (args[0] === 2 && args[2] >= 1) reads++; return get(); };
+    return r;
+  };
+  const props = [...env.props].filter(([key]) => key !== 'PHOTO_LEDGER');
+  env.call('processPhotos');
+  assert.equal(reads, 1);
+  assert.deepEqual([...env.props].filter(([key]) => key !== 'PHOTO_LEDGER'), props);
+  const completed = env.rows('처리대장').slice(1).filter((r) => r[1] === 'done');
+  assert.deepEqual(completed.map((r) => r[0]), photos.map((f) => f.getId()));
+  assert.ok(completed.every((r) => env.docs.has(r[3]) && r[4] instanceof Date));
+  env.call('processPhotos');
+  assert.equal(reads, 2);
+  assert.equal(env.docs.size, 3);
+});
+
+test('redo F1: a bad photo does not block two good photos and is held after three runs', () => {
+  const { env, add } = photoFixture(), bad = add('손상 합성 사진.jpg');
+  bad.getBlob = () => ({ getContentType: () => 'image/jpeg', getBytes: () => [] });
+  add('정상 합성 사진 1.jpg'); add('정상 합성 사진 2.jpg');
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 2);
+  env.call('processPhotos');
+  env.call('processPhotos');
+  assert.deepEqual(env.rows('처리대장').findLast((r) => r[0] === bad.getId()).slice(1, 3), ['보류', 3]);
+  const before = env.rows('기록').length;
+  env.call('processPhotos');
+  assert.equal(env.rows('기록').length, before);
+  assert.match(env.rows('기록').at(-1)[4], /보류.*새 파일로 복사/);
+});
+
+test('redo F1: global failures stop the batch without using the per-photo attempt limit', () => {
+  const { env, add, advance } = photoFixture(), first = add(), second = add('다음 합성 사진.jpg');
+  env.log.aiFail = 403;
+  env.call('processPhotos');
+  assert.equal(env.log.requests.length, 2, 'one probe after the first global failure');
+  assert.equal(env.docs.size, 0);
+  assert.deepEqual(env.rows('처리대장').map((r) => r.slice(0, 3)), [[first.getId(), 'retry', 0]]);
+  assert.equal(env.rows('기록').length, 2);
+  delete env.log.aiFail;
+  advance(HOUR);
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 2);
+  assert.deepEqual(env.rows('처리대장').filter((r) => r[1] === 'done').map((r) => r.slice(0, 3)), [[first.getId(), 'done', 0], [second.getId(), 'done', 0]]);
+});
+
+function queuedPhotoFailure() {
+  const { env, add, advance } = photoFixture(), bytes = 'synthetic bad image';
+  const bad = add('문제 합성 사진.jpg', bytes), good = [add('정상 합성 사진 1.jpg'), add('정상 합성 사진 2.jpg')];
+  const fetch = env.ctx.UrlFetchApp.fetch, encoded = Buffer.from(bytes).toString('base64');
+  const respond = (status, body) => ({ getResponseCode: () => status, getContentText: () => body });
+  const fault = (status, body) => {
+    env.ctx.UrlFetchApp.fetch = status ? (url, opts) => opts.payload.includes(encoded) ? respond(status, body) : fetch(url, opts) : fetch;
+  };
+  const state = () => env.rows('처리대장').findLast((r) => r[0] === bad.getId())?.slice(1, 3);
+  const completed = () => env.rows('처리대장').filter((r) => r[1] === 'done').map((r) => r[0]);
+  return { env, fault, state, completed, advance, bad, goodIds: good.map((f) => f.getId()) };
+}
+
+test('round3 F1: repeated output truncation does not block the next two photos', () => {
+  const { env, fault, state, completed, goodIds } = queuedPhotoFailure();
+  fault(200, SOLO ? JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '합성 부분 출력' }] } }] }) :
+    'data: {"delta":"합성 부분 출력"}\n\ndata: {"done":true,"truncated":true}\n\n');
+  env.call('processPhotos');
+  assert.deepEqual(completed(), goodIds);
+  assert.deepEqual(state(), ['retry', 1]);
+  for (let i = 0; i < 2; i++) env.call('processPhotos');
+  assert.deepEqual(state(), ['보류', 3]);
+  assert.equal(env.docs.size, 2);
+  for (const status of [400, 413, 422]) {
+    const queue = queuedPhotoFailure();
+    queue.fault(status, JSON.stringify(SOLO ? { error: { message: 'mock input rejected' } } : { error: 'mock input rejected', code: 'bad_request' }));
+    queue.env.call('processPhotos');
+    assert.deepEqual(queue.completed(), queue.goodIds, String(status));
+    assert.deepEqual(queue.state(), ['retry', 1], String(status));
+  }
+});
+
+test('round4 F1: service outage over repeated runs never drops three good photos', () => {
+  const { env, add, advance } = photoFixture(), files = [add(), add(), add()];
+  env.log.aiFail = 503;
+  for (let i = 0; i < 6; i++) {
+    env.call('processPhotos');
+    advance(24 * HOUR);
+  }
+  assert.equal(env.docs.size, 0);
+  delete env.log.aiFail;
+  env.call('processPhotos');
+  assert.deepEqual(env.rows('처리대장').filter((r) => r[1] === 'done').map((r) => r[0]), files.map((f) => f.getId()));
+  assert.equal(env.docs.size, 3);
+  assert.equal(env.log.mails.length, 3);
+  const failed = env.rows('처리대장').filter((r) => r[1] === 'retry');
+  assert.deepEqual(failed.map((r) => (r[5] - r[4].getTime()) / HOUR), [1, 2, 4, 8, 16, 24]);
+  assert.ok(failed.every((r) => r[2] === 0 && r[0] === files[0].getId()), 'only the first failure per run is deferred and no failed attempt is counted');
+  assert.ok(!env.rows('처리대장').some((r) => r[1] === '보류'));
+});
+
+test('round4 F1: a persistent unmarked 503 defers one photo while the next two finish', () => {
+  const { env, fault, state, completed, advance, bad, goodIds } = queuedPhotoFailure();
+  const reply = JSON.stringify(SOLO ? { error: { message: 'mock unavailable' } } : { code: 'upstream', error: 'mock unavailable' });
+  const latest = () => env.rows('처리대장').findLast((r) => r[0] === bad.getId());
+  fault(503, reply);
+  env.call('processPhotos');
+  assert.deepEqual(completed(), goodIds);
+  assert.deepEqual(state(), ['retry', 0]);
+  const first = latest();
+  assert.equal(first[5] - first[4].getTime(), HOUR);
+  advance(HOUR - 1);
+  const before = env.rows('처리대장').length;
+  env.call('processPhotos');
+  assert.equal(env.rows('처리대장').length, before);
+  advance(1);
+  fault(429, reply);
+  env.call('processPhotos');
+  assert.deepEqual(state(), ['retry', 0]);
+  assert.equal(latest()[5] - latest()[4].getTime(), 2 * HOUR);
+  advance(2 * HOUR);
+  fault();
+  env.call('processPhotos');
+  assert.deepEqual(latest().slice(1, 3), ['done', 0]);
+  assert.equal(latest()[5], 0);
+});
+
+test('server: round3 F1: marked upstream rejection is file-specific; unmarked SSE error is bounded', () => {
+  const { env, fault, state, completed, goodIds } = queuedPhotoFailure();
+  fault(503, JSON.stringify({ code: 'upstream', error: 'AI ONE 서버가 요청을 처리하지 못했습니다. 내용을 조금 바꿔 다시 시도해 주세요.' }));
+  env.call('processPhotos');
+  assert.deepEqual(completed(), goodIds);
+  assert.deepEqual(state(), ['retry', 1]);
+  const cut = queuedPhotoFailure();
+  cut.fault(200, 'data: {"error":"합성 스트림 오류"}\n\n');
+  cut.env.call('processPhotos');
+  assert.deepEqual(cut.state(), ['retry', 0]);
+  assert.deepEqual(cut.completed(), cut.goodIds);
+  const disabled = queuedPhotoFailure();
+  disabled.fault(503, JSON.stringify({ code: 'disabled', error: 'AI 기능이 지금 꺼져 있습니다. 강사에게 문의해 주세요.' }));
+  disabled.env.call('processPhotos');
+  assert.deepEqual(disabled.state(), ['retry', 0]);
+  assert.deepEqual(disabled.completed(), disabled.goodIds);
+});
+
+for (const loss of ['deleted', 'renamed', 'replaced']) test(`round3 F8: ${loss} ledger blocks processing until teacher resets`, () => {
+  const { env, add } = photoFixture(), old = add();
+  env.call('processPhotos');
+  const pending = add('아직 처리하지 않은 합성 사진.jpg');
+  const sheet = env.sheet('처리대장'), oldGid = sheet.getSheetId();
+  if (loss === 'renamed') sheet.setName('처리대장 백업');
+  else env.active.sheets.delete('처리대장');
+  if (loss === 'replaced') env.active.insertSheet('처리대장').appendRow(sheet.rows[0]);
+  env.log.triggers.length = 0;
+  const counts = () => [env.docs.size, env.log.mails.length, env.log.requests.length, env.log.triggers.length];
+  const before = counts();
+  env.call('setup');
+  env.call('autoOn');
+  env.call('processPhotos');
+  assert.deepEqual(counts(), before);
+  assert.match(env.log.alerts.at(-1), /버전 기록.*처리대장 새로 시작/);
+  assert.match(env.log.logged.at(-1), /버전 기록.*처리대장 새로 시작/);
+  assert.ok(env.log.menus[0].items.some(([label]) => label === '처리대장 새로 시작'));
+  env.call('resetPhotoLedger');
+  env.call('processPhotos');
+  assert.deepEqual(counts(), before, 'reset does not enable automation or send any existing photo to AI');
+  assert.notEqual(env.sheet('처리대장').getSheetId(), oldGid);
+  assert.equal(env.props.get('PHOTO_LEDGER'), `${env.active.getId()}:${env.sheet('처리대장').getSheetId()}:2`);
+  assert.deepEqual(env.rows('처리대장').map((r) => r.slice(0, 2)), [[old.getId(), '건너뜀'], [pending.getId(), '건너뜀']]);
+  const next = add('새 합성 사진.jpg');
+  env.call('processPhotos');
+  assert.deepEqual(env.rows('처리대장').filter((r) => r[1] === 'done').map((r) => r[0]), [next.getId()]);
+  assert.equal(env.docs.size, before[0] + 1);
+  assert.equal(env.log.mails.length, before[1] + 1);
+});
+
+test('round4 F8: same-gid ledger rollback is blocked until explicit restart', () => {
+  const { env, add } = photoFixture();
+  add('이전에 완료된 합성 사진.jpg');
+  env.call('processPhotos');
+  add('새 재시작 전 합성 사진.jpg');
+  const ledger = env.sheet('처리대장'), gid = ledger.getSheetId();
+  ledger.rows.splice(1); // Same gid and exactly the same header; only the latest transitions disappeared.
+  env.log.triggers.length = 0;
+  const counts = () => [env.docs.size, env.log.mails.length, env.log.requests.length, env.log.triggers.length];
+  const before = counts();
+  env.call('setup');
+  env.call('autoOn');
+  env.call('processPhotos');
+  assert.equal(env.sheet('처리대장').getSheetId(), gid);
+  assert.deepEqual(counts(), before);
+  assert.match(env.log.alerts.at(-1), /버전 기록.*처리대장 새로 시작/);
+  assert.match(env.log.logged.at(-1), /버전 기록.*처리대장 새로 시작/);
+  env.call('resetPhotoLedger');
+  assert.equal(env.sheet('처리대장 백업 1').getSheetId(), gid);
+  assert.deepEqual(env.rows('처리대장').map((r) => [r[1], r[6]]), [['건너뜀', 1], ['건너뜀', 2]]);
+  env.call('processPhotos');
+  assert.deepEqual(counts(), before);
+  const fresh = add('재시작 후 합성 사진.jpg');
+  env.call('processPhotos');
+  const completed = env.rows('처리대장').at(-1);
+  assert.deepEqual([completed[0], completed[1], completed[6]], [fresh.getId(), 'done', 5]);
+  assert.equal(env.props.get('PHOTO_LEDGER'), `${env.active.getId()}:${env.sheet('처리대장').getSheetId()}:5`);
+  assert.equal(env.docs.size, before[0] + 1);
+  assert.equal(env.log.mails.length, before[1] + 1);
+});
+
+test('round4 F8: a flushed transition is checkpointed on the next run after a property write error', () => {
+  const { env, add } = photoFixture();
+  add();
+  const props = env.ctx.PropertiesService.getScriptProperties();
+  let fail = true, flushed = false;
+  env.ctx.SpreadsheetApp.flush = () => { flushed = true; };
+  env.ctx.PropertiesService.getScriptProperties = () => ({ ...props, setProperty(key, value) {
+    if (key === 'PHOTO_LEDGER' && value.endsWith(':3')) {
+      assert.equal(flushed, true);
+      if (fail) { fail = false; throw new Error('checkpoint write failed'); }
+    }
+    props.setProperty(key, value);
+    flushed = false;
+  } });
+  assert.throws(() => env.call('processPhotos'), /checkpoint write failed/);
+  const done = env.rows('처리대장').at(-1);
+  assert.deepEqual([done[1], done[6]], ['done', 3]);
+  assert.match(env.props.get('PHOTO_LEDGER'), /:2$/);
+  env.call('processPhotos');
+  assert.match(env.props.get('PHOTO_LEDGER'), /:3$/);
+  assert.equal(env.docs.size, 1);
+  assert.equal(env.log.mails.length, 0);
+});
+
+test('fix F8: large legacy DONE remains read-only and a separate copy runs exactly once', () => {
+  const { env, add } = photoFixture(), original = add();
+  const ids = Array.from({ length: 263 }, (_, i) => String(i).padStart(32, 'x'));
+  ids.push(original.getId());
+  const legacy = JSON.stringify(ids);
+  assert.ok(Buffer.byteLength(legacy) < 9 * 1024);
+  env.props.set('DONE', legacy);
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 0);
+  assert.equal(env.log.mails.length, 0);
+  add(); // a Drive copy of the old photo is a new file ID
+  env.call('processPhotos');
+  env.call('processPhotos');
+  assert.equal(env.docs.size, 1);
+  assert.equal(env.log.mails.length, 1);
+  assert.equal(env.props.get('DONE'), legacy);
+});
+
+function letterForDelivery() {
+  const env = boot('r4-future.gs');
+  env.setup();
+  env.props.set('WEB_URL', recipeUrl);
+  assert.equal(env.call('saveLetter', { email: env.ctx.Session.getEffectiveUser().getEmail(), goals: '배달 시험용 합성 목표입니다.', date: env.call('today_') }).ok, true);
+  return env;
+}
+
+test('round3 F4: the anonymous global reflection quota blocks before any sheet lookup', () => {
+  const env = letterForDelivery(), open = env.ctx.SpreadsheetApp.openById, find = env.ctx.findRow_;
+  let sheets = 0, scans = 0;
+  env.ctx.SpreadsheetApp.openById = (id) => { sheets++; return open(id); };
+  env.ctx.findRow_ = (...args) => { scans++; return find(...args); };
+  const submit = (id) => env.call('submitReflection', id, '시트 조회 한도 확인용 합성 회고입니다.');
+  const repeated = 'quota-repeat';
+  for (let i = 0; i < 5; i++) assert.match(submit(repeated).msg, /편지를 찾지 못/);
+  assert.match(submit(repeated).msg, /잠시 뒤/);
+  for (let i = 0; i < 25; i++) assert.match(submit(`quota${String(i).padStart(7, '0')}`).msg, /편지를 찾지 못/);
+  assert.deepEqual([sheets, scans], [30, 30]);
+  assert.match(submit('quota-overflow').msg, /잠시 뒤/);
+  assert.deepEqual([sheets, scans], [30, 30]);
+});
+
+test('redo F4: reflection rechecks the header and looks up the original letter again after AI', () => {
+  const env = letterForDelivery();
+  const second = env.call('saveLetter', { email: env.ctx.Session.getEffectiveUser().getEmail(), goals: '두 번째 배달 시험용 합성 목표입니다.', date: env.call('today_') });
+  assert.equal(second.ok, true);
+  env.call('deliverLetters');
+  const sh = env.sheet('편지'), [target, other] = env.rows('편지').map((r) => r[1]);
+  const ai = env.ctx.ai_, head = sh.cell(1, 1), reflection = '저장할 합성 회고입니다. 목표를 이루었습니다.';
+  env.ctx.ai_ = () => { sh.getRange(1, 1).setValue('다른 머리글'); [sh.rows[1], sh.rows[2]] = [sh.rows[2], sh.rows[1]]; return '합성 코멘트'; };
+  assert.throws(() => env.call('submitReflection', target, reflection), /백업.*처음 준비/);
+  assert.ok(env.rows('편지').every((r) => r[7] === '배달' && r[8] === ''));
+  sh.getRange(1, 1).setValue(head);
+  env.ctx.ai_ = (...args) => { [sh.rows[1], sh.rows[2]] = [sh.rows[2], sh.rows[1]]; return ai(...args); };
+  assert.equal(env.call('submitReflection', target, reflection).ok, true);
+  assert.equal(env.rows('편지').find((r) => r[1] === target)[8], reflection);
+  assert.equal(env.rows('편지').find((r) => r[1] === other)[8], '');
+});
+
+test('fix F9: demo and clock delivery cannot send the same reservation twice', () => {
+  const env = letterForDelivery(), send = env.ctx.MailApp.sendEmail;
+  let raced = false;
+  env.ctx.MailApp.sendEmail = (...args) => {
+    if (!raced) { raced = true; env.call('deliverLetters'); }
+    send(...args);
+  };
+  env.call('demoDeliverAll');
+  assert.ok(raced);
+  assert.equal(env.log.mails.filter((m) => /보낸 편지/.test(m.subject)).length, 1);
+  assert.equal(env.rows('편지')[0][7], '배달');
+});
+
+test('fix F9: send success with a failed status write is not retried', () => {
+  const env = letterForDelivery(), sheet = env.sheet('편지'), range = sheet.getRange.bind(sheet);
+  sheet.getRange = (...args) => {
+    const r = range(...args), setValue = r.setValue.bind(r);
+    r.setValue = (v) => { if (v === '배달') throw new Error('injected status write failure'); return setValue(v); };
+    return r;
+  };
+  try { env.call('deliverLetters'); } catch (err) { assert.match(err.message, /injected status write failure/); }
+  sheet.getRange = range;
+  env.call('demoDeliverAll');
+  assert.equal(env.log.mails.filter((m) => /보낸 편지/.test(m.subject)).length, 1);
+  assert.equal(env.rows('편지')[0][7], '배달 확인 필요');
+  assert.match(env.log.logged.join('\n'), /발송 성공.*상태 기록 실패/);
+});
+
+test('fix F10: teacher copy states polling, per-mode menus and digest recovery limits', () => {
+  const w = {};
+  new Function('window', buildRecipes())(w);
+  const [r5, r6] = ['r5', 'r6'].map((id) => w.GAS_RECIPES.recipes.find((r) => r.id === id));
+  const text = [r5.short, r5.wow, ...r5.web.after, ...r5.steps].join('\n');
+  assert.doesNotMatch(text, /10분 안에/);
+  assert.match(text, /10분마다 새 사진을 확인합니다/);
+  assert.match(text, /수업 코드 입력/);
+  assert.match(text, /새 파일.*복사/);
+  assert.match(r6.web.after.join('\n'), /설정.*응답 수에 도달하면.*요약/);
+  assert.match(r6.web.after.join('\n'), /삭제.*소급/);
+});
+
+test('redo F10: rendered PDF kit shows the SOLO photo recovery menu', () => {
+  const html = fs.readFileSync(new URL('../kit.html', import.meta.url), 'utf8');
+  const selectors = new Map(), element = () => ({
+    children: [], textContent: '', value: '', checked: false,
+    appendChild(x) { this.children.push(x); return x; },
+    querySelectorAll() { return this.children.flatMap((e) => e.children).filter((e) => e.type === 'checkbox' && e.checked); },
+  });
+  const document = {
+    createElement: element, createTextNode: (textContent) => ({ textContent, children: [] }),
+    querySelector(s) { if (!selectors.has(s)) selectors.set(s, element()); return selectors.get(s); },
+  };
+  const sandbox = { window: {}, document, location: { search: '?r=r5' }, URLSearchParams, localStorage: { getItem: () => null, setItem() {} } };
+  vm.createContext(sandbox);
+  vm.runInContext(buildRecipes(), sandbox);
+  vm.runInContext([...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join(';\n'), sandbox);
+  const texts = (e) => [e.textContent, ...e.children.flatMap(texts)];
+  const instructions = texts(document.querySelector('#doc')).find((s) => s.startsWith('[기록]에 재시도 예정'));
+  assert.match(instructions, /\[AI 키 넣기\]/);
+  assert.doesNotMatch(instructions, /수업 코드 입력/);
 });
 
 test('r3 class screen: PIN-gated, shows aliases and levels, never conversation text', () => {
@@ -425,7 +1353,7 @@ test('r6 report screen: totals and rankings for the big screen, never urgent row
     ai: () => '키워드: 속도',
   });
   env.setup();
-  const sub = (sat, good, want) => env.call('onSurveySubmit', { namedValues: { '오늘 수업 만족도': [String(sat)], '좋았던 점': [good], '아쉬웠던 점이나 바라는 점': [want] } });
+  const sub = (sat, good, want) => env.call('onSurveySubmit', surveyEvent(env, sat, good, want));
   sub(5, '예시가 좋았어요', '조금 빨랐어요');
   sub(4, '실습이 좋았어요', '');
   sub(2, '숨겨질 칭찬', '이 수업에서 괴롭힘을 당했어요');

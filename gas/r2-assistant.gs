@@ -9,8 +9,18 @@ function onOpen() {
     .addItem('매주 월요일 리포트 켜기', 'weeklyOn').addItem('리포트 지금 보내기', 'reportNow').addToUi();
 }
 
+var QUESTION_HEAD = ['시간', '번호', '질문', '분류', '답변가능도', '처리', '답변(교수가 직접 쓰면 학생에게 보임)'];
+
 function setup() {
+  var lock = LockService.getScriptLock(), folderUrl;
+  lock.waitLock(10000);
+  try { folderUrl = setupAssistant_(); SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
+  say_('준비 끝! 강의계획서와 공지 파일을 이 폴더에 넣으세요(구글 문서, PDF, 워드, 한글 hwpx, 파워포인트, 텍스트, 사진):\n' + folderUrl + '\n\n그다음 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매주 월요일 질문 리포트도 켜졌습니다.');
+}
+
+function setupAssistant_() {
   var ss = SpreadsheetApp.getActive(), p = PropertiesService.getScriptProperties();
+  sheet_('질문기록', QUESTION_HEAD, ss);
   p.setProperty('SS_ID', ss.getId());
   var folder = p.getProperty('MATERIAL') ? null : DriveApp.createFolder('수업 조교 자료 (여기에 파일을 넣으세요)');
   if (folder) p.setProperty('MATERIAL', folder.getId());
@@ -27,10 +37,8 @@ function setup() {
   }
   var m = ss.getSheetByName('자료');
   if (!m) { m = ss.insertSheet('자료'); m.getRange('A1').setValue('(선택) 파일이 없을 때: 이 A열에 공지 내용을 한 줄씩 붙여 넣으세요. 폴더의 파일과 함께 읽습니다.'); m.setColumnWidth(1, 700); }
-  sheet_('질문기록', ['시간', '번호', '질문', '분류', '답변가능도', '처리', '답변(교수가 직접 쓰면 학생에게 보임)']);
   weeklyOn_();
-  var folderUrl = DriveApp.getFolderById(p.getProperty('MATERIAL')).getUrl();
-  say_('준비 끝! 강의계획서와 공지 파일을 이 폴더에 넣으세요(구글 문서, PDF, 워드, 한글 hwpx, 파워포인트, 텍스트, 사진):\n' + folderUrl + '\n\n그다음 웹 도구 화면의 다음 단계(배포)를 따라 하세요. 매주 월요일 질문 리포트도 켜졌습니다.');
+  return DriveApp.getFolderById(p.getProperty('MATERIAL')).getUrl();
 }
 
 function showUrls() {
@@ -40,7 +48,7 @@ function showUrls() {
 }
 
 function cfg_() {
-  var v = ss_().getSheetByName('설정').getRange('B1:B4').getValues();
+  var v = requiredSheet_('설정').getRange('B1:B4').getValues();
   return { name: String(v[0][0]) || '수업 조교', open: String(v[2][0]).trim().toUpperCase() === 'O',
     minP: Math.min(0.95, Math.max(0.5, Number(v[3][0]) || 0.8)) };
 }
@@ -187,7 +195,7 @@ function materialInfo() {
 }
 
 function doGet() {
-  if (!isReady_('설정')) return notReady_('24시간 수업 조교');
+  if (!isReady_('설정') || !isReady_('질문기록')) return notReady_('24시간 수업 조교');
   return page_(cfg_().name, ASK_HTML);
 }
 
@@ -201,6 +209,7 @@ function ask(question, sid) {
   if (!c.open) return { ok: false, msg: '지금은 질문을 받지 않습니다.' };
   var q = String(question || '').replace(/\s+/g, ' ').trim().slice(0, 300);
   if (q.length < 4) return { ok: false, msg: '질문을 조금 더 자세히 써 주세요.' };
+  requiredSheet_('질문기록', QUESTION_HEAD);
   sid = String(sid || 'x').slice(0, 40);
   if (!throttle_('s:' + sid, 8, 600) || !throttle_('all', 60, 60)) return { ok: false, msg: '잠시 뒤에 다시 질문해 주세요.' };
   var m = material_();
@@ -221,15 +230,18 @@ function ask(question, sid) {
   var id = Utilities.getUuid().replace(/-/g, '').slice(0, 6).toUpperCase();
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
-  try { row_(sheet_('질문기록'), [new Date(), id, q, a.kind.choice, Math.round(a.answerable.p * 100) / 100, auto ? '자동답변' : '교수님께', auto ? answer : '']); } finally { lock.releaseLock(); }
+  try {
+    row_(requiredSheet_('질문기록', QUESTION_HEAD), [new Date(), id, q, a.kind.choice, Math.round(a.answerable.p * 100) / 100, auto ? '자동답변' : '교수님께', auto ? answer : '']);
+    SpreadsheetApp.flush();
+  } finally { lock.releaseLock(); }
   var kind = { content: '수업 내용', task: '과제·평가', schedule: '일정·행정', personal: '개인 사정', other: '기타' }[a.kind.choice] || '기타', pct = Math.round(a.answerable.p * 100);
   return auto ? { ok: true, auto: true, answer: answer, p: pct, kind: kind } : { ok: true, auto: false, id: id, p: pct, kind: kind };
 }
 
 function checkAnswer(id) {
   id = String(id || '').trim().toUpperCase().slice(0, 6);
+  var sh = requiredSheet_('질문기록', QUESTION_HEAD), n = sh.getLastRow() - 1;
   if (id.length < 6 || !throttle_('c:' + id, 20, 600)) return { found: false };
-  var sh = sheet_('질문기록'), n = sh.getLastRow() - 1;
   var rows = n > 0 ? sh.getRange(2, 2, n, 6).getValues() : [];
   for (var i = rows.length - 1; i >= 0; i--) {
     if (String(rows[i][0]) === id && rows[i][4] === '교수님께') return { found: true, answer: String(rows[i][5] || '') };
@@ -259,7 +271,7 @@ function weeklyReport() {
 }
 
 function weeklyReport_() {
-  var sh = sheet_('질문기록'), n = sh.getLastRow() - 1;
+  var sh = requiredSheet_('질문기록', QUESTION_HEAD), n = sh.getLastRow() - 1;
   var rows = n > 0 ? sh.getRange(2, 1, n, 7).getValues() : [], since = Date.now() - 7 * 86400000, mine = [];
   rows.forEach(function (r) { if (new Date(r[0]).getTime() >= since) mine.push(r); });
   if (!mine.length) return false;
@@ -267,7 +279,8 @@ function weeklyReport_() {
   var open = mine.filter(function (r) { return r[5] === '교수님께' && !r[6]; });
   var top = ai_('첨부한 질문 목록은 지난 7일 동안 학생들이 수업 조교에게 한 질문 ' + mine.length + '개입니다. ' +
     '학생들이 가장 많이 헷갈려 한 것 TOP5를 번호 목록으로 쓰세요. 각 줄은 "한 줄 제목 — 비슷한 질문 수(추정) — 대표 질문 하나" 형식입니다. 마지막에 수업 자료에 보완하면 좋을 내용 세 가지를 쓰세요.', { files: [{ name: '지난주 질문 목록', text: list }] });
-  var body = '지난 7일 질문 ' + mine.length + '개 (자동 답변 ' + (mine.length - open.length) + '개, 교수 확인 필요 ' + open.length + '개)\n\n' + top +
+  var auto = mine.filter(function (r) { return r[5] === '자동답변'; }).length;
+  var body = '지난 7일 질문 ' + mine.length + '개 (자동 답변 ' + auto + '개, 교수 답변 ' + (mine.length - auto - open.length) + '개, 교수 확인 필요 ' + open.length + '개)\n\n' + top +
     (open.length ? '\n\n[아직 답하지 않은 질문]\n' + open.map(function (r) { return r[1] + ': ' + r[2]; }).join('\n') : '');
   mail_(Session.getEffectiveUser().getEmail(), '[수업 조교] 지난주 질문 리포트', body);
   return true;

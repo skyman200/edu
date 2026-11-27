@@ -158,7 +158,7 @@ pre{margin:0;padding:6pt 8pt;border:1px solid var(--line);background:#fafafa;fon
   function who() { var n = nm.value.trim(), o = org.value.trim(); return { n: n, o: o, line: [o, n ? n + ' 교수님' : ''].filter(Boolean).join(' · ') }; }
 
   // 키트는 혼자 쓰는 판(내 Gemini 키) 기준입니다: 강사 서버의 판정 모델 이름(Jev)은 "AI"로 읽습니다.
-  function S(t) { return String(t).replace(/Jev가/g, 'AI가').replace(/JEV 판정/g, 'AI 판정').replace(/Jev/g, 'AI'); }
+  function S(t) { return String(t).replace(/수업 코드 입력/g, 'AI 키 넣기').replace(/Jev가/g, 'AI가').replace(/JEV 판정/g, 'AI 판정').replace(/Jev/g, 'AI'); }
   function add(parent, tag, cls, text) { var e = el(tag, cls, text); parent.appendChild(e); return e; }
   function stories(parent, r) {
     add(parent, 'p', '', '아래 프롬프트는 이 코드가 어떤 요구에서 나왔는지를 단계별로 다시 정리한 것입니다. AI는 같은 프롬프트에도 매번 조금 다른 코드를 만듭니다. 그대로 따라 하면 비슷한 코드가 나오고, 마음에 들지 않으면 같은 방식으로 한 단계씩 고쳐 말하면 됩니다.');
